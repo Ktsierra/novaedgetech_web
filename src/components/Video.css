@@ -34,16 +34,46 @@
 }
 
 .text-box {
+    background-color: rgba(0, 0, 0, 0.5);
+    border-radius: 24px;
+    padding-left: 48px;
+    padding-right: 48px;
     position: absolute;
     text-align: center;
     color: white;
 }
 
+.text-box div {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    width: 10%;
+}
+
+.bubble-left {
+    left: 0;
+    border-radius: 0 48px 48px 0;
+    transform:rotateY(180deg) translate(100%, 0);
+    background-image: linear-gradient(to right, rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0));
+}
+
+.bubble-right {
+    right: 0;
+    border-radius: 48px 0 0 48px;
+    transform:rotateY(180deg) translate(-100%, 0);
+    background-image: linear-gradient(to left, rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.1));
+
+}
+
 .left {
+    border-radius: 0 48px 48px 0;
+    margin-left: 96px;
     left: 0;
 }
 
 .right {
+    border-radius: 48px 0 0 48px;
+    margin-right: 96px;
     right: 0;
 }
 
@@ -53,7 +83,6 @@
 
 .middle {    
     top: 50%;
-    transform: translateY(-50%);
 }
 
 .bottom {
