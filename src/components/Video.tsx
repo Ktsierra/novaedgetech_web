@@ -1,11 +1,14 @@
+import StarryNight from './StarryNight';
 import './Video.css';
 
 const Video = () => {
   return (
     <div className="video-container">
-      <video autoPlay muted loop className="video">
+
+      {/*       <video autoPlay muted loop className="video">
         <source src="https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4" type="video/mp4" />
-      </video>
+      </video> */}
+      <StarryNight />
       <div className="video-overlay"></div>
       <div className="video-content">
         <div className='text-box right top'>
