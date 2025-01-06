@@ -10,6 +10,7 @@
     height: 15%;
     width: 100%;
     z-index: 2;
+    min-width: 1280px;
 }
 
 .header-logo {

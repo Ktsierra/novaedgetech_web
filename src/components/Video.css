@@ -41,6 +41,7 @@
     position: absolute;
     text-align: center;
     color: white;
+    min-width: 480px;
 }
 
 .text-box div {

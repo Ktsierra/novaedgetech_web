@@ -3,7 +3,7 @@
 }
 
 .our-projects,
-.what-we-offer,
+.services,
 .our-apps,
 .our-skills {
     margin: 20px 0;
@@ -14,7 +14,7 @@
 }
 
 .our-projects h2,
-.what-we-offer h2,
+.services h2,
 .our-apps h2,
 .our-skills h2 {
     font-size: 24px;
@@ -23,7 +23,7 @@
 }
 
 .our-projects p,
-.what-we-offer p,
+.services p,
 .our-apps p,
 .our-skills p {
     font-size: 16px;

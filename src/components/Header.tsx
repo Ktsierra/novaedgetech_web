@@ -27,7 +27,7 @@ const Header = () => {
       </div>
       <div className='header-menu'>
         <a href='#our-projects' onClick={handleClick}>Our Projects</a>
-        <a href='#what-we-offer' onClick={handleClick}>What We Offer</a>
+        <a href='#services' onClick={handleClick}>Services</a>
         <a href='#our-apps' onClick={handleClick}>Our Apps</a>
         <a href='#our-skills' onClick={handleClick}>Our Skills</a>
         <a href='#our-team' onClick={handleClick}>Our Team</a>

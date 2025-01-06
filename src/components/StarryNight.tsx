@@ -129,6 +129,7 @@ const StarryNight = ({ starCount = 200, nebulaCount = 5 }: StarryNightProps) => 
     initNebulas();
     animate();
 
+
     // Handle window resize
     window.addEventListener('resize', () => {
       resizeCanvas();
@@ -136,14 +137,20 @@ const StarryNight = ({ starCount = 200, nebulaCount = 5 }: StarryNightProps) => 
       initNebulas();
     });
 
+    // Handle scroll
+    window.addEventListener('scroll', () => {
+      initStars();
+    });
+
     // Cleanup
     return () => {
       window.removeEventListener('resize', resizeCanvas);
+      window.removeEventListener('scroll', initStars);
       window.cancelAnimationFrame(animationFrameId);
     };
   }, [starCount, nebulaCount]);
 
-  return <canvas ref={canvasRef} style={{ position: 'fixed', top: 0, left: 0, zIndex: -1 }} />;
+  return <canvas ref={canvasRef} style={{ position: 'absolute', top: 0, left: 0, zIndex: -1 }} />;
 };
 
 export default StarryNight;

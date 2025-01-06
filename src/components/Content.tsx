@@ -8,8 +8,8 @@ const Content: React.FC = () => {
         <p>Placeholder for the description of our projects.</p>
       </section>
 
-      <section id='what-we-offer' className="what-we-offer">
-        <h2>What We Offer</h2>
+      <section id='services' className="services">
+        <h2>Services</h2>
         <p>Placeholder for the description of what we offer to our clients.</p>
       </section>
 
