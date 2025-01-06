@@ -1,0 +1,31 @@
+.content {
+    padding: 20px;
+}
+
+.our-projects,
+.what-we-offer,
+.our-apps,
+.our-skills {
+    margin: 20px 0;
+    padding: 20px;
+    border: 1px solid #CCC;
+    border-radius: 5px;
+    background-color: #333;
+}
+
+.our-projects h2,
+.what-we-offer h2,
+.our-apps h2,
+.our-skills h2 {
+    font-size: 24px;
+    color: #CCC;
+    margin-bottom: 10px;
+}
+
+.our-projects p,
+.what-we-offer p,
+.our-apps p,
+.our-skills p {
+    font-size: 16px;
+    color: #999;
+}
