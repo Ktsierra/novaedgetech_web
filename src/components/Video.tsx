@@ -1,21 +1,12 @@
 import StarryNight from './StarryNight';
-import Starfield from './Starfield';
 import './Video.css';
 
 const Video = () => {
+
+
   return (
     <div className="video-container">
-
-      {/*       <video autoPlay muted loop className="video">
-        <source src="https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4" type="video/mp4" />
-      </video> */}
-      {/*       <Starfield
-        starCount={1000}
-        starColor={[255, 255, 255]}
-        speedFactor={-0.05}
-        backgroundColor="black"
-      /> */}
-      <StarryNight starCount={500} nebulaCount={0} />
+      <StarryNight starCount={500} nebulaCount={5} speed={0.05} />
       <div className="video-overlay"></div>
       <div className="video-content">
         <div className='text-box right top'>
