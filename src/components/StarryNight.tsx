@@ -16,6 +16,7 @@ interface NebulaProps {
 interface StarProps {
     x: number;
     y: number;
+    z: number
     radius: number;
     alpha: number;
     decreasing: boolean;
@@ -28,10 +29,17 @@ const StarryNight = ({ starCount = 200, nebulaCount = 5 }: StarryNightProps) => 
     const canvas = canvasRef.current;
 
     if (!canvas) {
+      console.error('Could not find canvas element');
       return;
     }
 
     const ctx = canvas.getContext('2d');
+
+    if (!ctx) {
+      console.error('Could not get 2d context from canvas element');
+      return;
+    }
+
     let animationFrameId : number;
 
     // Set canvas size
@@ -41,18 +49,36 @@ const StarryNight = ({ starCount = 200, nebulaCount = 5 }: StarryNightProps) => 
     };
 
     // Create stars
-    let stars : StarProps[];
-
     const initStars = () => {
-      stars = [];
+      const stars : StarProps[] = [];
       for (let i = 0; i < starCount; i++) {
         stars.push({
           x: Math.random() * canvas.width,
           y: Math.random() * canvas.height,
+          z: Math.random() * 1000,
           radius: Math.random() * 1.5 + 0.5,
           alpha: Math.random(),
           decreasing: Math.random() < 0.5
         });
+      }
+      return stars;
+    };
+
+    const stars = initStars();
+
+    const clear = () => {
+      ctx.fillStyle = 'black';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    };
+
+    const moveStars = (distance: number) => {
+      const count = stars.length;
+      for (let i = 0; i < count; i++) {
+        const s = stars[i];
+        s.z -= distance;
+        while (s.z <= 1) {
+          s.z += 1000;
+        }
       }
     };
 
@@ -73,10 +99,6 @@ const StarryNight = ({ starCount = 200, nebulaCount = 5 }: StarryNightProps) => 
 
     // Draw nebula
     const drawNebula = ({ x, y, radius, hue, alpha }: NebulaProps) => {
-      if (!ctx) {
-        return;
-      }
-
       const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
       gradient.addColorStop(0, `hsla(${hue.toString()}, 100%, 60%, ${alpha.toString()})`);
       gradient.addColorStop(1, 'transparent');
@@ -88,9 +110,6 @@ const StarryNight = ({ starCount = 200, nebulaCount = 5 }: StarryNightProps) => 
 
     // Animate stars and nebulas
     const animate = () => {
-      if (!ctx) {
-        return;
-      }
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       // Draw nebulas

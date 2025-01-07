@@ -20,6 +20,7 @@ export default function Starfield(props: Props) {
         let w = window.innerWidth;
         let h = window.innerHeight;
 
+
         const setCanvasExtents = () => {
           canvas.width = w;
           canvas.height = h;
