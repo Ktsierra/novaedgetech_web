@@ -6,9 +6,9 @@ const Video = () => {
 
   return (
     <div className="video-container">
-      <StarryNight starCount={500} nebulaCount={50} speed={0.05} />
-      <div className="video-overlay"></div>
-      <div className="video-content">
+      <StarryNight starCount={250} nebulaCount={5} speed={0.05} />
+      {/*       <div className="video-overlay"></div>
+ */}      <div className="video-content">
         <div className='text-box right top'>
           <div className='bubble-right' />
           <h1>Welcome to NovaEdge Tech</h1>
