@@ -6,7 +6,7 @@ const Video = () => {
 
   return (
     <div className="video-container">
-      <StarryNight starCount={500} nebulaCount={5} speed={0.05} />
+      <StarryNight starCount={500} nebulaCount={50} speed={0.05} />
       <div className="video-overlay"></div>
       <div className="video-content">
         <div className='text-box right top'>
