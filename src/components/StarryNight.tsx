@@ -136,6 +136,8 @@ const StarryNight = ({ starCount = 200, nebulaCount = 5, speed = 0.02 }: StarryN
       ctx.fill();
     };
 
+    console.log(nebulas);
+
     // Animate stars and nebulas
     const animate = (time: number) => {
 
