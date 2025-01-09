@@ -84,7 +84,7 @@ const StarryNight = ({ starCount = 200, nebulaCount = 5, speed = 0.02 }: StarryN
           x: Math.random() * 1600 - 800,
           y: Math.random() * 900 - 450,
           z: Math.random() * 1000,
-          radius: Math.random()  + 1,
+          radius: Math.random() + 1,
           alpha: Math.random(),
           decreasing: Math.random() < 0.5
         });
