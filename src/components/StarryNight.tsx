@@ -84,7 +84,7 @@ const StarryNight = ({ starCount = 200, nebulaCount = 5, speed = 0.02 }: StarryN
           x: Math.random() * 1600 - 800,
           y: Math.random() * 900 - 450,
           z: Math.random() * 1000,
-          radius: Math.random() * 1.5 + 1,
+          radius: Math.random()  + 1,
           alpha: Math.random(),
           decreasing: Math.random() < 0.5
         });
@@ -155,6 +155,7 @@ const StarryNight = ({ starCount = 200, nebulaCount = 5, speed = 0.02 }: StarryN
 
     // Animate stars and nebulas
     const animate = (time: number) => {
+      // Interpolate speedFactor
       speedFactor.current += (targetSpeedFactor.current - speedFactor.current) * 0.05;
 
       if (!prevTime.current) prevTime.current = time;
@@ -195,12 +196,12 @@ const StarryNight = ({ starCount = 200, nebulaCount = 5, speed = 0.02 }: StarryN
         ctx.fill();
 
         if (star.decreasing) {
-          star.alpha -= 0.01;
+          star.alpha -= 0.003;
           if (star.alpha <= 0) {
             star.decreasing = false;
           }
         } else {
-          star.alpha += 0.01;
+          star.alpha += 0.003;
           if (star.alpha >= 1) {
             star.decreasing = true;
           }
