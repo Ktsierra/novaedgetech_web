@@ -3,11 +3,10 @@ import './App.css';
 import Contact from './components/Contact';
 import Content from './components/Content';
 import Footer from './components/Footer';
-import GalaxyScene from './components/GalaxyScene';
+// import GalaxyScene from './components/GalaxyScene';
 import Header from './components/Header';
 import Team from './components/Team';
 import Video from './components/Video';
-import RenderedGalaxy from './components/Galaxy';
 
 function App() {
 
@@ -18,9 +17,8 @@ function App() {
       <Content />
       <Team />
       <Contact />
-      <GalaxyScene />
-      <RenderedGalaxy />
-
+      {/*       <GalaxyScene />
+ */}
 
       {/*       <div style={{ width: '100vw', height: '100vh', zIndex: -1000}}>
         <iframe
