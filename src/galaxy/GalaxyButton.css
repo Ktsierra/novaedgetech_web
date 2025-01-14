@@ -1,0 +1,108 @@
+.galaxy-button {
+    position: absolute;
+    padding: 0 2.5rem;
+    background-color: transparent;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    border: none;
+    transition: all 0.3s ease;
+    z-index: 1;
+    text-align: center;
+    transform: translate(-150%, -50%);
+  }
+
+  
+  .button-title {
+    color: #ffffff;
+    font-weight: 400;
+    position: relative;
+    top:-25px;
+    left: 75%;
+    width: 100%;
+    margin: 0;
+  }
+  
+  .button-title::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: -25%;
+    width: 150%;
+    height: 2px;
+    border-width: 2px;
+    border-radius: 8px;
+    background-color: #ffffff;
+    transition: scale 0.3s ease;
+    animation: defaultNoise 2s linear infinite;
+  }
+  
+  @keyframes defaultNoise {
+    0% {
+      clip-path: path('M0,1 Q10,0 20,1 T40,2 T60,0 T80,1 T100,1');
+    }
+    50% {
+      clip-path: path('M0,0 Q10,1 20,0 T40,1 T60,2 T80,0 T100,0');
+    }
+    100% {
+      clip-path: path('M0,1 Q10,0 20,1 T40,2 T60,0 T80,1 T100,1');
+    }
+  }
+  
+/*   @keyframes hoverNoise {
+    0% {
+      clip-path: path('M0,1 Q10,0 20,4 T40,-2 T60,3 T80,-1 T100,2');
+    }
+    25% {
+      clip-path: path('M0,2 Q10,3 20,-2 T40,4 T60,-2 T80,3 T100,-1');
+    }
+    50% {
+      clip-path: path('M0,0 Q10,-2 20,3 T40,-1 T60,4 T80,-2 T100,3');
+    }
+    75% {
+      clip-path: path('M0,2 Q10,4 20,-1 T40,3 T60,-2 T80,4 T100,-2');
+    }
+    100% {
+      clip-path: path('M0,1 Q10,0 20,4 T40,-2 T60,3 T80,-1 T100,2');
+    }
+  } */
+  
+  .galaxy-button:hover .button-title::after {
+    transform: scale(1.2);
+/*     animation: hoverNoise 1s steps(4) infinite;
+ */  }
+  
+  
+  .diamond-icon {
+    position: relative;
+    left: 100px;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  
+  .diamond-line {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border: 1px solid #ffffff;
+    border-radius: 8px;
+    transition: border-width 0.3s ease;
+  }
+  
+  .diamond-line.hovered {
+    border-width: 2px;
+  }
+  
+  
+  .diamond-line:first-child {
+    transform: rotate(45deg);
+  }
+  
+  .diamond-line:last-child {
+    transform: rotate(-45deg);
+  }
+  

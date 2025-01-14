@@ -1,13 +1,12 @@
 
 import './App.css';
-import Contact from './components/Contact';
-import Content from './components/Content';
-import Footer from './components/Footer';
-import Header from './components/Header';
-import Team from './components/Team';
-import Video from './components/Video';
-// import { Test } from './galaxy/CustomEffect';
+/* import Contact from './unused/Contact';
+import Content from './unused/Content';
+import Footer from './unused/Footer';
+import Team from './unused/Team';
+import Video from './unused/Video'; */
 import GalaxyScene from './galaxy/Scene';
+import Header from './components/Header';
 
 function App() {
 
@@ -15,11 +14,11 @@ function App() {
     <div className="App">
       <Header />
       <GalaxyScene />
-      <Video />
+{/*       <Video />
       <Content />
       <Team />
       <Contact />
-      <Footer />
+      <Footer /> */}
     </div>
   );
 }

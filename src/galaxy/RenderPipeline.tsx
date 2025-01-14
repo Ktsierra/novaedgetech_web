@@ -12,8 +12,6 @@ const RenderPipeline = () => {
   const { gl, scene, camera, size } = useThree();
   const composerRef = useRef<{ base: EffectComposer, bloom: EffectComposer, overlay: EffectComposer }>();
 
-
-
   useEffect(() => {
     const renderScene = new RenderPass(scene, camera);
 
@@ -22,7 +20,6 @@ const RenderPipeline = () => {
       format: THREE.RGBAFormat,
       type: THREE.UnsignedByteType,
     };
-
 
     const bloomPass = new UnrealBloomPass(new THREE.Vector2(size.width, size.height), 1.5, 0.4, 0.85 );
     bloomPass.threshold = BLOOM_PARAMS.bloomThreshold;

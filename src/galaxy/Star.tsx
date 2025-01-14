@@ -5,7 +5,8 @@ import * as THREE from 'three';
 import { BLOOM_LAYER, STAR_MAX, STAR_MIN } from '../constants/render';
 import { starTypes } from '../constants/stars';
 import { clamp } from '../utils/utils';
-import sprite from '../assets/sprite120.png';
+import sprite120 from '../assets/sprite120.png';
+
 
 interface StarProps {
   position: THREE.Vector3
@@ -13,7 +14,8 @@ interface StarProps {
 
 const Star: React.FC<StarProps> = ({ position }) => {
   const spriteRef = useRef<THREE.Sprite>(null);
-  const texture = useLoader(THREE.TextureLoader, sprite);
+  const texture = useLoader(THREE.TextureLoader, sprite120);
+
 
   const { starType, material } = useMemo(() => {
     const generateStarType = () => {
@@ -47,7 +49,12 @@ const Star: React.FC<StarProps> = ({ position }) => {
     }
   });
 
-  return <sprite ref={spriteRef} position={position} material={material} />;
+  return (
+  <sprite 
+  ref={spriteRef} 
+  position={position}
+  material={material} />
+    )
 };
 
 export default Star;
