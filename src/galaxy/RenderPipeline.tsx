@@ -12,18 +12,19 @@ const RenderPipeline = () => {
   const { gl, scene, camera, size } = useThree();
   const composerRef = useRef<{ base: EffectComposer, bloom: EffectComposer, overlay: EffectComposer }>();
 
+
+
   useEffect(() => {
     const renderScene = new RenderPass(scene, camera);
-    renderScene.clearAlpha = 0;
 
     const params = {
       stencilBuffer: false,
       format: THREE.RGBAFormat,
-      type: THREE.UnsignedByteType
+      type: THREE.UnsignedByteType,
     };
 
 
-    const bloomPass = new UnrealBloomPass(new THREE.Vector2(size.width, size.height), 1.5, 0.4, 0.85);
+    const bloomPass = new UnrealBloomPass(new THREE.Vector2(size.width, size.height), 1.5, 0.4, 0.85 );
     bloomPass.threshold = BLOOM_PARAMS.bloomThreshold;
     bloomPass.strength = BLOOM_PARAMS.bloomStrength;
     bloomPass.radius = BLOOM_PARAMS.bloomRadius;
@@ -41,6 +42,7 @@ const RenderPipeline = () => {
 
     const finalPass = new ShaderPass(
       new THREE.ShaderMaterial({
+        transparent: true,
         uniforms: {
           baseTexture: { value: null },
           bloomTexture: { value: bloomComposer.renderTarget2.texture },
@@ -48,7 +50,6 @@ const RenderPipeline = () => {
         },
         vertexShader: CompositionShader.vertex,
         fragmentShader: CompositionShader.fragment,
-        transparent: true
       }),
       'baseTexture'
     );

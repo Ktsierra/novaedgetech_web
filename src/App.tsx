@@ -14,11 +14,11 @@ function App() {
   return (
     <div className="App">
       <Header />
+      <GalaxyScene />
       <Video />
       <Content />
       <Team />
       <Contact />
-      <GalaxyScene />
       <Footer />
     </div>
   );
