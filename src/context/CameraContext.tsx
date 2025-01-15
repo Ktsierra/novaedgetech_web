@@ -1,21 +1,21 @@
-import { createContext, useState } from "react";
+import { createContext, Dispatch, useState } from "react";
 
 
 
 interface CameraContextProps{
-    cameraPosition: number[]
-    setCameraPosition: (newPosition: number[]) => void
+    cameraPosition: number[] | null
+    setCameraPosition: Dispatch<React.SetStateAction<number[] | null>>
 }
 
 
 const CameraContext = createContext<CameraContextProps>({
-    cameraPosition: [0, 500, 500],
-    setCameraPosition: () => {}
+  cameraPosition: null,
+  setCameraPosition: () => null
 });
 
-const CameraProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+const CameraProvider = ({ children } : { children: React.ReactNode }) => {
 
-const [cameraPosition, setCameraPosition] = useState([0, 500, 500]);
+  const [cameraPosition, setCameraPosition] = useState<number[] | null>([0, 500, 500]);
 
   return (
     <CameraContext.Provider value={{ cameraPosition, setCameraPosition }}>
@@ -25,4 +25,3 @@ const [cameraPosition, setCameraPosition] = useState([0, 500, 500]);
 };
 
 export { CameraContext, CameraProvider };
-  

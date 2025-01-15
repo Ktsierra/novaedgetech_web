@@ -4,7 +4,7 @@ const Header = () => {
 
 
 
-  const handleClick = (event: React.MouseEvent<HTMLAnchorElement>) => {
+  /*   const handleClick = (event: React.MouseEvent<HTMLAnchorElement>) => {
     event.preventDefault();
     const href = event.currentTarget.getAttribute('href');
     if (href) {
@@ -14,7 +14,7 @@ const Header = () => {
       }
     }
   };
-
+ */
   return (
 
     <div className='header'>
@@ -23,12 +23,12 @@ const Header = () => {
         <h1>
   NovaEdge Tech
         </h1>
-{/*         <p>
+        {/*         <p>
   Welcome to NovaEdge Tech
         </p> */}
 
       </div>
-{/*       <div className='header-menu'>
+      {/*       <div className='header-menu'>
         <a href='#our-projects' onClick={handleClick}>Our Projects</a>
         <a href='#services' onClick={handleClick}>Services</a>
         <a href='#our-apps' onClick={handleClick}>Our Apps</a>

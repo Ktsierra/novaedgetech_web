@@ -19,9 +19,16 @@
     font-weight: 400;
     position: relative;
     top:-25px;
-    left: 75%;
     width: 100%;
     margin: 0;
+  }
+
+  .left {
+    left: 75%;
+  }
+
+  .right {
+    left: 275%;
   }
   
   .button-title::after {

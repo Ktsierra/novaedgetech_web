@@ -1,25 +1,22 @@
-import React, { useRef, useMemo, useContext } from 'react';
+import React, { useRef, useMemo } from 'react';
 // import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import Star from './Star';
 import Haze from './Haze';
 import { ARMS, ARM_X_DIST, ARM_X_MEAN, ARM_Y_DIST, ARM_Y_MEAN,
-   CORE_X_DIST, CORE_Y_DIST, GALAXY_THICKNESS, HAZE_RATIO, NUM_STARS,
-    OUTER_CORE_X_DIST, OUTER_CORE_Y_DIST, MAX_DISTANCE_FROM_CENTER,
-    MIN_DISTANCE_FROM_CENTER } from '../constants/galaxy';
+  CORE_X_DIST, CORE_Y_DIST, GALAXY_THICKNESS, HAZE_RATIO, NUM_STARS,
+  OUTER_CORE_X_DIST, OUTER_CORE_Y_DIST } from '../constants/galaxy';
 import { gaussianRandom, spiral } from '../utils/utils';
 import { Html } from '@react-three/drei';
 import GalaxyButton from './GalaxyButton';
-import { CameraContext } from '../context/CameraContext';
 
 interface ReferencePoint {
   position: THREE.Vector3;
   title: string;
 }
 
-const Galaxy: React.FC = () => {
+const Galaxy: React.FC< { onClick: ({ x, y, z }: { x: number; y: number, z: number }) => void}> = ({ onClick }) => {
   const groupRef = useRef<THREE.Group>(null);
- const {setCameraPosition} = useContext(CameraContext);
 
   const { stars, haze, referencePoints } = useMemo(() => {
     const generateObjects = (numStars: number, generator: (pos: THREE.Vector3) => { position: THREE.Vector3 }) => {
@@ -48,42 +45,42 @@ const Galaxy: React.FC = () => {
     const referencePoints: ReferencePoint[] = [
       {
         position: new THREE.Vector3(
-          ARM_X_MEAN + gaussianRandom(0, ARM_X_DIST/4),
-          ARM_Y_MEAN + gaussianRandom(0, ARM_Y_DIST/4),
-          gaussianRandom(0, GALAXY_THICKNESS/2)
+          ARM_X_MEAN + gaussianRandom(0, ARM_X_DIST / 4),
+          ARM_Y_MEAN + gaussianRandom(0, ARM_Y_DIST / 4),
+          gaussianRandom(0, GALAXY_THICKNESS / 2)
         ),
         title: "About"
       },
       {
         position: new THREE.Vector3(
-          -ARM_X_MEAN + gaussianRandom(0, ARM_X_DIST/4),
-          ARM_Y_MEAN + gaussianRandom(0, ARM_Y_DIST/4),
-          gaussianRandom(0, GALAXY_THICKNESS/2)
+          -ARM_X_MEAN + gaussianRandom(0, ARM_X_DIST / 4),
+          ARM_Y_MEAN + gaussianRandom(0, ARM_Y_DIST / 4),
+          gaussianRandom(0, GALAXY_THICKNESS / 2)
         ),
         title: "Team"
       },
       {
         position: new THREE.Vector3(
-          ARM_X_MEAN + gaussianRandom(0, ARM_X_DIST/4),
-          -ARM_Y_MEAN + gaussianRandom(0, ARM_Y_DIST/4),
-          gaussianRandom(0, GALAXY_THICKNESS/2)
+          ARM_X_MEAN + gaussianRandom(0, ARM_X_DIST / 4),
+          -ARM_Y_MEAN + gaussianRandom(0, ARM_Y_DIST / 4),
+          gaussianRandom(0, GALAXY_THICKNESS / 2)
         ),
         title: "Projects"
       },
       {
         position: new THREE.Vector3(
-          -ARM_X_MEAN + gaussianRandom(0, ARM_X_DIST/4),
-          -ARM_Y_MEAN + gaussianRandom(0, ARM_Y_DIST/4),
-          gaussianRandom(0, GALAXY_THICKNESS/2)
+          -ARM_X_MEAN + gaussianRandom(0, ARM_X_DIST / 4),
+          -ARM_Y_MEAN + gaussianRandom(0, ARM_Y_DIST / 4),
+          gaussianRandom(0, GALAXY_THICKNESS / 2)
         ),
         title: "Contact"
       }
     ];
 
 
-    
-    const stars = generateObjects(NUM_STARS, (pos) => ({ 
-      position: pos, 
+
+    const stars = generateObjects(NUM_STARS, (pos) => ({
+      position: pos,
       isReference: referencePoints.some(ref => ref.position.equals(pos))
     }));
     const haze = generateObjects(NUM_STARS * HAZE_RATIO, (pos) => ({ position: pos }));
@@ -102,30 +99,33 @@ const Galaxy: React.FC = () => {
     <>
       <group ref={groupRef}>
         {stars.map((star, index) => (
-          <Star 
-            key={`star-${index.toString()}`} 
+          <Star
+            key={`star-${index.toString()}`}
             position={star.position}
           />
         ))}
         {haze.map((hazeItem, index) => (
           <Haze key={`haze-${index.toString()}`} position={hazeItem.position} />
         ))}
-  {referencePoints.map((reference, index) => (
-        <Html
-          key={`button-${index}`}
-          position={reference.position}
-        style={{
-          pointerEvents: 'none',
-          userSelect: 'none',}}
-        zIndexRange={[100, 0]}
-      >
-        <GalaxyButton 
-          title="Team"
-          onClick={() => setCameraPosition([0, 1000, 1000])}
-          styles={{ pointerEvents: 'auto' }}
-        />
-      </Html>
-      ))}
+        {referencePoints.map((reference, index) => (
+          <Html
+            key={`button-${index.toString()}`}
+            position={reference.position}
+            style={{
+              pointerEvents: 'none',
+              userSelect: 'none', }}
+            zIndexRange={[100, 0]}
+          >
+            <GalaxyButton
+              title="Team"
+              side= {reference.position.x > 0 ? 'left' : 'right'}
+              onClick={() => {
+                onClick({ x: 0, y: 1000, z: 1000 });
+              }}
+              styles={{ pointerEvents: 'auto' }}
+            />
+          </Html>
+        ))}
       </group>
     </>
   );

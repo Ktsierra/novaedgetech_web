@@ -1,19 +1,18 @@
 import { useThree, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 function CameraAnimation({ targetPosition }: { targetPosition: number[] }) {
-    const { camera } = useThree();
+  const { camera } = useThree();
 
-    
-/*     useEffect(() => {
+
+  /*     useEffect(() => {
         invalidate();
     }, [camera.position]);
      */
-    useFrame(() => {
-      camera.position.lerp(new THREE.Vector3(...targetPosition), 0.05);
-    });
-  
-    return null;
-  }
+  useFrame(() => {
+    camera.position.lerp(new THREE.Vector3(...targetPosition), 0.05);
+  });
 
-  export default CameraAnimation
-  
+  return null;
+}
+
+export default CameraAnimation;

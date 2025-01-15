@@ -7,7 +7,6 @@ import { starTypes } from '../constants/stars';
 import { clamp } from '../utils/utils';
 import sprite120 from '../assets/sprite120.png';
 
-
 interface StarProps {
   position: THREE.Vector3
 }
@@ -50,11 +49,11 @@ const Star: React.FC<StarProps> = ({ position }) => {
   });
 
   return (
-  <sprite 
-  ref={spriteRef} 
-  position={position}
-  material={material} />
-    )
+    <sprite
+      ref={spriteRef}
+      position={position}
+      material={material} />
+  );
 };
 
 export default Star;
