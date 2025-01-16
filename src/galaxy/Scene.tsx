@@ -5,15 +5,14 @@ import * as THREE from 'three';
 import Galaxy from './Galaxy';
 import RenderPipeline from './RenderPipeline';
 import CameraAnimation from './CameraAnimation';
-import { useState } from 'react';
+import { useContext } from 'react';
+import { CameraContext } from '../context/CameraContext';
 
 function Scene() {
 
-  const [cameraPosition, setCameraPosition] = useState<number[]>([0, 500, 500]);
+  //const [cameraPosition, setCameraPosition] = useState<number[]>([0, 500, 500]);
+  const {cameraPosition} = useContext(CameraContext);
 
-  const handleClick = ({ x, y, z }: { x: number; y: number; z: number; }) => {
-    setCameraPosition([x, y, z]);
-  };
 
   return (
     <div style={{ width: '100vw', height: '100vh', position: 'absolute' }}>
@@ -43,9 +42,9 @@ function Scene() {
       />
       <axesHelper args={[5.0]} />
       */}
-        <Galaxy onClick={handleClick} />
+        <Galaxy />
         <RenderPipeline />
-        <CameraAnimation targetPosition={cameraPosition} />
+        <CameraAnimation targetPosition={cameraPosition ?? [0, 500, 500]} />
       </Canvas>
     </div>
   );

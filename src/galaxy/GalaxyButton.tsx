@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import './GalaxyButton.css';
 
 function GalaxyButton({ title, styles, side, onClick }:{
@@ -7,31 +6,21 @@ function GalaxyButton({ title, styles, side, onClick }:{
     side?: 'left' | 'right';
     onClick: () => void;
 }) {
-  const [isHovered, setIsHovered] = useState(false);
-
-  const handleMouseEnter = () => {
-    setIsHovered(true);
-  };
-
-  const handleMouseLeave = () => {
-    setIsHovered(false);
-  };
-
-
 
 
   return (
     <button
-      className="galaxy-button"
+      className={`galaxy-button ${side ?? ''}`}
       style={styles}
       onClick={onClick}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
     >
-      <h2 className={`button-title ${side ?? ''}`}>{title}</h2>
+      <div className='button-title-container'>
+        <h2 className="button-title">{title}</h2>
+        <h4 className='button-subtitle'>{title}</h4>
+      </div>
       <div className="diamond-icon">
-        <div className={`diamond-line ${isHovered ? 'hovered' : ''}`}></div>
-        <div className={`diamond-line ${isHovered ? 'hovered' : ''}`}></div>
+        <div className="diamond-line"></div>
+        <div className="diamond-line"></div>
       </div>
     </button>
   );
