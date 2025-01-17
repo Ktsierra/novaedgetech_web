@@ -18,7 +18,7 @@ interface ReferencePoint {
 
 const Galaxy: React.FC = () => {
   const groupRef = useRef<THREE.Group>(null);
-  const {starSelected, setStarSelected, setCameraPosition} = useContext(CameraContext);
+  const { starSelected, setStarSelected, setCameraPosition } = useContext(CameraContext);
 
   const { stars, haze, referencePoints } = useMemo(() => {
     const generateObjects = (numStars: number, generator: (pos: THREE.Vector3) => { position: THREE.Vector3 }) => {
@@ -47,7 +47,7 @@ const Galaxy: React.FC = () => {
     const initialReferencePoints: ReferencePoint[] = [
       {
         position: new THREE.Vector3(
-          ARM_X_MEAN + gaussianRandom(0, ARM_X_DIST/ 8),
+          ARM_X_MEAN + gaussianRandom(0, ARM_X_DIST / 8),
           ARM_Y_MEAN + gaussianRandom(0, ARM_Y_DIST / 8),
           gaussianRandom(0, GALAXY_THICKNESS / 2)
         ),
@@ -123,7 +123,7 @@ const Galaxy: React.FC = () => {
   return (
     <>
       <group ref={groupRef} onClick={() => {
-        if(!starSelected) return
+        if (!starSelected) return;
         setStarSelected(false);
         setCameraPosition([0, 500, 500]);
       }}>
@@ -137,30 +137,30 @@ const Galaxy: React.FC = () => {
           <Haze key={`haze-${index.toString()}`} position={hazeItem.position} />
         ))}
         {referencePoints.map((reference, index) => {
-          const side =  reference.position.x > 0 ? 'left' : 'right';
+          const side = reference.position.x > 0 ? 'left' : 'right';
           return (
-          <Html
-            key={`button-${index.toString()}`}
-            position={ side === 'left'
-              ? reference.position
-              : [reference.position.x, reference.position.y, reference.position.z]
-            }
-            style={{
-              pointerEvents: 'none',
-              userSelect: 'none', }}
-            zIndexRange={[100, 0]}
-          >
-            <GalaxyButton
-              title={reference.title}
-              side= {side}
-              onClick={() => {
-                setStarSelected(true);
-                setCameraPosition([reference.position.x, reference.position.y+25, reference.position.z+25]);
-              }}
-              styles={{ pointerEvents: 'auto' }}
-            />
-          </Html>
-        )})}
+            <Html
+              key={`button-${index.toString()}`}
+              position={ side === 'left'
+                ? reference.position
+                : [reference.position.x, reference.position.y, reference.position.z]
+              }
+              style={{
+                pointerEvents: 'none',
+                userSelect: 'none', }}
+              zIndexRange={[100, 0]}
+            >
+              <GalaxyButton
+                title={reference.title}
+                side= {side}
+                onClick={() => {
+                  setStarSelected(true);
+                  setCameraPosition([reference.position.x, reference.position.y + 25, reference.position.z + 25]);
+                }}
+                styles={{ pointerEvents: 'auto' }}
+              />
+            </Html>
+          );})}
       </group>
     </>
   );

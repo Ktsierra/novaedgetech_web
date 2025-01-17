@@ -10,8 +10,8 @@ import { CameraContext } from '../context/CameraContext';
 
 function Scene() {
 
-  //const [cameraPosition, setCameraPosition] = useState<number[]>([0, 500, 500]);
-  const {cameraPosition} = useContext(CameraContext);
+  // const [cameraPosition, setCameraPosition] = useState<number[]>([0, 500, 500]);
+  const { cameraPosition } = useContext(CameraContext);
 
 
   return (
