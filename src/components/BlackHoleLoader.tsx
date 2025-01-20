@@ -1,37 +1,56 @@
-import { useEffect, useMemo, useState } from 'react';
-import useLoading from '../hooks/useLoading';
+import {  useEffect, useState } from 'react';
 import './BlackHoleLoader.css';
+import { interpolateColor } from '../utils/colorTransition';
+import useLoading from '../hooks/useLoading';
 
 const BlackHoleLoader = () => {
-  const [percentage, setPercentage] = useState(0);
-  const { loading } = useLoading();
-  const color = useMemo(() => `#${Math.floor(Math.random() * 16777215).toString(16)}`, []);
 
+  //const color = useMemo(() => `#${Math.floor(Math.random() * 16777215).toString(16)}`, []);
 
+  const {loading} = useLoading();
+  const [color, setColor] = useState(`#${Math.floor(Math.random() * 16777215).toString(16)}`);
+  const [blurAnimation, setBlurAnimation] = useState(false);
+
+  const animateColorTransition = (startColor: string, endColor: string, duration: number) => {
+    const startTime = performance.now();
+
+    function update() {
+        const currentTime = performance.now();
+        const elapsedTime = currentTime - startTime;
+        const factor = Math.min(elapsedTime / duration, 1); // Clamp the value between 0 and 1
+
+        // Get the interpolated color
+        const interpolatedColor = interpolateColor(startColor, endColor, factor);
+
+        // Update the background color (or any other property)
+        setColor(interpolatedColor);
+
+        if (factor < 1) {
+            requestAnimationFrame(update); // Continue the animation
+        }
+    }
+
+    requestAnimationFrame(update); // Start the animation
+}
+
+useEffect(() => {
+  setTimeout(() => {
+    setBlurAnimation(true);
+  }, 500);
+}, [loading]);
 
   useEffect(() => {
-    console.log(loading);
-    if (!loading) {
-      setPercentage(100);
-      return;
-    }
-    const interval = setInterval(() => {
-      setPercentage(prev => {
-        if (prev === 100) {
-          clearInterval(interval);
-          return 100;
-        }
-        return prev + 1;
-      });
-    }, 5);
-    return () => { clearInterval(interval); };
-  }, [loading]);
+    // Change the color every 3 seconds
+    const intervalId = setInterval(() => {
+      const newColor = `#${Math.floor(Math.random() * 16777215).toString(16)}`;
+      animateColorTransition(color, newColor, 750);
+    }, 750);
+    return () => clearInterval(intervalId);
+  }, [color]);
 
-
-  // red ff6b6b blue 44a8d4
   return (
-    <div className="black-hole-container">
-      <div className="black-hole">
+    <div className={`black-hole-container ${blurAnimation ? 'blur-container' : ''}`}>
+      <div className={`black-hole ${blurAnimation ? 'blur' : ''}`}>
         <svg className="accretion-disk" viewBox="0 0 200 200">
           <defs>
             <linearGradient id="red-comet" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -62,7 +81,6 @@ const BlackHoleLoader = () => {
             strokeLinecap="round"
           />
         </svg>
-        <h1 className='loading-text'>{percentage.toString() + '%'}</h1>
       </div>
     </div>
   );

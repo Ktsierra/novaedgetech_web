@@ -10,6 +10,7 @@
     height: 15%;
     width: 100%;
     z-index: 2;
+    transform: translateY(-125%);
 }
 
 .header-logo {
@@ -49,4 +50,15 @@
     text-decoration: none;
     margin-top: 10%;
     margin-bottom: auto;
+}
+
+.goDown {
+    animation: goDown 3s ease-in-out forwards;
+}
+
+@keyframes goDown {
+    100% {
+        transform: translateY(0);
+    }
+
 }

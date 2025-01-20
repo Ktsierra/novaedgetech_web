@@ -1,16 +1,19 @@
+import { Vector3 } from '@react-three/fiber';
 import './GalaxyButton.css';
 
-function GalaxyButton({ title, styles, side, onClick }:{
+function GalaxyButton({ buttonRef, title, styles, onClick }:{
+    buttonRef: 'left' | 'right';
     title: string;
     styles?: React.CSSProperties;
-    side?: 'left' | 'right';
+    index: number;
+    side: 'left' | 'right' 
+    refPosition: Vector3;
     onClick: () => void;
 }) {
 
-
   return (
     <button
-      className={`galaxy-button ${side ?? ''}`}
+      className={`galaxy-button ${buttonRef ?? ''}`}
       style={styles}
       onClick={onClick}
     >

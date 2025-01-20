@@ -1,9 +1,15 @@
 .black-hole-container {
+    position: absolute;
+    top:50%;
+    left:50%;
+    transform: translate(-50%, -50%);
     display: flex;
     justify-content: center;
     align-items: center;
     height: 100vh;
+    width: 100vw;
     background-color: #000;
+    z-index: 999;
   }
   
   .black-hole {
@@ -26,18 +32,33 @@
     animation: spin 3s linear infinite;
   } 
 
-  .loading-text {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    color: #fff;
-    font-size: 24px;
-    font-weight: bold;
-    text-align: center;
-    text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+  .blur {
+    animation: blur 2s ease-in-out;
   }
-  
+
+  .blur-container {
+    animation: blur-container 2s ease-in-out forwards;
+  }
+
+  @keyframes blur {
+
+    100% {
+      scale: 3;
+      background-image: radial-gradient(closest-side, transparent 80%, rgba(255, 255, 255, 0.5) );
+
+    }
+  }
+
+  @keyframes blur-container {
+
+    100% {
+      background-color: transparent;
+      z-index: -4;
+      opacity: 0;
+      visibility: hidden;
+    }
+  }
+
   @keyframes spin {
     0% {
       transform: rotate(0deg) scale(1);

@@ -11,16 +11,27 @@ import { Html } from '@react-three/drei';
 import GalaxyButton from './GalaxyButton';
 import useCamera from '../hooks/useCamera';
 import useLoading from '../hooks/useLoading';
+import {  useFrame } from '@react-three/fiber';
 
 interface ReferencePoint {
   position: THREE.Vector3;
   title: string;
 }
 
+export interface buttonRefSide {
+  side: 'left' | 'right';
+}
+
 const Galaxy: React.FC = () => {
   const groupRef = useRef<THREE.Group>(null);
   const { starSelected, setStarSelected, setCameraPosition } = useCamera();
   const { setLoading } = useLoading();
+  const buttonRefs = useRef<buttonRefSide[]>([
+    { side: 'left' },
+    { side: 'right' },
+    { side: 'left' },
+    { side: 'right' }
+  ]);
 
   const { stars, haze, referencePoints } = useMemo(() => {
     const generateObjects = (numStars: number, generator: (pos: THREE.Vector3) => { position: THREE.Vector3 }) => {
@@ -53,7 +64,8 @@ const Galaxy: React.FC = () => {
           ARM_Y_MEAN + gaussianRandom(0, ARM_Y_DIST / 8),
           gaussianRandom(0, GALAXY_THICKNESS / 2)
         ),
-        title: "About"
+        title: "About",
+
       },
       {
         position: new THREE.Vector3(
@@ -61,7 +73,7 @@ const Galaxy: React.FC = () => {
           ARM_Y_MEAN + gaussianRandom(0, ARM_Y_DIST / 8),
           gaussianRandom(0, GALAXY_THICKNESS / 2)
         ),
-        title: "Team"
+        title: "Team",
       },
       {
         position: new THREE.Vector3(
@@ -69,7 +81,7 @@ const Galaxy: React.FC = () => {
           -ARM_Y_MEAN + gaussianRandom(0, ARM_Y_DIST / 8),
           gaussianRandom(0, GALAXY_THICKNESS / 2)
         ),
-        title: "Projects"
+        title: "Projects",
       },
       {
         position: new THREE.Vector3(
@@ -77,7 +89,7 @@ const Galaxy: React.FC = () => {
           -ARM_Y_MEAN + gaussianRandom(0, ARM_Y_DIST / 8),
           gaussianRandom(0, GALAXY_THICKNESS / 2)
         ),
-        title: "Contact"
+        title: "Contact",
       }
     ];
 
@@ -112,18 +124,30 @@ const Galaxy: React.FC = () => {
     }));
     const haze = generateObjects(NUM_STARS * HAZE_RATIO, (pos) => ({ position: pos }));
 
-    setTimeout(() => { setLoading(false); }, 7000);
+  setLoading(false)
 
     return { stars, haze, referencePoints };
-  }, [setLoading]);
+  }, []);
 
-  /*   useFrame(({ camera }) => {
+     useFrame((_state, delta) => {
     if (groupRef.current) {
-      //camera.far = 5000000;
-      // Update scales here if needed
-    }
-  }); */
+      groupRef.current.rotation.z += delta * .05;
 
+      const normalizedRotation = groupRef.current.rotation.z % (2 * Math.PI);      
+      const isFlipped = normalizedRotation > Math.PI;
+
+      referencePoints.forEach((reference, index) => {
+        if (buttonRefs.current[index]) {
+          const originalSide = reference.position.x > 0 ? 'left' : 'right';
+          const currentSide = isFlipped ? (originalSide === 'left' ? 'right' : 'left') : originalSide;
+          buttonRefs.current[index].side = currentSide;
+        }
+      });
+
+
+    }
+  });
+ 
   return (
     <>
       <group ref={groupRef} onClick={() => {
@@ -145,18 +169,18 @@ const Galaxy: React.FC = () => {
           return (
             <Html
               key={`button-${index.toString()}`}
-              position={ side === 'left'
-                ? reference.position
-                : [reference.position.x, reference.position.y, reference.position.z]
-              }
+              position={reference.position}
               style={{
                 pointerEvents: 'none',
                 userSelect: 'none', }}
               zIndexRange={[100, 0]}
             >
               <GalaxyButton
+                buttonRef={buttonRefs.current[index].side}
                 title={reference.title}
-                side= {side}
+                index={index}
+                side={side}
+                refPosition={reference.position}
                 onClick={() => {
                   setStarSelected(true);
                   setCameraPosition([reference.position.x, reference.position.y + 25, reference.position.z + 25]);

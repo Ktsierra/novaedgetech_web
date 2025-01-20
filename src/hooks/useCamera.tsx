@@ -4,7 +4,7 @@ import { CameraContext } from "../context/CameraContext";
 const useCamera = () => {
   const context = useContext(CameraContext);
   if (context === undefined) {
-    throw new Error('useLoading must be used within a CameraProvider');
+    throw new Error('useCamera must be used within a CameraProvider');
   }
   return context;
 };
