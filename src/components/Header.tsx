@@ -1,3 +1,4 @@
+import logo from '../assets/logo.svg';
 import './Header.css';
 
 const Header = () => {
@@ -18,7 +19,7 @@ const Header = () => {
   return (
 
     <div className='header'>
-      <img className='header-logo' src='https://placeholder.co/150' alt='NovaEdge Tech' />
+      <img className='header-logo' src={logo} alt='NovaEdge Tech' />
       <div className='header-text'>
         <h1>
   NovaEdge Tech

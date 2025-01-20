@@ -1,0 +1,68 @@
+.black-hole-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    background-color: #000;
+  }
+  
+  .black-hole {
+    width: 150px;
+    height: 150px;
+    background-image: radial-gradient(closest-side, #000 80%, rgba(255, 255, 255, 0.5) );
+    border-radius: 50%;
+    box-shadow: 0 0 20px 25px rgba(255, 255, 255, 0.5);
+    position: relative;
+    border-width: 0px;
+    animation: pulsate 3s ease-in-out infinite;
+  }
+
+   .accretion-disk {
+    position: absolute;
+    top: -50px;
+    left: -50px;
+    right: -50px;
+    bottom: -50px;
+    animation: spin 3s linear infinite;
+  } 
+
+  .loading-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #fff;
+    font-size: 24px;
+    font-weight: bold;
+    text-align: center;
+    text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+  }
+  
+  @keyframes spin {
+    0% {
+      transform: rotate(0deg) scale(1);
+    }
+    50% {
+      transform: rotate(180deg) scale(1.5);
+    }
+    100% {
+      transform: rotate(360deg) scale(1);
+    }
+  }
+
+  @keyframes pulsate {
+    0% {
+      transform: scale(1);
+      opacity: 1;
+    }
+    50% {
+      transform: scale(1.1);
+      box-shadow: 0 0 25px 30px rgba(255, 255, 255, 0.5);
+      opacity: 0.8;
+    }
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+  

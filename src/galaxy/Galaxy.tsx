@@ -1,4 +1,4 @@
-import React, { useRef, useMemo, useContext } from 'react';
+import React, { useRef, useMemo } from 'react';
 // import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import Star from './Star';
@@ -9,7 +9,8 @@ import { ARMS, ARM_X_DIST, ARM_X_MEAN, ARM_Y_DIST, ARM_Y_MEAN,
 import { gaussianRandom, spiral } from '../utils/utils';
 import { Html } from '@react-three/drei';
 import GalaxyButton from './GalaxyButton';
-import { CameraContext } from '../context/CameraContext';
+import useCamera from '../hooks/useCamera';
+import useLoading from '../hooks/useLoading';
 
 interface ReferencePoint {
   position: THREE.Vector3;
@@ -18,7 +19,8 @@ interface ReferencePoint {
 
 const Galaxy: React.FC = () => {
   const groupRef = useRef<THREE.Group>(null);
-  const { starSelected, setStarSelected, setCameraPosition } = useContext(CameraContext);
+  const { starSelected, setStarSelected, setCameraPosition } = useCamera();
+  const { setLoading } = useLoading();
 
   const { stars, haze, referencePoints } = useMemo(() => {
     const generateObjects = (numStars: number, generator: (pos: THREE.Vector3) => { position: THREE.Vector3 }) => {
@@ -110,8 +112,10 @@ const Galaxy: React.FC = () => {
     }));
     const haze = generateObjects(NUM_STARS * HAZE_RATIO, (pos) => ({ position: pos }));
 
+    setTimeout(() => { setLoading(false); }, 7000);
+
     return { stars, haze, referencePoints };
-  }, []);
+  }, [setLoading]);
 
   /*   useFrame(({ camera }) => {
     if (groupRef.current) {

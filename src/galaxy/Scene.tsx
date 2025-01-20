@@ -5,13 +5,12 @@ import * as THREE from 'three';
 import Galaxy from './Galaxy';
 import RenderPipeline from './RenderPipeline';
 import CameraAnimation from './CameraAnimation';
-import { useContext } from 'react';
-import { CameraContext } from '../context/CameraContext';
+import useCamera from '../hooks/useCamera';
 
 function Scene() {
 
   // const [cameraPosition, setCameraPosition] = useState<number[]>([0, 500, 500]);
-  const { cameraPosition } = useContext(CameraContext);
+  const { cameraPosition } = useCamera();
 
 
   return (
@@ -44,7 +43,7 @@ function Scene() {
       */}
         <Galaxy />
         <RenderPipeline />
-        <CameraAnimation targetPosition={cameraPosition ?? [0, 500, 500]} />
+        <CameraAnimation targetPosition={cameraPosition} />
       </Canvas>
     </div>
   );

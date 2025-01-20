@@ -14,10 +14,10 @@
 
 .header-logo {
     border-radius: 50%;
-    width: 150;
+    width: 150px;
     height: 150px;
     margin: 0 auto;
-    display: block;
+    background-color: white;
 }
 
 .header-text {
