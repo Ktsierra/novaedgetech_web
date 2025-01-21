@@ -1,3 +1,4 @@
+/* eslint-disable react/no-unknown-property */
 // GalaxyScene.jsx
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';

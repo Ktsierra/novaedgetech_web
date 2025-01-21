@@ -1,13 +1,13 @@
-import {  useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import './BlackHoleLoader.css';
 import { interpolateColor } from '../utils/colorTransition';
 import useLoading from '../hooks/useLoading';
 
 const BlackHoleLoader = () => {
 
-  //const color = useMemo(() => `#${Math.floor(Math.random() * 16777215).toString(16)}`, []);
+  // const color = useMemo(() => `#${Math.floor(Math.random() * 16777215).toString(16)}`, []);
 
-  const {loading} = useLoading();
+  const { loading } = useLoading();
   const [color, setColor] = useState(`#${Math.floor(Math.random() * 16777215).toString(16)}`);
   const [blurAnimation, setBlurAnimation] = useState(false);
 
@@ -15,29 +15,29 @@ const BlackHoleLoader = () => {
     const startTime = performance.now();
 
     function update() {
-        const currentTime = performance.now();
-        const elapsedTime = currentTime - startTime;
-        const factor = Math.min(elapsedTime / duration, 1); // Clamp the value between 0 and 1
+      const currentTime = performance.now();
+      const elapsedTime = currentTime - startTime;
+      const factor = Math.min(elapsedTime / duration, 1); // Clamp the value between 0 and 1
 
-        // Get the interpolated color
-        const interpolatedColor = interpolateColor(startColor, endColor, factor);
+      // Get the interpolated color
+      const interpolatedColor = interpolateColor(startColor, endColor, factor);
 
-        // Update the background color (or any other property)
-        setColor(interpolatedColor);
+      // Update the background color (or any other property)
+      setColor(interpolatedColor);
 
-        if (factor < 1) {
-            requestAnimationFrame(update); // Continue the animation
-        }
+      if (factor < 1) {
+        requestAnimationFrame(update); // Continue the animation
+      }
     }
 
     requestAnimationFrame(update); // Start the animation
-}
+  };
 
-useEffect(() => {
-  setTimeout(() => {
-    setBlurAnimation(true);
-  }, 500);
-}, [loading]);
+  useEffect(() => {
+    setTimeout(() => {
+      setBlurAnimation(true);
+    }, 500);
+  }, [loading]);
 
   useEffect(() => {
     // Change the color every 3 seconds
@@ -45,7 +45,7 @@ useEffect(() => {
       const newColor = `#${Math.floor(Math.random() * 16777215).toString(16)}`;
       animateColorTransition(color, newColor, 750);
     }, 750);
-    return () => clearInterval(intervalId);
+    return () => { clearInterval(intervalId); };
   }, [color]);
 
   return (

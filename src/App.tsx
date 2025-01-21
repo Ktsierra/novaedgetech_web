@@ -9,11 +9,11 @@ function App() {
 
   return (
     <div className="App">
-       <BlackHoleLoader />
-       <CameraProvider>
+      <BlackHoleLoader />
+      <CameraProvider>
         <Header />
         <GalaxyScene />
-      </CameraProvider>  
+      </CameraProvider>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import React, { useRef, useMemo } from 'react';
+import React, { useRef, useMemo, useState } from 'react';
 // import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import Star from './Star';
@@ -11,7 +11,7 @@ import { Html } from '@react-three/drei';
 import GalaxyButton from './GalaxyButton';
 import useCamera from '../hooks/useCamera';
 import useLoading from '../hooks/useLoading';
-import {  useFrame } from '@react-three/fiber';
+import { useFrame } from '@react-three/fiber';
 
 interface ReferencePoint {
   position: THREE.Vector3;
@@ -22,16 +22,47 @@ export interface buttonRefSide {
   side: 'left' | 'right';
 }
 
+const initialReferencePoints: ReferencePoint[] = [
+  {
+    position: new THREE.Vector3(
+      ARM_X_MEAN + gaussianRandom(0, ARM_X_DIST / 8),
+      ARM_Y_MEAN + gaussianRandom(0, ARM_Y_DIST / 8),
+      gaussianRandom(0, GALAXY_THICKNESS / 2)
+    ),
+    title: "About",
+
+  },
+  {
+    position: new THREE.Vector3(
+      -ARM_X_MEAN + gaussianRandom(0, ARM_X_DIST / 8),
+      ARM_Y_MEAN + gaussianRandom(0, ARM_Y_DIST / 8),
+      gaussianRandom(0, GALAXY_THICKNESS / 2)
+    ),
+    title: "Team",
+  },
+  {
+    position: new THREE.Vector3(
+      ARM_X_MEAN + gaussianRandom(0, ARM_X_DIST / 8),
+      -ARM_Y_MEAN + gaussianRandom(0, ARM_Y_DIST / 8),
+      gaussianRandom(0, GALAXY_THICKNESS / 2)
+    ),
+    title: "Projects",
+  },
+  {
+    position: new THREE.Vector3(
+      -ARM_X_MEAN + gaussianRandom(0, ARM_X_DIST / 8),
+      -ARM_Y_MEAN + gaussianRandom(0, ARM_Y_DIST / 8),
+      gaussianRandom(0, GALAXY_THICKNESS / 2)
+    ),
+    title: "Contact",
+  }
+];
+
 const Galaxy: React.FC = () => {
   const groupRef = useRef<THREE.Group>(null);
+  const [swapSide, setSwapSide] = useState(false);
   const { starSelected, setStarSelected, setCameraPosition } = useCamera();
   const { setLoading } = useLoading();
-  const buttonRefs = useRef<buttonRefSide[]>([
-    { side: 'left' },
-    { side: 'right' },
-    { side: 'left' },
-    { side: 'right' }
-  ]);
 
   const { stars, haze, referencePoints } = useMemo(() => {
     const generateObjects = (numStars: number, generator: (pos: THREE.Vector3) => { position: THREE.Vector3 }) => {
@@ -56,42 +87,6 @@ const Galaxy: React.FC = () => {
 
       return objects;
     };
-
-    const initialReferencePoints: ReferencePoint[] = [
-      {
-        position: new THREE.Vector3(
-          ARM_X_MEAN + gaussianRandom(0, ARM_X_DIST / 8),
-          ARM_Y_MEAN + gaussianRandom(0, ARM_Y_DIST / 8),
-          gaussianRandom(0, GALAXY_THICKNESS / 2)
-        ),
-        title: "About",
-
-      },
-      {
-        position: new THREE.Vector3(
-          -ARM_X_MEAN + gaussianRandom(0, ARM_X_DIST / 8),
-          ARM_Y_MEAN + gaussianRandom(0, ARM_Y_DIST / 8),
-          gaussianRandom(0, GALAXY_THICKNESS / 2)
-        ),
-        title: "Team",
-      },
-      {
-        position: new THREE.Vector3(
-          ARM_X_MEAN + gaussianRandom(0, ARM_X_DIST / 8),
-          -ARM_Y_MEAN + gaussianRandom(0, ARM_Y_DIST / 8),
-          gaussianRandom(0, GALAXY_THICKNESS / 2)
-        ),
-        title: "Projects",
-      },
-      {
-        position: new THREE.Vector3(
-          -ARM_X_MEAN + gaussianRandom(0, ARM_X_DIST / 8),
-          -ARM_Y_MEAN + gaussianRandom(0, ARM_Y_DIST / 8),
-          gaussianRandom(0, GALAXY_THICKNESS / 2)
-        ),
-        title: "Contact",
-      }
-    ];
 
     const allStars = generateObjects(NUM_STARS, (pos) => ({
       position: pos,
@@ -124,30 +119,26 @@ const Galaxy: React.FC = () => {
     }));
     const haze = generateObjects(NUM_STARS * HAZE_RATIO, (pos) => ({ position: pos }));
 
-  setLoading(false)
+    setLoading(false);
 
     return { stars, haze, referencePoints };
-  }, []);
+  }, [setLoading]);
 
-     useFrame((_state, delta) => {
+  useFrame((_state, delta) => {
     if (groupRef.current) {
-      groupRef.current.rotation.z += delta * .05;
-
-      const normalizedRotation = groupRef.current.rotation.z % (2 * Math.PI);      
-      const isFlipped = normalizedRotation > Math.PI;
-
-      referencePoints.forEach((reference, index) => {
-        if (buttonRefs.current[index]) {
-          const originalSide = reference.position.x > 0 ? 'left' : 'right';
-          const currentSide = isFlipped ? (originalSide === 'left' ? 'right' : 'left') : originalSide;
-          buttonRefs.current[index].side = currentSide;
-        }
-      });
+      groupRef.current.rotation.z += delta * 0.65;
 
 
+      const invertSide = groupRef.current.rotation.z % (2 * Math.PI);
+      if (invertSide > Math.PI - 0.05 && invertSide < Math.PI + 0.05) {
+        setSwapSide(true);
+      } else if (invertSide > 2 * Math.PI - 0.05 && invertSide < 2 * Math.PI + 0.05) {
+        setSwapSide(false);
+      }
     }
   });
- 
+
+
   return (
     <>
       <group ref={groupRef} onClick={() => {
@@ -176,11 +167,9 @@ const Galaxy: React.FC = () => {
               zIndexRange={[100, 0]}
             >
               <GalaxyButton
-                buttonRef={buttonRefs.current[index].side}
+                swapSide={swapSide}
                 title={reference.title}
-                index={index}
                 side={side}
-                refPosition={reference.position}
                 onClick={() => {
                   setStarSelected(true);
                   setCameraPosition([reference.position.x, reference.position.y + 25, reference.position.z + 25]);
@@ -188,7 +177,8 @@ const Galaxy: React.FC = () => {
                 styles={{ pointerEvents: 'auto' }}
               />
             </Html>
-          );})}
+          );
+        })}
       </group>
     </>
   );

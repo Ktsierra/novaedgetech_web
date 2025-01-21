@@ -1,3 +1,4 @@
+/* eslint-disable react/no-unknown-property */
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
@@ -8,7 +9,7 @@ function Galaxy() {
   const { scene } = useGLTF('/src/assets/galaxy.glb');
 
   useEffect(() => {
-    if (!scene?.children[0]) return;
+    if (!scene.children[0]) return;
 
     try {
       // Create custom material with enhanced properties
