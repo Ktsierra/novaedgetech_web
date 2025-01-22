@@ -11,7 +11,11 @@ import { Html } from '@react-three/drei';
 import GalaxyButton from './GalaxyButton';
 import useCamera from '../hooks/useCamera';
 import useLoading from '../hooks/useLoading';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useLoader } from '@react-three/fiber';
+import sprite120 from '../assets/sprite120.png';
+import feathered from '../assets/feathered60.png';
+
+
 
 interface ReferencePoint {
   position: THREE.Vector3;
@@ -63,6 +67,9 @@ const Galaxy: React.FC = () => {
   const [swapSide, setSwapSide] = useState(false);
   const { starSelected, setStarSelected, setCameraPosition } = useCamera();
   const { setLoading } = useLoading();
+  const starTexture = useLoader(THREE.TextureLoader, sprite120);
+  const hazeTexture = useLoader(THREE.TextureLoader, feathered);
+
 
   const { stars, haze, referencePoints } = useMemo(() => {
     const generateObjects = (numStars: number, generator: (pos: THREE.Vector3) => { position: THREE.Vector3 }) => {
@@ -150,10 +157,15 @@ const Galaxy: React.FC = () => {
           <Star
             key={`star-${index.toString()}`}
             position={star.position}
+            texture={starTexture}
           />
         ))}
         {haze.map((hazeItem, index) => (
-          <Haze key={`haze-${index.toString()}`} position={hazeItem.position} />
+          <Haze
+            key={`haze-${index.toString()}`}
+            position={hazeItem.position}
+            texture={hazeTexture}
+          />
         ))}
         {referencePoints.map((reference, index) => {
           const side = reference.position.x > 0 ? 'left' : 'right';

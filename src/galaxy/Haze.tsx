@@ -1,18 +1,17 @@
 /* eslint-disable react/no-unknown-property */
 import React, { useRef, useEffect } from 'react';
-import { useFrame, useLoader } from '@react-three/fiber';
+import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { BASE_LAYER, HAZE_MAX, HAZE_MIN, HAZE_OPACITY } from "../constants/render";
 import { clamp } from "../utils/utils";
-import feathered from '../assets/feathered60.png';
 
 interface HazeProps {
   position: THREE.Vector3
+  texture: THREE.Texture
 }
 
-const Haze: React.FC<HazeProps> = ({ position }) => {
+const Haze: React.FC<HazeProps> = ({ position, texture }) => {
   const spriteRef = useRef<THREE.Sprite>(null);
-  const texture = useLoader(THREE.TextureLoader, feathered);
 
   const spriteMaterial = new THREE.SpriteMaterial({
     transparent: true,
@@ -20,7 +19,7 @@ const Haze: React.FC<HazeProps> = ({ position }) => {
     color: 0x0082ff,
     opacity: HAZE_OPACITY,
     depthTest: false,
-    depthWrite: false
+    depthWrite: false,
   });
 
   useEffect(() => {
