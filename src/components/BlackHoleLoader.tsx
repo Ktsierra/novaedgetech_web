@@ -10,6 +10,7 @@ const BlackHoleLoader = () => {
   const { loading } = useLoading();
   const [color, setColor] = useState(`#${Math.floor(Math.random() * 16777215).toString(16)}`);
   const [blurAnimation, setBlurAnimation] = useState(false);
+  const [hidden, setHidden] = useState(false);
 
   const animateColorTransition = (startColor: string, endColor: string, duration: number) => {
     const startTime = performance.now();
@@ -37,6 +38,10 @@ const BlackHoleLoader = () => {
     setTimeout(() => {
       setBlurAnimation(true);
     }, 500);
+
+    setTimeout(() => {
+      setHidden(true);
+    }, 3500);
   }, [loading]);
 
   useEffect(() => {
@@ -49,7 +54,7 @@ const BlackHoleLoader = () => {
   }, [color]);
 
   return (
-    <div className={`black-hole-container ${blurAnimation ? 'blur-container' : ''}`}>
+    <div className={`black-hole-container ${blurAnimation ? 'blur-container' : ''} ${hidden ? 'hidden' : ''}`}>
       <div className={`black-hole ${blurAnimation ? 'blur' : ''}`}>
         <svg className="accretion-disk" viewBox="0 0 200 200">
           <defs>

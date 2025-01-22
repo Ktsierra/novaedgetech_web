@@ -8,7 +8,7 @@
     align-items: center;
     height: 100vh;
     width: 100vw;
-    background-color: #000;
+    background-image: radial-gradient(closest-side, #000, #000 );
     z-index: 999;
   }
   
@@ -40,6 +40,10 @@
     animation: blur-container 2s ease-in-out forwards;
   }
 
+  .hidden {
+    display: none;
+  }
+
   @keyframes blur {
 
     100% {
@@ -51,8 +55,28 @@
 
   @keyframes blur-container {
 
+    20% {
+      background-image: radial-gradient(closest-side, transparent 20%, #000 );
+      opacity: 0.8;
+    }
+
+    40% {
+      background-image: radial-gradient(closest-side, transparent 40%, #000 );
+      opacity: 0.60;
+    }
+
+    60% {
+      background-image: radial-gradient(closest-side, transparent 60%, #000 );
+      opacity: 0.40;
+    }
+
+    80% {
+      background-image: radial-gradient(closest-side, transparent 80%, #000 );
+      opacity: 0.20;
+    }
+
     100% {
-      background-color: transparent;
+      background-image: radial-gradient(closest-side, transparent,transparent );
       z-index: -4;
       opacity: 0;
       visibility: hidden;

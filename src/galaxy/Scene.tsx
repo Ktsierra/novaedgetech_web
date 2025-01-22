@@ -3,20 +3,25 @@ import { Canvas } from '@react-three/fiber';
 // import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import Galaxy from './Galaxy';
+import { PerformanceMonitor } from '@react-three/drei';
 import RenderPipeline from './RenderPipeline';
 import CameraAnimation from './CameraAnimation';
 import useCamera from '../hooks/useCamera';
+import { useState } from 'react';
+import { Stats } from '@react-three/drei';
 
 function Scene() {
 
-  // const [cameraPosition, setCameraPosition] = useState<number[]>([0, 500, 500]);
   const { cameraPosition } = useCamera();
+
+  const [dpr, setDpr] = useState(1.25);
 
 
   return (
     <div style={{ width: '100vw', height: '100vh', position: 'absolute' }}>
       <Canvas
-      // frameloop='demand'
+        dpr={dpr}
+        // frameloop='demand'
         gl={{
           antialias: true,
         }}
@@ -30,8 +35,13 @@ function Scene() {
           gl.toneMappingExposure = 0.5;
         }}
       >
-        <fogExp2 attach="fog" args={[0xEBE2DB, 0.00003]} />
-        {/*       <OrbitControls
+        <PerformanceMonitor
+          onIncline={() => { setDpr(1.5); }}
+          onDecline={() => { setDpr(1); }}
+        >
+          <Stats />
+          <fogExp2 attach="fog" args={[0xEBE2DB, 0.00003]} />
+          {/*       <OrbitControls
         enableDamping
         dampingFactor={0.05}
         screenSpacePanning={false}
@@ -41,9 +51,10 @@ function Scene() {
       />
       <axesHelper args={[5.0]} />
       */}
-        <Galaxy />
-        <RenderPipeline />
-        <CameraAnimation targetPosition={cameraPosition} />
+          <Galaxy />
+          <RenderPipeline />
+          <CameraAnimation targetPosition={cameraPosition} />
+        </PerformanceMonitor>
       </Canvas>
     </div>
   );

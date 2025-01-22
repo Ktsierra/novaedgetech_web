@@ -8,19 +8,12 @@ import { clamp } from "../utils/utils";
 interface HazeProps {
   position: THREE.Vector3
   texture: THREE.Texture
+  material: THREE.SpriteMaterial
 }
 
-const Haze: React.FC<HazeProps> = ({ position, texture }) => {
+const Haze: React.FC<HazeProps> = ({ position, material }) => {
   const spriteRef = useRef<THREE.Sprite>(null);
 
-  const spriteMaterial = new THREE.SpriteMaterial({
-    transparent: true,
-    map: texture,
-    color: 0x0082ff,
-    opacity: HAZE_OPACITY,
-    depthTest: false,
-    depthWrite: false,
-  });
 
   useEffect(() => {
     if (spriteRef.current) {
@@ -37,7 +30,7 @@ const Haze: React.FC<HazeProps> = ({ position, texture }) => {
     }
   });
 
-  return <sprite ref={spriteRef} position={position} material={spriteMaterial} />;
+  return <sprite ref={spriteRef} position={position} material={material} />;
 };
 
 export default Haze;
