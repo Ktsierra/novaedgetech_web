@@ -9,7 +9,7 @@ function CameraAnimation({ targetPosition }: { targetPosition: number[] }) {
     }, [camera.position]);
      */
   useFrame(() => {
-    camera.position.lerp(new THREE.Vector3(...targetPosition), 0.05);
+    camera.position.lerp(new THREE.Vector3(...targetPosition), .02);
   });
 
   return null;

@@ -1,6 +1,6 @@
 /* eslint-disable react/no-unknown-property */
 
-import React, { useRef, useMemo, useState, useEffect } from 'react';
+import React, { useRef, useMemo, useState, useLayoutEffect } from 'react';
 import * as THREE from 'three';
 import { ARMS, ARM_X_DIST, ARM_X_MEAN, ARM_Y_DIST, ARM_Y_MEAN,
   CORE_X_DIST, CORE_Y_DIST, GALAXY_THICKNESS, HAZE_RATIO, NUM_STARS,
@@ -62,6 +62,7 @@ const initialReferencePoints: ReferencePoint[] = [
 const Galaxy: React.FC = () => {
   const groupRef = useRef<THREE.Group>(null);
   const [swapSide, setSwapSide] = useState(false);
+  const [selectedReference, setSelectedReference] = useState<THREE.Vector3 | null>(null);
   const { starSelected, setStarSelected, setCameraPosition } = useCamera();
   const { setLoading } = useLoading();
   const starTexture = useLoader(THREE.TextureLoader, sprite120);
@@ -69,19 +70,17 @@ const Galaxy: React.FC = () => {
 
   const starMeshRef = useRef<THREE.InstancedMesh>(null);
   const starGeometry = useMemo(() => new THREE.PlaneGeometry(1, 1), []);
-  const starMaterial = new THREE.MeshBasicMaterial({
-    map: starTexture,
-    transparent: true,
-    depthWrite: false,
-    vertexColors: true
-  });
-
-
-  const hazeMeshRef = useRef<THREE.InstancedMesh>(null);
+  const starMaterial = useMemo(() => 
+    new THREE.MeshBasicMaterial({
+      map: starTexture,
+      transparent: true,
+      depthWrite: false,
+      depthTest: false,
+    }),
+    [starTexture])
+  
+   const hazeMeshRef = useRef<THREE.InstancedMesh>(null);
   const hazeGeometry = useMemo(() => new THREE.PlaneGeometry(1, 1), []);
-  /*   const hazeMaterial = new THREE.MeshBasicMaterial({
-    color: 0x0082ff,
-  }); */
   const hazeMaterial = new THREE.MeshBasicMaterial({
     map: hazeTexture,
     transparent: true,
@@ -91,7 +90,8 @@ const Galaxy: React.FC = () => {
     blending: THREE.AdditiveBlending,
     side: THREE.DoubleSide
   });
-
+ 
+  const cameraOffset = useMemo(() => new THREE.Vector3(0, 25, 25), []);
 
   const { stars, haze, referencePoints } = useMemo(() => {
     const generateObjects = (numStars: number, generator: (pos: THREE.Vector3) => { position: THREE.Vector3 }) => {
@@ -170,18 +170,15 @@ const Galaxy: React.FC = () => {
     return { stars, haze, referencePoints };
   }, [setLoading]);
 
-
-
   const starColorAttribute = useMemo(() => {
-    const colors = new Float32Array(NUM_STARS * 3); // RGB for each star
+    const colors = new Float32Array(NUM_STARS * 3);
     stars.forEach((star, i) => {
-      const color = new THREE.Color(starTypes.color[star.starType]);
-      colors[i * 3] = color.r;
-      colors[i * 3 + 1] = color.g;
-      colors[i * 3 + 2] = color.b;
-    });
-    return new THREE.BufferAttribute(colors, 3);
+      new THREE.Color(starTypes.color[star.starType])
+        .toArray(colors, i * 3);
+    })
+    return new THREE.InstancedBufferAttribute(colors, 3, false);
   }, [stars]);
+
 
   const hazeColorAttribute = useMemo(() => {
     const colors = new Float32Array(NUM_STARS * 3);
@@ -193,25 +190,30 @@ const Galaxy: React.FC = () => {
   }, []);
 
 
-  //
-  useEffect(() => {
-    // Attach color attribute to star geometry
-    starGeometry.setAttribute('color', starColorAttribute);
 
+  //
+  useLayoutEffect(() => {
+    // Attach color attribute to star geometry
+/*     if (starGeometry) {
+      starGeometry.setAttribute('color', starColorAttribute);
+      starGeometry.attributes.color.needsUpdate = true;
+    } */
     if (starMeshRef.current) {
-      starMeshRef.current.layers.set(BLOOM_LAYER);
+      starMeshRef.current.layers.set(BLOOM_LAYER); // Add this line
+      starMeshRef.current.instanceColor = starColorAttribute;
+      
       const matrix = new THREE.Matrix4();
       stars.forEach((star, i) => {
         matrix.setPosition(star.position.x, star.position.y, star.position.z);
-        matrix.scale(new THREE.Vector3(starTypes.size[starTypes.size[star.starType]], starTypes.size[star.starType], 1));
-        if (starMeshRef.current) {
-          starMeshRef.current.setMatrixAt(i, matrix);
-        }
+        starMeshRef.current?.setMatrixAt(i, matrix);
       });
       starMeshRef.current.instanceMatrix.needsUpdate = true;
+      if (starMeshRef.current.instanceColor) {
+        starMeshRef.current.instanceColor.needsUpdate = true;
+      }
     }
 
-    // Haze
+/*     // Haze
     hazeGeometry.setAttribute('color', hazeColorAttribute);
     if (hazeMeshRef.current) {
       hazeMeshRef.current.layers.set(BASE_LAYER); // Add this line
@@ -233,42 +235,39 @@ const Galaxy: React.FC = () => {
 
       hazeMeshRef.current.instanceMatrix.needsUpdate = true;
       if (hazeMeshRef.current.instanceColor) hazeMeshRef.current.instanceColor.needsUpdate = true;
-    }
-  }, [hazeColorAttribute, starColorAttribute, starGeometry, stars, haze, hazeGeometry]);
-  //
+    } */
 
-  /*   useFrame((_state, delta) => {
-    if (groupRef.current) {
-      groupRef.current.rotation.z += delta * 0.65;
 
-      const invertSide = groupRef.current.rotation.z % (2 * Math.PI);
-      if (invertSide > Math.PI - 0.05 && invertSide < Math.PI + 0.05) {
-        setSwapSide(true);
-      } else if (invertSide > 2 * Math.PI - 0.05 && invertSide < 2 * Math.PI + 0.05) {
-        setSwapSide(false);
-      }
-    }
-  }); */
+  }, [hazeColorAttribute, starGeometry, stars, haze, hazeGeometry]);
 
-  useFrame(({ camera }, delta) => {
+   useFrame(({ camera }, delta) => {
 
     if (!groupRef.current) return;
-    groupRef.current.rotation.z += delta * 0.65;
+    groupRef.current.rotation.z += delta * 0.15;
+
+    if(starSelected && selectedReference) {
+      const worldPosition = selectedReference.clone().applyMatrix4(groupRef.current.matrixWorld);
+      const targetPosition = worldPosition.clone().add(cameraOffset);
+      camera.position.lerp(targetPosition, 0.3);
+      camera.lookAt(worldPosition);
+
+    }
 
     if (!starMeshRef.current) return;
     const matrix = new THREE.Matrix4();
     stars.forEach((star, i) => {
       const dist = star.position.distanceTo(camera.position) / 250;
       const scale = clamp(dist * starTypes.size[star.starType], STAR_MIN, STAR_MAX);
-      matrix.makeScale(scale, scale, 1);
+      matrix.makeScale(scale, scale, scale);
       matrix.setPosition(star.position.x, star.position.y, star.position.z);
       starMeshRef.current?.setMatrixAt(i, matrix);
     });
     starMeshRef.current.instanceMatrix.needsUpdate = true;
 
 
+
     // Haze
-    if (hazeMeshRef.current) {
+/*     if (hazeMeshRef.current) {
       const matrix = new THREE.Matrix4();
       const tempVector = new THREE.Vector3();
       const cameraPosition = new THREE.Vector3();
@@ -307,7 +306,16 @@ const Galaxy: React.FC = () => {
       if (hazeMeshRef.current.instanceColor) {
         hazeMeshRef.current.instanceColor.needsUpdate = true;
       }
+    } */
+
+
+    const invertSide = groupRef.current.rotation.z % (2 * Math.PI);
+    if (invertSide > Math.PI - 0.05 && invertSide < Math.PI + 0.05) {
+      setSwapSide(true);
+    } else if (invertSide > 2 * Math.PI - 0.05 && invertSide < 2 * Math.PI + 0.05) {
+      setSwapSide(false);
     }
+  
   });
 
 
@@ -318,6 +326,7 @@ const Galaxy: React.FC = () => {
         onClick={() => {
           if (!starSelected) return;
           setStarSelected(false);
+          setSelectedReference(null); // Add this
           setCameraPosition([0, 500, 500]);
         }}>
         <instancedMesh
@@ -348,7 +357,7 @@ const Galaxy: React.FC = () => {
           return (
             <Html
               key={`button-${index.toString()}`}
-              position={reference.position}
+              position={reference.position.clone()}
               style={{
                 pointerEvents: 'none',
                 userSelect: 'none', }}
@@ -361,6 +370,7 @@ const Galaxy: React.FC = () => {
                 onClick={() => {
                   setStarSelected(true);
                   setCameraPosition([reference.position.x, reference.position.y + 25, reference.position.z + 25]);
+                  setSelectedReference(reference.position.clone());
                 }}
                 styles={{ pointerEvents: 'auto' }}
               />

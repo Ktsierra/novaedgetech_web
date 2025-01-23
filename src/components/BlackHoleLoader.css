@@ -10,6 +10,7 @@
     width: 100vw;
     background-image: radial-gradient(closest-side, #000, #000 );
     z-index: 999;
+    overflow: hidden;
   }
   
   .black-hole {
