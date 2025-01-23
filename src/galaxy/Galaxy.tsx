@@ -13,7 +13,7 @@ import useLoading from '../hooks/useLoading';
 import { useFrame, useLoader } from '@react-three/fiber';
 import sprite120 from '../assets/sprite120.png';
 import feathered from '../assets/feathered60.png';
-import { BLOOM_LAYER, HAZE_MAX, HAZE_MIN, HAZE_OPACITY, STAR_MAX, STAR_MIN } from '../constants/render';
+import { BASE_LAYER, BLOOM_LAYER, HAZE_MAX, HAZE_MIN, HAZE_OPACITY, STAR_MAX, STAR_MIN } from '../constants/render';
 import { starTypes } from "../constants/stars";
 
 
@@ -78,7 +78,7 @@ const Galaxy: React.FC = () => {
 
 
   const hazeMeshRef = useRef<THREE.InstancedMesh>(null);
-  const hazeGeometry = useMemo(() => new THREE.PlaneGeometry(1, 1), [] ); // Use plane geometry for haze
+  const hazeGeometry = useMemo(() => new THREE.PlaneGeometry(1, 1), []);
   /*   const hazeMaterial = new THREE.MeshBasicMaterial({
     color: 0x0082ff,
   }); */
@@ -87,8 +87,9 @@ const Galaxy: React.FC = () => {
     transparent: true,
     depthTest: false,
     depthWrite: false,
-    vertexColors: true, // Critical for per-instance opacity
+    vertexColors: true, // Keep this for instance colors
     blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide
   });
 
 
@@ -171,7 +172,7 @@ const Galaxy: React.FC = () => {
 
 
 
-  const colorAttribute = useMemo(() => {
+  const starColorAttribute = useMemo(() => {
     const colors = new Float32Array(NUM_STARS * 3); // RGB for each star
     stars.forEach((star, i) => {
       const color = new THREE.Color(starTypes.color[star.starType]);
@@ -182,11 +183,20 @@ const Galaxy: React.FC = () => {
     return new THREE.BufferAttribute(colors, 3);
   }, [stars]);
 
+  const hazeColorAttribute = useMemo(() => {
+    const colors = new Float32Array(NUM_STARS * 3);
+    for (let i = 0; i < NUM_STARS; i++) {
+      colors[i * 3] = 0;
+      colors[i * 3 + 1] = 0.50980392157;
+      colors[i * 3 + 2] = 1; // 0x0082ff
+    } return new THREE.BufferAttribute(colors, 3);
+  }, []);
+
 
   //
   useEffect(() => {
     // Attach color attribute to star geometry
-    starGeometry.setAttribute('color', colorAttribute);
+    starGeometry.setAttribute('color', starColorAttribute);
 
     if (starMeshRef.current) {
       starMeshRef.current.layers.set(BLOOM_LAYER);
@@ -202,7 +212,9 @@ const Galaxy: React.FC = () => {
     }
 
     // Haze
+    hazeGeometry.setAttribute('color', hazeColorAttribute);
     if (hazeMeshRef.current) {
+      hazeMeshRef.current.layers.set(BASE_LAYER); // Add this line
       const matrix = new THREE.Matrix4();
       const color = new THREE.Color(1, 1, 1).multiplyScalar(HAZE_OPACITY);
       haze.forEach((hazeItem, i) => {
@@ -222,7 +234,7 @@ const Galaxy: React.FC = () => {
       hazeMeshRef.current.instanceMatrix.needsUpdate = true;
       if (hazeMeshRef.current.instanceColor) hazeMeshRef.current.instanceColor.needsUpdate = true;
     }
-  }, [colorAttribute, starGeometry, stars, haze, hazeGeometry]);
+  }, [hazeColorAttribute, starColorAttribute, starGeometry, stars, haze, hazeGeometry]);
   //
 
   /*   useFrame((_state, delta) => {
@@ -258,39 +270,43 @@ const Galaxy: React.FC = () => {
     // Haze
     if (hazeMeshRef.current) {
       const matrix = new THREE.Matrix4();
-      const quaternion = new THREE.Quaternion();
-      const position = new THREE.Vector3();
-      const color = new THREE.Color();
+      const tempVector = new THREE.Vector3();
+      const cameraPosition = new THREE.Vector3();
+      camera.getWorldPosition(cameraPosition);
 
       haze.forEach((hazeItem, i) => {
-      // Reset matrix
         matrix.identity();
 
-        // Calculate opacity
-        const dist = hazeItem.position.distanceTo(camera.position) / 250;
-        const hazeOpacity = clamp(HAZE_OPACITY * Math.pow(dist / 2.5, 2), 0, HAZE_OPACITY);
+        // 1. Calculate position offset from camera
+        tempVector.copy(hazeItem.position).sub(cameraPosition).normalize();
 
-        // Set scale
+        // 2. Create rotation matrix
+        matrix.lookAt(
+          hazeItem.position,
+          cameraPosition,
+          camera.up
+        );
+
+        // 3. Apply scale
         const size = HAZE_MIN + Math.random() * (HAZE_MAX - HAZE_MIN);
-        matrix.makeScale(size, size, 1);
+        matrix.scale(new THREE.Vector3(size, size, 1));
 
-        /*         // Billboarding: Rotate to face camera
-        position.setFromMatrixPosition(matrix);
-        matrix.lookAt(position, camera.position, camera.up);
- */
-        // Rotate to face camera
-        camera.getWorldQuaternion(quaternion);
-        matrix.multiply(new THREE.Matrix4().makeRotationFromQuaternion(quaternion));
+        // 4. Set position
+        matrix.setPosition(hazeItem.position.x, hazeItem.position.y, hazeItem.position.z);
 
+        // 5. Update color/opacity
+        const dist = hazeItem.position.distanceTo(cameraPosition) / 250;
+        const opacity = clamp(HAZE_OPACITY * Math.pow(dist / 2.5, 2), 0, HAZE_OPACITY);
+        const color = new THREE.Color(0x0082ff).multiplyScalar(opacity);
 
-        // Update matrix and color (opacity)
         hazeMeshRef.current?.setMatrixAt(i, matrix);
-        color.setRGB(0, 0, 0).multiplyScalar(hazeOpacity);
         hazeMeshRef.current?.setColorAt(i, color);
       });
 
       hazeMeshRef.current.instanceMatrix.needsUpdate = true;
-      if (hazeMeshRef.current.instanceColor) hazeMeshRef.current.instanceColor.needsUpdate = true;
+      if (hazeMeshRef.current.instanceColor) {
+        hazeMeshRef.current.instanceColor.needsUpdate = true;
+      }
     }
   });
 
