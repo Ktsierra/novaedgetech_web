@@ -7,7 +7,7 @@ import { PerformanceMonitor } from '@react-three/drei';
 import RenderPipeline from './RenderPipeline';
 import CameraAnimation from './CameraAnimation';
 import useCamera from '../hooks/useCamera';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Stats } from '@react-three/drei';
 
 function Scene() {
@@ -16,6 +16,7 @@ function Scene() {
 
   const [dpr, setDpr] = useState(1.25);
 
+  const groupRef = useRef<THREE.Group>(null);
 
   return (
     <div style={{ width: '100vw', height: '100vh', position: 'absolute' }}>
@@ -51,9 +52,9 @@ function Scene() {
       />
       <axesHelper args={[5.0]} />
       */}
-          <Galaxy />
+          <Galaxy groupRef={groupRef} />
           <RenderPipeline />
-          <CameraAnimation targetPosition={cameraPosition} />
+          <CameraAnimation targetPosition={cameraPosition} groupRef={groupRef} />
         </PerformanceMonitor>
       </Canvas>
     </div>

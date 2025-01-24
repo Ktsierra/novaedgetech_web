@@ -1,8 +1,8 @@
 import { createContext, Dispatch, SetStateAction, useState } from "react";
 
 interface CameraContextProps{
-    cameraPosition: number[]
-    setCameraPosition: Dispatch<SetStateAction<number[]>>
+    cameraPosition: [number, number, number]
+    setCameraPosition: Dispatch<SetStateAction<[number, number, number]>>
     starSelected: boolean
     setStarSelected: Dispatch<SetStateAction<boolean>>
 }
@@ -11,7 +11,7 @@ const CameraContext = createContext<CameraContextProps | undefined>(undefined);
 
 const CameraProvider = ({ children } : { children: React.ReactNode }) => {
 
-  const [cameraPosition, setCameraPosition] = useState<number[]>([0, 500, 500]);
+  const [cameraPosition, setCameraPosition] = useState<[number, number, number]>([0, 500, 500]);
   const [starSelected, setStarSelected] = useState(false);
 
   return (

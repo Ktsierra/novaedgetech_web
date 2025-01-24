@@ -59,8 +59,7 @@ const initialReferencePoints: ReferencePoint[] = [
   }
 ];
 
-const Galaxy: React.FC = () => {
-  const groupRef = useRef<THREE.Group>(null);
+const Galaxy: React.FC< { groupRef: React.RefObject<THREE.Group> }> = ({ groupRef }) => {
   const [swapSide, setSwapSide] = useState(false);
   const [selectedReference, setSelectedReference] = useState<THREE.Vector3 | null>(null);
   const { starSelected, setStarSelected, setCameraPosition } = useCamera();
@@ -70,16 +69,16 @@ const Galaxy: React.FC = () => {
 
   const starMeshRef = useRef<THREE.InstancedMesh>(null);
   const starGeometry = useMemo(() => new THREE.PlaneGeometry(1, 1), []);
-  const starMaterial = useMemo(() => 
+  const starMaterial = useMemo(() =>
     new THREE.MeshBasicMaterial({
       map: starTexture,
       transparent: true,
       depthWrite: false,
       depthTest: false,
     }),
-    [starTexture])
-  
-   const hazeMeshRef = useRef<THREE.InstancedMesh>(null);
+  [starTexture]);
+
+  const hazeMeshRef = useRef<THREE.InstancedMesh>(null);
   const hazeGeometry = useMemo(() => new THREE.PlaneGeometry(1, 1), []);
   const hazeMaterial = new THREE.MeshBasicMaterial({
     map: hazeTexture,
@@ -90,7 +89,7 @@ const Galaxy: React.FC = () => {
     blending: THREE.AdditiveBlending,
     side: THREE.DoubleSide
   });
- 
+
   const cameraOffset = useMemo(() => new THREE.Vector3(0, 25, 25), []);
 
   const { stars, haze, referencePoints } = useMemo(() => {
@@ -175,7 +174,7 @@ const Galaxy: React.FC = () => {
     stars.forEach((star, i) => {
       new THREE.Color(starTypes.color[star.starType])
         .toArray(colors, i * 3);
-    })
+    });
     return new THREE.InstancedBufferAttribute(colors, 3, false);
   }, [stars]);
 
@@ -194,26 +193,24 @@ const Galaxy: React.FC = () => {
   //
   useLayoutEffect(() => {
     // Attach color attribute to star geometry
-/*     if (starGeometry) {
+    /*     if (starGeometry) {
       starGeometry.setAttribute('color', starColorAttribute);
       starGeometry.attributes.color.needsUpdate = true;
     } */
     if (starMeshRef.current) {
       starMeshRef.current.layers.set(BLOOM_LAYER); // Add this line
       starMeshRef.current.instanceColor = starColorAttribute;
-      
+
       const matrix = new THREE.Matrix4();
       stars.forEach((star, i) => {
         matrix.setPosition(star.position.x, star.position.y, star.position.z);
         starMeshRef.current?.setMatrixAt(i, matrix);
       });
       starMeshRef.current.instanceMatrix.needsUpdate = true;
-      if (starMeshRef.current.instanceColor) {
-        starMeshRef.current.instanceColor.needsUpdate = true;
-      }
+      starMeshRef.current.instanceColor.needsUpdate = true;
     }
 
-/*     // Haze
+    /*     // Haze
     hazeGeometry.setAttribute('color', hazeColorAttribute);
     if (hazeMeshRef.current) {
       hazeMeshRef.current.layers.set(BASE_LAYER); // Add this line
@@ -238,14 +235,14 @@ const Galaxy: React.FC = () => {
     } */
 
 
-  }, [hazeColorAttribute, starGeometry, stars, haze, hazeGeometry]);
+  }, [hazeColorAttribute, starGeometry, stars, haze, hazeGeometry, starColorAttribute]);
 
-   useFrame(({ camera }, delta) => {
+  useFrame(({ camera }, delta) => {
 
     if (!groupRef.current) return;
     groupRef.current.rotation.z += delta * 0.15;
 
-    if(starSelected && selectedReference) {
+    if (starSelected && selectedReference) {
       const worldPosition = selectedReference.clone().applyMatrix4(groupRef.current.matrixWorld);
       const targetPosition = worldPosition.clone().add(cameraOffset);
       camera.position.lerp(targetPosition, 0.3);
@@ -267,7 +264,7 @@ const Galaxy: React.FC = () => {
 
 
     // Haze
-/*     if (hazeMeshRef.current) {
+    /*     if (hazeMeshRef.current) {
       const matrix = new THREE.Matrix4();
       const tempVector = new THREE.Vector3();
       const cameraPosition = new THREE.Vector3();
@@ -315,7 +312,7 @@ const Galaxy: React.FC = () => {
     } else if (invertSide > 2 * Math.PI - 0.05 && invertSide < 2 * Math.PI + 0.05) {
       setSwapSide(false);
     }
-  
+
   });
 
 
@@ -369,8 +366,10 @@ const Galaxy: React.FC = () => {
                 side={side}
                 onClick={() => {
                   setStarSelected(true);
+                  setCameraPosition([...reference.position.toArray()]); // Store local position
+                  /*                   setStarSelected(true);
                   setCameraPosition([reference.position.x, reference.position.y + 25, reference.position.z + 25]);
-                  setSelectedReference(reference.position.clone());
+                  setSelectedReference(reference.position.clone()); */
                 }}
                 styles={{ pointerEvents: 'auto' }}
               />
