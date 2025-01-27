@@ -60,7 +60,8 @@ const initialReferencePoints: ReferencePoint[] = [
 ];
 
 const Galaxy: React.FC< { groupRef: React.RefObject<THREE.Group> }> = ({ groupRef }) => {
-  const [swapSide, setSwapSide] = useState(false);
+  const [buttonSides, setButtonSides] = useState<('left' | 'right')[]>([]);
+
   // const [selectedReference, setSelectedReference] = useState<THREE.Vector3 | null>(null);
   const { starSelected, setStarSelected, setCameraPosition } = useCamera();
   const { setLoading } = useLoading();
@@ -156,9 +157,14 @@ const Galaxy: React.FC< { groupRef: React.RefObject<THREE.Group> }> = ({ groupRe
 
       return {
         ...refPoint,
-        position :nearestStar.position.clone()
+        position :nearestStar.position.clone(),
+        originalAngle: Math.atan2(nearestStar.position.y, nearestStar.position.x)
       };
     });
+
+    setButtonSides(referencePoints.map(ref =>
+      (ref.originalAngle + Math.PI) % (2 * Math.PI) > Math.PI ? 'left' : 'right'
+    ));
 
     const stars = allStars.map(star => ({
       ...star,
@@ -247,7 +253,8 @@ const Galaxy: React.FC< { groupRef: React.RefObject<THREE.Group> }> = ({ groupRe
 
   useFrame(({ camera }, delta) => {
     if (!groupRef.current || !starMeshRef.current) return;
-    groupRef.current.rotation.z += delta * (starSelected ? 0 : 0.65);
+    groupRef.current.rotation.z += delta * (starSelected ? 0 : 0.05);
+    const rotationZ = groupRef.current.rotation.z;
 
     // Stars
     stars.forEach((star, i) => {
@@ -312,12 +319,11 @@ const Galaxy: React.FC< { groupRef: React.RefObject<THREE.Group> }> = ({ groupRe
     } */
 
     // Invert side of galaxy button based on rotation
-    const invertSide = groupRef.current.rotation.z % (2 * Math.PI);
-    if (invertSide > Math.PI - 0.05 && invertSide < Math.PI + 0.05) {
-      setSwapSide(true);
-    } else if (invertSide > 2 * Math.PI - 0.05 && invertSide < 2 * Math.PI + 0.05) {
-      setSwapSide(false);
-    }
+    const newSides = referencePoints.map(ref => {
+      const currentAngle = (ref.originalAngle + rotationZ + Math.PI / 2) % (2 * Math.PI);
+      return currentAngle < Math.PI ? 'left' : 'right';
+    });
+    setButtonSides(prev => JSON.stringify(prev) === JSON.stringify(newSides) ? prev : newSides);
 
   });
 
@@ -355,23 +361,25 @@ const Galaxy: React.FC< { groupRef: React.RefObject<THREE.Group> }> = ({ groupRe
           />
         ))} */}
         {referencePoints.map((reference, index) => {
-          const side = reference.position.x > 0 ? 'left' : 'right';
+          const side = buttonSides[index];
           return (
             <Html
               key={`button-${index.toString()}`}
-              position={reference.position.clone()}
+              position={reference.position}
               style={{
                 pointerEvents: 'none',
                 userSelect: 'none', }}
               zIndexRange={[100, 0]}
             >
               <GalaxyButton
-                swapSide={swapSide}
                 title={reference.title}
                 side={side}
                 onClick={() => {
                   setStarSelected(true);
-                  setCameraPosition([reference.position.x, reference.position.y + 25, reference.position.z + 25]);
+                  setCameraPosition([
+                    reference.position.x,
+                    reference.position.y + 25,
+                    reference.position.z + 25]);
                 }}
                 styles={{ pointerEvents: 'auto' }}
               />

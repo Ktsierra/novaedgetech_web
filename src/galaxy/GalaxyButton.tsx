@@ -1,29 +1,15 @@
-import { useEffect, useState } from 'react';
 import './GalaxyButton.css';
 
-function GalaxyButton({ swapSide, side, title, styles, onClick }:{
-    swapSide?: boolean;
+function GalaxyButton({ side, title, styles, onClick }:{
     title: string;
     styles?: React.CSSProperties;
     side: 'left' | 'right'
     onClick: () => void;
 }) {
 
-  const [instantSide, setInstantSide] = useState(side);
-
-  useEffect(() => {
-    if (swapSide) {
-      setInstantSide(side === 'left' ? 'right' : 'left');
-    } else {
-      setInstantSide(side);
-    }
-
-    console.log('swapSide', swapSide);
-  }, [swapSide, side]);
-
   return (
     <button
-      className={`galaxy-button ${instantSide } `}
+      className={`galaxy-button ${side } `}
       // className={`galaxy-button ${ !swapSide ? side : side === 'left' ? 'right' : 'left' } `}
       style={styles}
       onClick={onClick}

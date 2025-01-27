@@ -12,19 +12,33 @@
     border: none;
     transition: all 0.3s ease;
     border-radius: 8px;
-    animation: fadeIn 5s ease-out;
+    animation: fadeIn 3s ease-out;
+    transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), background 0.5s ease;
+    transform-style: preserve-3d;
+    will-change: transform;
+    backface-visibility: hidden;
   }
 
+
 .left {
-    transform: translate(-80%, -75%);
+  transform: translate(-80%, -75%) perspective(1000px) 
   }
 
 .right {
     flex-direction: row-reverse;
-    transform: translate(-15%, -75%);
-
+    transform: translate(-15%, -75%) perspective(1000px) 
   }
 
+.right .diamond-icon {
+    transform: scaleX(-1);
+}
+
+.button-title-container,
+.diamond-icon,
+.button-title,
+.button-subtitle {
+    transition: inherit;
+}
 
 .button-title-container {
     display: flex;
