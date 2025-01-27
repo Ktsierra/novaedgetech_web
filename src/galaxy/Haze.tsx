@@ -3,7 +3,7 @@ import React, { useRef, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { BASE_LAYER, HAZE_MAX, HAZE_MIN, HAZE_OPACITY } from "../constants/render";
-import { clamp } from "../utils/utils";
+import { clamp } from "../utils/galaxyMath";
 
 interface HazeProps {
   position: THREE.Vector3

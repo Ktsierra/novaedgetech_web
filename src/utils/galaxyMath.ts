@@ -1,5 +1,6 @@
 import { Vector3 } from "three";
 import { ARM_X_DIST, SPIRAL } from "../constants/galaxy";
+import { HAZE_MIN, HAZE_MAX } from "../constants/render";
 
 export function gaussianRandom(mean = 0, stdev = 1) {
   const u = 1 - Math.random();
@@ -18,4 +19,9 @@ export function spiral(x: number, y: number, z: number, offset: number) {
   theta += x > 0 ? Math.atan(y / x) : Math.atan(y / x) + Math.PI;
   theta += (r / ARM_X_DIST) * SPIRAL;
   return new Vector3(r * Math.cos(theta), r * Math.sin(theta), z);
+}
+
+
+export function hazeScale() {
+  return clamp(HAZE_MAX * Math.random(), HAZE_MIN, HAZE_MAX);
 }

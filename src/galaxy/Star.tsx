@@ -5,7 +5,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { BLOOM_LAYER, STAR_MAX, STAR_MIN } from '../constants/render';
 import { starTypes } from '../constants/stars';
-import { clamp } from '../utils/utils';
+import { clamp } from '../utils/galaxyMath';
 
 interface StarProps {
   position: THREE.Vector3
