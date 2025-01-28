@@ -7,7 +7,7 @@ import { PerformanceMonitor } from '@react-three/drei';
 import RenderPipeline from './RenderPipeline';
 import CameraAnimation from './CameraAnimation';
 import useCamera from '../hooks/useCamera';
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { Stats } from '@react-three/drei';
 
 function Scene() {
@@ -15,8 +15,6 @@ function Scene() {
   const { cameraPosition } = useCamera();
 
   const [dpr, setDpr] = useState(1.25);
-
-  const groupRef = useRef<THREE.Group>(null);
 
   return (
     <div style={{ width: '100vw', height: '100vh', position: 'absolute' }}>
@@ -41,9 +39,9 @@ function Scene() {
         >
           <Stats />
           <fogExp2 attach="fog" args={[0xEBE2DB, 0.00003]} />
-          <Galaxy groupRef={groupRef} />
+          <Galaxy/>
           <RenderPipeline />
-          <CameraAnimation targetPosition={cameraPosition} groupRef={groupRef} />
+          <CameraAnimation targetPosition={cameraPosition}/>
         </PerformanceMonitor>
       </Canvas>
     </div>
