@@ -15,9 +15,6 @@ import sprite120 from '../assets/sprite120.png';
 import feathered from '../assets/feathered60.png';
 import { BASE_LAYER, BLOOM_LAYER, HAZE_OPACITY, STAR_MAX, STAR_MIN } from '../constants/render';
 import { starTypes } from "../constants/stars";
-import { useEffect } from "react";
-
-
 
 interface ReferencePoint {
   position: THREE.Vector3;
@@ -61,15 +58,13 @@ const initialReferencePoints: ReferencePoint[] = [
 ];
 
 const Galaxy: React.FC< { groupRef: React.RefObject<THREE.Group> }> = ({ groupRef }) => {
+  
   const [buttonSides, setButtonSides] = useState<('left' | 'right')[]>([]);
-
-  // const [selectedReference, setSelectedReference] = useState<THREE.Vector3 | null>(null);
   const { starSelected, setStarSelected, setCameraPosition } = useCamera();
   const { setLoading } = useLoading();
-  const starTexture = useLoader(THREE.TextureLoader, sprite120);
-  const hazeTexture = useLoader(THREE.TextureLoader, feathered);
 
   // used in useFrame
+  const starTexture = useLoader(THREE.TextureLoader, sprite120);
   const starMatrix = useRef<THREE.Matrix4>(new THREE.Matrix4());
   const starMeshRef = useRef<THREE.InstancedMesh>(null);
   const starGeometry = useMemo(() => new THREE.SphereGeometry(0.5, 8, 8), []);
@@ -84,9 +79,15 @@ const Galaxy: React.FC< { groupRef: React.RefObject<THREE.Group> }> = ({ groupRe
     }),
   [starTexture]);
 
+  const hazeTexture = useLoader(THREE.TextureLoader, feathered);
   const hazeMatrix = useRef<THREE.Matrix4>(new THREE.Matrix4());
   const hazeMeshRef = useRef<THREE.InstancedMesh>(null);
   const hazeGeometry = useMemo(() => new THREE.CircleGeometry(), []);
+  const hazeWaveDir = useRef< { 'out': number, 'static': number, 'in': number }>({
+    'out' : -1,
+    'static' : 0,
+    'in' : 1
+  });
   const hazeMaterial = useMemo(() =>
     new THREE.MeshBasicMaterial({
       map: hazeTexture,
@@ -95,6 +96,8 @@ const Galaxy: React.FC< { groupRef: React.RefObject<THREE.Group> }> = ({ groupRe
       depthWrite: false,
       blending: THREE.NormalBlending,
       side: THREE.DoubleSide,
+      opacity: HAZE_OPACITY,
+      color: 0x0082ff
     }),
   [hazeTexture]);
 
@@ -189,51 +192,30 @@ const Galaxy: React.FC< { groupRef: React.RefObject<THREE.Group> }> = ({ groupRe
     return new THREE.InstancedBufferAttribute(colors, 3, false);
   }, [stars]);
 
-
-  const hazeColorAttribute = useMemo(() => {
-    const colors = new Float32Array(NUM_STARS * HAZE_RATIO * 4); // RGBA
-    haze.forEach((_hazeItem, i) => {
-      const color = new THREE.Color(0, 0.5098, 1); // Blue hue
-      color.toArray(colors, i * 4);
-      colors[i * 4 + 3] = HAZE_OPACITY; // Initial alpha
-    });
-    return new THREE.InstancedBufferAttribute(colors, 4);
-  }, [haze]);
-
-
   useLayoutEffect(() => {
     if (!starMeshRef.current || !hazeMeshRef.current) return;
 
     // Stars
-    starMeshRef.current.layers.set(BLOOM_LAYER);
-    starMeshRef.current.instanceColor = starColorAttribute;
-
     stars.forEach((star, i) => {
       starMatrix.current.setPosition(star.position);
       starMeshRef.current?.setMatrixAt(i, starMatrix.current);
     });
+    starMeshRef.current.layers.set(BLOOM_LAYER);
+    starMeshRef.current.instanceColor = starColorAttribute;
     starMeshRef.current.instanceMatrix.needsUpdate = true;
-    starMeshRef.current.instanceColor.needsUpdate = true;
 
     // Haze
-    hazeMeshRef.current.layers.set(BASE_LAYER);
     haze.forEach((hazeItem, i) => {
-      const scale = hazeScale();
-      hazeMatrix.current.makeScale(scale, scale, scale);
       hazeMatrix.current.setPosition(hazeItem.position);
       hazeMeshRef.current?.setMatrixAt(i, hazeMatrix.current);
     });
-
-    hazeMeshRef.current.instanceColor = hazeColorAttribute;
+    hazeMeshRef.current.layers.set(BASE_LAYER);
     hazeMeshRef.current.instanceMatrix.needsUpdate = true;
 
 
-  }, [hazeColorAttribute, starGeometry, stars, haze, hazeGeometry, starColorAttribute]);
+  }, [ starGeometry, stars, haze, hazeGeometry, starColorAttribute]);
 
-
-
-
-  useFrame(({ camera }, delta) => {
+  useFrame(({ camera, clock }, delta) => {
     if (
       !groupRef.current ||
       !starMeshRef.current ||
@@ -242,10 +224,10 @@ const Galaxy: React.FC< { groupRef: React.RefObject<THREE.Group> }> = ({ groupRe
 
     groupRef.current.rotation.z += delta * (starSelected ? 0 : 0.05);
     const rotationZ = groupRef.current.rotation.z;
+    const time = clock.getElapsedTime();
 
     // Stars
     stars.forEach((star, i) => {
-      // scale
       const dist = star.position.distanceTo(camera.position) / 250;
       const scale = clamp(dist * starTypes.size[star.starType], STAR_MIN, STAR_MAX);
 
@@ -256,22 +238,19 @@ const Galaxy: React.FC< { groupRef: React.RefObject<THREE.Group> }> = ({ groupRe
     });
     starMeshRef.current.instanceMatrix.needsUpdate = true;
 
-
-    const colorArray = hazeColorAttribute.array as Float32Array;
+    //Haze
     haze.forEach((hazeItem, i) => {
-      // scale
-      const scale = hazeScale();
       const dist = hazeItem.position.distanceTo(camera.position) / 250;
       const opacity = clamp(HAZE_OPACITY * Math.pow(dist / 2.5, 2), 0, HAZE_OPACITY);
-      colorArray[i * 4 + 3] = opacity;
+      const distanceFromCenter = new THREE.Vector2(hazeItem.position.x, hazeItem.position.y).length();
+      const scale = hazeScale(time,distanceFromCenter, hazeWaveDir.current.out);
 
-      hazeMatrix.current.makeScale(scale, scale, scale);
+      hazeMaterial.opacity = opacity;
+      hazeMatrix.current.makeScale(scale, scale, scale); 
       hazeMatrix.current.setPosition(hazeItem.position);
       hazeMeshRef.current?.setMatrixAt(i, hazeMatrix.current);
     });
 
-
-    hazeColorAttribute.needsUpdate = true;
     hazeMeshRef.current.instanceMatrix.needsUpdate = true;
 
 
@@ -302,21 +281,6 @@ const Galaxy: React.FC< { groupRef: React.RefObject<THREE.Group> }> = ({ groupRe
           ref={hazeMeshRef}
           args={[hazeGeometry, hazeMaterial, NUM_STARS * HAZE_RATIO]}
         />
-        {/* \\ {stars.map((star, index) => (
-          <Star
-            key={`star-${index.toString()}`}
-            position={star.position}
-            texture={starTexture}
-          />
-        ))} */}
-        {/*         {haze.map((hazeItem, index) => (
-          <Haze
-            key={`haze-${index.toString()}`}
-            position={hazeItem.position}
-            texture={hazeTexture}
-            material={hazeMaterial}
-          />
-        ))} */}
         {referencePoints.map((reference, index) => {
           const side = buttonSides[index];
           return (
@@ -335,8 +299,9 @@ const Galaxy: React.FC< { groupRef: React.RefObject<THREE.Group> }> = ({ groupRe
                   setStarSelected(true);
                   setCameraPosition([
                     reference.position.x,
-                    reference.position.y + 25,
-                    reference.position.z + 25]);
+                    reference.position.y,
+                    reference.position.z
+                  ]);
                 }}
                 styles={{ pointerEvents: 'auto' }}
               />

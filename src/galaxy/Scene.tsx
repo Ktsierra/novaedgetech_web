@@ -22,7 +22,6 @@ function Scene() {
     <div style={{ width: '100vw', height: '100vh', position: 'absolute' }}>
       <Canvas
         dpr={dpr}
-        // frameloop='demand'
         gl={{
           antialias: true,
         }}
@@ -42,16 +41,6 @@ function Scene() {
         >
           <Stats />
           <fogExp2 attach="fog" args={[0xEBE2DB, 0.00003]} />
-          {/*       <OrbitControls
-        enableDamping
-        dampingFactor={0.05}
-        screenSpacePanning={false}
-        minDistance={1}
-        maxDistance={16384}
-        maxPolarAngle={(Math.PI / 2) - (Math.PI / 360)}
-      />
-      <axesHelper args={[5.0]} />
-      */}
           <Galaxy groupRef={groupRef} />
           <RenderPipeline />
           <CameraAnimation targetPosition={cameraPosition} groupRef={groupRef} />
