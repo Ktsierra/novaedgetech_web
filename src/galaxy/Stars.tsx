@@ -13,11 +13,12 @@ import { BLOOM_LAYER, STAR_MAX, STAR_MIN } from "../constants/render";
 import { Html } from "@react-three/drei";
 import GalaxyButton from "./GalaxyButton";
 import useGalaxyRef from "../hooks/useGalaxyRef";
+import { Star, StarNoReference } from "../types/types";
 
 
 const Stars = () => {
   const [buttonSides, setButtonSides] = useState<('left' | 'right')[]>([]);
-  const { setStarSelected, setCameraPosition } = useCamera();
+  const { setStarSelected, setCameraPosition, setStarIndex } = useCamera();
   const { setLoading } = useLoading();
   const { galaxyRef } = useGalaxyRef();
 
@@ -38,7 +39,7 @@ const Stars = () => {
 
   const { stars, referencePoints } = useMemo(() => {
 
-    const allStars =
+    const allStars : StarNoReference[] =
       generateObjects(NUM_STARS, 'stars', (pos) => ({
         position: pos,
       }))
@@ -47,11 +48,11 @@ const Stars = () => {
           starType: generateStarType(),
         }));
 
-    const referencePoints = initialReferencePoints.map(refPoint => {
+    const referencePoints = initialReferencePoints.map(refPoint=> {
       let nearestStar = allStars[0];
-      let minDistance = refPoint.position.distanceTo(nearestStar.position);
+      let minDistance = (refPoint.position as THREE.Vector3).distanceTo(nearestStar.position as THREE.Vector3);
       allStars.forEach(star => {
-        const distance = refPoint.position.distanceTo(star.position);
+        const distance = (refPoint.position as THREE.Vector3).distanceTo(star.position as THREE.Vector3);
         if (distance < minDistance) {
           minDistance = distance;
           nearestStar = star;
@@ -60,8 +61,8 @@ const Stars = () => {
 
       return {
         ...refPoint,
-        position :nearestStar.position.clone(),
-        originalAngle: Math.atan2(nearestStar.position.y, nearestStar.position.x)
+        position: (nearestStar.position as THREE.Vector3).clone(),
+        originalAngle: Math.atan2((nearestStar.position as THREE.Vector3).y, (nearestStar.position as THREE.Vector3).x)
       };
     });
 
@@ -69,10 +70,10 @@ const Stars = () => {
       (ref.originalAngle + Math.PI) % (2 * Math.PI) > Math.PI ? 'left' : 'right'
     ));
 
-    const stars = allStars.map(star => ({
+    const stars: Star[] = allStars.map(star => ({
       ...star,
       isReference: referencePoints.some(
-        ref => ref.position.equals(star.position)
+        ref => (ref.position).equals(star.position as THREE.Vector3)
       )
     }));
 
@@ -95,7 +96,7 @@ const Stars = () => {
   useLayoutEffect(() => {
     if (starMeshRef.current) {
       stars.forEach((star, i) => {
-        starMatrix.current.setPosition(star.position);
+        starMatrix.current.setPosition(star.position as THREE.Vector3);
         starMeshRef.current?.setMatrixAt(i, starMatrix.current);
       });
       starMeshRef.current.layers.set(BLOOM_LAYER);
@@ -108,11 +109,11 @@ const Stars = () => {
   useFrame(({ camera }) => {
     if (starMeshRef.current) {
       stars.forEach((star, i) => {
-        const dist = star.position.distanceTo(camera.position) / 250;
+        const dist = (star.position as THREE.Vector3).distanceTo(camera.position) / 250;
         const scale = clamp(dist * starTypes.size[star.starType], STAR_MIN, STAR_MAX);
 
         starMatrix.current.makeScale(scale, scale, scale);
-        starMatrix.current.setPosition(star.position);
+        starMatrix.current.setPosition(star.position as THREE.Vector3);
         starMeshRef.current?.setMatrixAt(i, starMatrix.current);
       });
 
@@ -150,7 +151,8 @@ const Stars = () => {
               title={reference.title}
               side={side}
               onClick={() => {
-                setStarSelected(index);
+                setStarSelected(true);
+                setStarIndex(index);
                 setCameraPosition([
                   reference.position.x,
                   reference.position.y,

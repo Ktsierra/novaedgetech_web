@@ -1,13 +1,16 @@
 import useCamera from "../hooks/useCamera";
 import { initialReferencePoints } from "../constants/referencePoints";
+import About from "./About";
+import Contact from "./Contact";
+import Projects from "./Projects";
+import Team from "./Team";
 const PresentationCard = () => {
-  const { starSelected } = useCamera();
+  const { starSelected, starIndex, setStarSelected } = useCamera();
 
-  if (!starSelected || starSelected >= initialReferencePoints.length) {
-    return null;
-  }
+  if (!starSelected) return null;
+  if (starIndex > initialReferencePoints.length) return null;
 
-  const { title } = initialReferencePoints[starSelected];
+  const { title } = initialReferencePoints[starIndex];
 
   return (
     <div style={{
@@ -20,18 +23,13 @@ const PresentationCard = () => {
       display: 'flex',
       justifyContent: 'center',
       alignItems: 'center',
-      flexDirection: 'column',
-      gap: '20px',
-      background: 'rgba(0, 0, 0, 0.5)',
-      color: '#fff',
-      padding: '20px',
-      borderRadius: '8px',
-      boxShadow: '0px 0px 10px rgba(0, 0, 0, 0.3)',
     }}
+    onClick={() => {setStarSelected(false);}}
     >
-      <p>
-        <strong>Name:</strong> {title}
-      </p>
+      {title === 'About' && <About />}
+      {title === 'Team' && <Team />}
+      {title === 'Projects' && <Projects />}
+      {title === 'Contact' && <Contact />}
     </div>
 
   );

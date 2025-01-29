@@ -40,7 +40,7 @@ const Galaxy: React.FC = () => {
         ref={galaxyRef}
         onClick={() => {
           if (!starSelected) return;
-          setStarSelected(null);
+          setStarSelected(false);
           setCameraPosition([0, 500, 500]);
         }}>
         <Stars />

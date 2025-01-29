@@ -29,10 +29,6 @@
     transform: translate(-15%, -75%) perspective(1000px) 
   }
 
-.right .diamond-icon {
-    transform: scaleX(-1);
-}
-
 .button-title-container,
 .diamond-icon,
 .button-title,

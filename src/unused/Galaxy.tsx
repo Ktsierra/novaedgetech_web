@@ -1,5 +1,4 @@
-/* eslint-disable react/no-unknown-property */
-import { useEffect, useRef } from 'react';
+/* import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { useGLTF } from '@react-three/drei';
@@ -91,3 +90,4 @@ function Galaxy() {
 }
 
 export default Galaxy;
+ */
