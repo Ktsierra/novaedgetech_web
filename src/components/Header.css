@@ -10,8 +10,6 @@
     height: 15%;
     width: 100%;
     z-index: 2;
-    opacity: 0;
-    transform: translateY(-125%);
 }
 
 .header-logo {
@@ -57,14 +55,28 @@
     animation: goDown 3s ease-in-out forwards;
 }
 
+.goUp {
+    animation: goUp 3s ease-in-out forwards;
+}
+
 @keyframes goDown {
+    0%{
+        transform: translateY(-125%);
+        opacity: 0;
+    }
     50%{
-        transform: translateY(20%);
-        opacity: 0.2;
+        transform: translateY(10%);
+        opacity: 0.5;
     }
     100% {
         transform: translateY(0) ;
         opacity: 1;
     }
+}
 
+@keyframes goUp {
+    100% {
+        opacity: 0;
+        transform: translateY(-125%);
+    }
 }

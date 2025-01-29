@@ -1,0 +1,27 @@
+.side-panel {
+    background: linear-gradient(to bottom, #0a0a0a 0%, #1a1a1a 100%);
+    border: 2px solid #3a3a3a;
+    border-radius: 4px;
+    padding: 1.5rem;
+    min-width: 320px;
+    max-width: 600px;
+    box-shadow: 0 0 15px rgba(0, 0, 0, 0.6);
+    color: #00ff00;
+    font-family: 'Courier New', monospace;
+}
+
+.side-panel.left {
+    border-left: 4px solid #00ff00;
+    border-right: none;
+}
+
+.side-panel.right {
+    border-right: 4px solid #00ff00;
+    border-left: none;
+}
+
+.side-panel.bottom {
+    border-bottom: 4px solid #00ff00;
+    width: 60%;
+    min-height: 200px;
+}

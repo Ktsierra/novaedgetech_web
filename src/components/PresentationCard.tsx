@@ -4,6 +4,8 @@ import About from "./About";
 import Contact from "./Contact";
 import Projects from "./Projects";
 import Team from "./Team";
+import './PresentationCard.css';
+
 const PresentationCard = () => {
   const { starSelected, starIndex, setStarSelected } = useCamera();
 
@@ -13,18 +15,9 @@ const PresentationCard = () => {
   const { title } = initialReferencePoints[starIndex];
 
   return (
-    <div style={{
-      position : 'absolute',
-      top: '50%',
-      left: '50%',
-      transform: 'translate(-50%, -50%)',
-      width: '100%',
-      height: '100%',
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-    }}
-    onClick={() => {setStarSelected(false);}}
+    <div
+      className="presentation-card"
+      onClick={() => {setStarSelected(false);}}
     >
       {title === 'About' && <About />}
       {title === 'Team' && <Team />}

@@ -8,12 +8,10 @@ import RenderPipeline from './RenderPipeline';
 import CameraAnimation from './CameraAnimation';
 import useCamera from '../hooks/useCamera';
 import { useState } from 'react';
-import { Stats } from '@react-three/drei';
 
 function Scene() {
 
   const { cameraPosition } = useCamera();
-
   const [dpr, setDpr] = useState(1.25);
 
   return (
@@ -37,7 +35,6 @@ function Scene() {
           onIncline={() => { setDpr(1.5); }}
           onDecline={() => { setDpr(1); }}
         >
-          <Stats />
           <fogExp2 attach="fog" args={[0xEBE2DB, 0.00003]} />
           <Galaxy />
           <RenderPipeline />
