@@ -1,4 +1,4 @@
-/* eslint-disable react/no-unknown-property */
+
 import React, { useRef } from 'react';
 import useCamera from '../hooks/useCamera';
 import { useFrame } from '@react-three/fiber';
@@ -8,23 +8,23 @@ import useGalaxyRef from '../hooks/useGalaxyRef';
 import { HazeProps } from '../types/types';
 
 const Galaxy: React.FC = () => {
-  const {galaxyRef} = useGalaxyRef();
+  const { galaxyRef } = useGalaxyRef();
   const { starSelected, setStarSelected, setCameraPosition } = useCamera();
   const hazeOutCenter = useRef<HazeProps>({
     direction: -1,
-    color: 0xff8a8a, //red
+    color: 0xff8a8a, // red
     cluster : 'center'
   });
 
   const hazeStaticPeriphery = useRef<HazeProps>({
     direction: 0,
-    color: 0x8a8aff, //purple
+    color: 0x8a8aff, // purple
     cluster : 'periphery'
   });
 
   const hazeInArms = useRef<HazeProps>({
     direction: 1,
-    color: 0x8ac4ff, //blue
+    color: 0x8ac4ff, // blue
     cluster : 'arms'
   });
 
@@ -43,10 +43,10 @@ const Galaxy: React.FC = () => {
           setStarSelected(null);
           setCameraPosition([0, 500, 500]);
         }}>
-        <Stars/>
-        <Haze {...hazeOutCenter.current}/>
-        <Haze {...hazeStaticPeriphery.current}/>
-        <Haze {...hazeInArms.current}/>
+        <Stars />
+        <Haze {...hazeOutCenter.current} />
+        <Haze {...hazeStaticPeriphery.current} />
+        <Haze {...hazeInArms.current} />
       </group>
     </>
   );

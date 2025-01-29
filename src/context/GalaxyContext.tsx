@@ -9,7 +9,7 @@ interface GalaxyContextProps {
 const GalaxyContext = createContext<GalaxyContextProps | undefined>(undefined);
 
 const GalaxyProvider = ({ children } : { children: React.ReactNode }) => {
-    const galaxyRef = useRef<THREE.Group>(null);
+  const galaxyRef = useRef<THREE.Group>(null);
   return (
     <GalaxyContext.Provider value={{ galaxyRef }}>
       {children}

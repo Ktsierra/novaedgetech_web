@@ -1,3 +1,4 @@
+/* eslint-disable react/no-unknown-property */
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import useCamera from "../hooks/useCamera";
 import useLoading from "../hooks/useLoading";
@@ -18,25 +19,24 @@ const Stars = () => {
   const [buttonSides, setButtonSides] = useState<('left' | 'right')[]>([]);
   const { setStarSelected, setCameraPosition } = useCamera();
   const { setLoading } = useLoading();
-  const {galaxyRef} = useGalaxyRef();
+  const { galaxyRef } = useGalaxyRef();
 
+  const starTexture = useLoader(THREE.TextureLoader, sprite120);
+  const starMatrix = useRef<THREE.Matrix4>(new THREE.Matrix4());
+  const starMeshRef = useRef<THREE.InstancedMesh>(null);
+  const starGeometry = useMemo(() => new THREE.SphereGeometry(0.5, 8, 8), []);
+  const starMaterial = useMemo(() =>
+    new THREE.MeshBasicMaterial({
+      map: starTexture,
+      transparent: true,
+      depthWrite: false,
+      depthTest: true,
+      side: THREE.DoubleSide,
+      blending: THREE.NormalBlending,
+    }),
+  [starTexture]);
 
-    const starTexture = useLoader(THREE.TextureLoader, sprite120);
-    const starMatrix = useRef<THREE.Matrix4>(new THREE.Matrix4());
-    const starMeshRef = useRef<THREE.InstancedMesh>(null);
-    const starGeometry = useMemo(() => new THREE.SphereGeometry(0.5, 8, 8), []);
-    const starMaterial = useMemo(() =>
-      new THREE.MeshBasicMaterial({
-        map: starTexture,
-        transparent: true,
-        depthWrite: false,
-        depthTest: true,
-        side: THREE.DoubleSide,
-        blending: THREE.NormalBlending,
-      }),
-    [starTexture]);
-
-  const {stars, referencePoints} = useMemo(() => {
+  const { stars, referencePoints } = useMemo(() => {
 
     const allStars =
       generateObjects(NUM_STARS, 'stars', (pos) => ({
@@ -50,7 +50,6 @@ const Stars = () => {
     const referencePoints = initialReferencePoints.map(refPoint => {
       let nearestStar = allStars[0];
       let minDistance = refPoint.position.distanceTo(nearestStar.position);
-
       allStars.forEach(star => {
         const distance = refPoint.position.distanceTo(star.position);
         if (distance < minDistance) {
@@ -84,87 +83,87 @@ const Stars = () => {
   }, [setLoading]);
 
   const starColorAttribute = useMemo(() => {
-      const colors = new Float32Array(NUM_STARS * 3);
-      stars.forEach((star, i) => {
-        new THREE.Color(starTypes.color[star.starType])
-          .toArray(colors, i * 3);
-      });
-      return new THREE.InstancedBufferAttribute(colors, 3, false);
-    }, [stars]);
+    const colors = new Float32Array(NUM_STARS * 3);
+    stars.forEach((star, i) => {
+      new THREE.Color(starTypes.color[star.starType])
+        .toArray(colors, i * 3);
+    });
+    return new THREE.InstancedBufferAttribute(colors, 3, false);
+  }, [stars]);
 
 
   useLayoutEffect(() => {
-        if (starMeshRef.current) {
-            stars.forEach((star, i) => {
-                starMatrix.current.setPosition(star.position);
-                starMeshRef.current?.setMatrixAt(i, starMatrix.current);
-            });
-            starMeshRef.current.layers.set(BLOOM_LAYER);
-            starMeshRef.current.instanceColor = starColorAttribute;
-            starMeshRef.current.instanceMatrix.needsUpdate = true;
-        }
-      }, [ starGeometry, stars, starColorAttribute]);
+    if (starMeshRef.current) {
+      stars.forEach((star, i) => {
+        starMatrix.current.setPosition(star.position);
+        starMeshRef.current?.setMatrixAt(i, starMatrix.current);
+      });
+      starMeshRef.current.layers.set(BLOOM_LAYER);
+      starMeshRef.current.instanceColor = starColorAttribute;
+      starMeshRef.current.instanceMatrix.needsUpdate = true;
+    }
+  }, [starGeometry, stars, starColorAttribute]);
 
 
   useFrame(({ camera }) => {
     if (starMeshRef.current) {
-            stars.forEach((star, i) => {
-                const dist = star.position.distanceTo(camera.position) / 250;
-                const scale = clamp(dist * starTypes.size[star.starType], STAR_MIN, STAR_MAX);
-                
-                starMatrix.current.makeScale(scale, scale, scale);
-                starMatrix.current.setPosition(star.position);
-                starMeshRef.current?.setMatrixAt(i, starMatrix.current);
-            });
+      stars.forEach((star, i) => {
+        const dist = star.position.distanceTo(camera.position) / 250;
+        const scale = clamp(dist * starTypes.size[star.starType], STAR_MIN, STAR_MAX);
 
-            starMeshRef.current.instanceMatrix.needsUpdate = true;
-      }
+        starMatrix.current.makeScale(scale, scale, scale);
+        starMatrix.current.setPosition(star.position);
+        starMeshRef.current?.setMatrixAt(i, starMatrix.current);
+      });
 
-          // Invert side of galaxy button based on rotation
+      starMeshRef.current.instanceMatrix.needsUpdate = true;
+    }
+
+    // Invert side of galaxy button based on rotation
     const rotationZ = galaxyRef.current?.rotation.z ?? 0;
     const newSides = referencePoints.map(ref => {
-        const currentAngle = (ref.originalAngle + rotationZ + Math.PI / 2) % (2 * Math.PI);
-        return currentAngle < Math.PI ? 'left' : 'right';
-      });
-      setButtonSides(prev => JSON.stringify(prev) === JSON.stringify(newSides) ? prev : newSides);
-  
+      const currentAngle = (ref.originalAngle + rotationZ + Math.PI / 2) % (2 * Math.PI);
+      return currentAngle < Math.PI ? 'left' : 'right';
     });
+    setButtonSides(prev => JSON.stringify(prev) === JSON.stringify(newSides) ? prev : newSides);
 
-    return (
-        <>
-        <instancedMesh
+  });
+
+  return (
+    <>
+      <instancedMesh
         ref={starMeshRef}
         args={[starGeometry, starMaterial, NUM_STARS]}
       />
-              {referencePoints.map((reference, index) => {
-          const side = buttonSides[index];
-          return (
-            <Html
-              key={`button-${index.toString()}`}
-              position={reference.position}
-              style={{
-                pointerEvents: 'none',
-                userSelect: 'none', }}
-              zIndexRange={[100, 0]}
-            >
-              <GalaxyButton
-                title={reference.title}
-                side={side}
-                onClick={() => {
-                  setStarSelected(index);
-                  setCameraPosition([
-                    reference.position.x,
-                    reference.position.y,
-                    reference.position.z
-                  ]);
-                }}
-                styles={{ pointerEvents: 'auto' }}
-              />
-            </Html>
-          );
-        })}
-      </>
-    )
-  };
+      {referencePoints.map((reference, index) => {
+        const side = buttonSides[index];
+        return (
+          <Html
+            key={`button-${index.toString()}`}
+            position={reference.position}
+            style={{
+              pointerEvents: 'none',
+              userSelect: 'none', }}
+            zIndexRange={[100, 0]}
+          >
+            <GalaxyButton
+              title={reference.title}
+              side={side}
+              onClick={() => {
+                setStarSelected(index);
+                setCameraPosition([
+                  reference.position.x,
+                  reference.position.y,
+                  reference.position.z
+                ]);
+              }}
+              styles={{ pointerEvents: 'auto' }}
+            />
+          </Html>
+        );
+      })}
+    </>
+  );
+};
 
-  export default Stars;
+export default Stars;

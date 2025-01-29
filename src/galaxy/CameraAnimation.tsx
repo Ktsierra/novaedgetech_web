@@ -6,7 +6,7 @@ import useGalaxyRef from "../hooks/useGalaxyRef";
 function CameraAnimation({ targetPosition }: {
   targetPosition: [number, number, number]
 }) {
-  const {galaxyRef} = useGalaxyRef();
+  const { galaxyRef } = useGalaxyRef();
   const { camera } = useThree();
   const { starSelected } = useCamera();
   const targetVec = useRef(new THREE.Vector3());

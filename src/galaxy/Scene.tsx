@@ -39,9 +39,9 @@ function Scene() {
         >
           <Stats />
           <fogExp2 attach="fog" args={[0xEBE2DB, 0.00003]} />
-          <Galaxy/>
+          <Galaxy />
           <RenderPipeline />
-          <CameraAnimation targetPosition={cameraPosition}/>
+          <CameraAnimation targetPosition={cameraPosition} />
         </PerformanceMonitor>
       </Canvas>
     </div>

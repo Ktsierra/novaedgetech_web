@@ -3,12 +3,7 @@ import useLoading from '../hooks/useLoading';
 import './Header.css';
 
 const Header = () => {
-
-
   const { loading } = useLoading();
-
-
-
   return (
 
     <div className={`header ${loading ? 'goUp' : 'goDown'}`}>

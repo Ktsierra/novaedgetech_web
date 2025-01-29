@@ -13,11 +13,11 @@ function App() {
     <div className="App">
       <BlackHoleLoader />
       <GalaxyProvider>
-      <CameraProvider>
-        <Header />
-        <GalaxyScene />
-        <PresentationCard />
-      </CameraProvider>
+        <CameraProvider>
+          <Header />
+          <GalaxyScene />
+          <PresentationCard />
+        </CameraProvider>
       </GalaxyProvider>
     </div>
   );
