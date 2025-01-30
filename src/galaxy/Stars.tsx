@@ -136,7 +136,7 @@ const Stars = () => {
         ref={starMeshRef}
         args={[starGeometry, starMaterial, NUM_STARS]}
       />
-      {referencePoints.map((reference, index) => {
+      { referencePoints.map((reference, index) => {
         const side = buttonSides[index];
         return (
           <Html

@@ -1,45 +1,68 @@
-import { AnimatePresence } from 'framer-motion';
+import useStacked from '../hooks/useStacked';
 import './About.css';
 import SidePanel from './SidePanel';
 
 const About = () => {
+  const { stacked } = useStacked();
+
   return (
-    <AnimatePresence>
-      <div className='about-container'>
-        <SidePanel key={1} direction="left">
+    <>
+      <div key={'left'} className={stacked ? 'stacked' : 'left-panels'}>
+        <SidePanel styles={{ top: '25%', left: '0%' }} transitionFrom={{ x: '-100vw', y: '0' }}>
           <h2>** MISSION BRIEFING</h2>
           <div className="terminal-text">
-                &gt; INITIALIZING SYSTEM SCAN...
+                  &gt; INITIALIZING SYSTEM SCAN...
             <br />
-                &gt; LOADING TACTICAL DATA...
+                  &gt; LOADING TACTICAL DATA...
             <br />
-                &gt; PREPARING DEPLOYMENT...
+                  &gt; PREPARING DEPLOYMENT...
           </div>
         </SidePanel>
-        <SidePanel key={2} direction="right">
+      </div>
+      <div key={'right'} className={ stacked ? 'stacked' : 'right-panels'}>
+        <SidePanel styles={{ top: '5%', right: '0%' }} transitionFrom={{ x: '100vw', y: '0' }}>
           <h2>** OPERATION OVERVIEW</h2>
           <div className="stats-grid">
             <div>STATUS:</div>
             <div>ACTIVE</div>
             <div>OBJECTIVE:</div>
             <div>ESTABLISH DOMINANCE</div>
+            <div>ESTABLISH DOMINANCE</div>
+            <div>ESTABLISH DOMINANCE</div>
+            <div>ESTABLISH DOMINANCE</div>
+            <div>ESTABLISH DOMINANCE</div>
+            <div>ESTABLISH DOMINANCE</div>
+            <div>ESTABLISH DOMINANCE</div>
+            <div>ESTABLISH DOMINANCE</div>
+            <div>ESTABLISH DOMINANCE</div>
+            <div>ESTABLISH DOMINANCE</div>
+            <div>ESTABLISH DOMINANCE</div>
+            <div>ESTABLISH DOMINANCE</div>
+            <div>ESTABLISH DOMINANCE</div>
+            <div>ESTABLISH DOMINANCE</div>
+            <div>ESTABLISH DOMINANCE</div>
+            <div>ESTABLISH DOMINANCE</div>
+            <div>ESTABLISH DOMINANCE</div>
+            <div>ESTABLISH DOMINANCE</div>
+            <div>ESTABLISH DOMINANCE</div>
+            <div>ESTABLISH DOMINANCE</div>
+            <div>ESTABLISH DOMINANCE</div>
             <div>FORCES:</div>
             <div>READY</div>
           </div>
         </SidePanel>
-        <SidePanel key={3} direction="bottom">
+        <SidePanel styles= {{ bottom: '2.5%', right: '0%' }} transitionFrom={{ x: '0', y: '100vh' }}>
           <h2>** COMMAND INTERFACE</h2>
           <div className="command-interface">
-                [1] DEPLOY UNITS
+                  [1] DEPLOY UNITS
             <br />
-                [2] RESEARCH TECH
+                  [2] RESEARCH TECH
             <br />
-                [3] BUILD STRUCTURES
+                  [3] BUILD STRUCTURES
           </div>
         </SidePanel>
       </div>
-
-    </AnimatePresence>
+    </>
   );
 };
 

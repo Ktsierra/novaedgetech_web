@@ -1,53 +1,44 @@
 import { motion } from "framer-motion";
 import './SidePanel.css';
-import { useEffect, useState } from "react";
+import useStacked from "../hooks/useStacked";
 
 interface SidePanelProps {
-    direction: 'left' | 'right' | 'bottom';
+    transitionFrom: {
+      x?: string;
+      y?: string;
+    };
+    styles: React.CSSProperties;
     children: React.ReactNode;
 }
 
-const SidePanel: React.FC<SidePanelProps> = ({ direction, children } : SidePanelProps) => {
-  const [stacked, setStacked] = useState(false);
-  const getInitialPosition = () => {
-    switch (direction) {
-    case 'left': return { x: '-100vw' };
-    case 'right': return { x: '100vw' };
-    case 'bottom': return { y: '100vh' };
-    default: return { x: 0 };
-    }
-  };
+const SidePanel: React.FC<SidePanelProps> = ({ transitionFrom, styles, children } : SidePanelProps) => {
 
-  useEffect(() => {
-    const handleResize = () => {
-      setStacked(window.innerWidth <= 800);
-    };
-
-    handleResize(); // Initial check
-    window.addEventListener('resize', handleResize);
-    return () => { window.removeEventListener('resize', handleResize); };
-  }, []);
+  const { stacked } = useStacked();
 
   return (
     <motion.div
-      className={`side-panel ${direction} ${stacked ? 'stacked' : ''}`}
-      initial={stacked ? { opacity: 0 } : getInitialPosition()}
-      animate={stacked ? { opacity: 1 } : {
-        x: direction !== 'bottom' ? 0 : undefined,
-        y: direction === 'bottom' ? 0 : undefined
+      className={`side-panel ${styles.left ? 'left' : ''} ${styles.right ? 'right' : ''} ${styles.bottom ? 'bottom' : ''} ${stacked ? 'stacked' : ''}`}
+      initial={transitionFrom}
+      animate={{
+        x: stacked ? 0 : styles.left ? 0 : styles.right ? 0 : 0,
+        y: stacked ? 0 : styles.top ? 0 : styles.bottom ? 0 : 0
+
       }}
       transition={{
         type: 'spring',
         duration: 0.5
       }}
-      exit={stacked ? { opacity: 0 } : getInitialPosition()}
+      exit={transitionFrom}
       style={{
-        position: stacked ? 'static' : 'fixed',
-        ...((!stacked && direction === 'bottom')
-          ? { bottom: 0, left: '50%', transform: 'translateX(-50%)' }
-          : direction === 'left'
-            ? { left: 0, top: '30%' }
-            : { right: 0, top: '10%' })
+        position: 'absolute',
+        top: styles.top,
+        right: styles.right,
+        bottom: styles.bottom,
+        left: styles.left,
+        zIndex: stacked ? 100 : 0,
+        width: styles.width ?? 'fit-content',
+        height: styles.height ?? 'fit-content',
+        ...styles
       }}
     >
       {children}

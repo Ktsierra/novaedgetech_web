@@ -3,46 +3,36 @@
     border: 2px solid #3a3a3a;
     border-radius: 4px;
     padding: 1.5rem;
-    max-width: 500px;
-    height: fit-content;
     box-shadow: 0 0 15px rgba(0, 0, 0, 0.6);
-    color: #00ff00;
+    color: #ffffff;
     font-family: 'Courier New', monospace;
+    transition: all 0.3s ease;
 }
 
 .side-panel.left {
-    border-left: 4px solid #00ff00;
+    border-left: 4px solid #8a8aff;
     border-right: none;
 }
 
 .side-panel.right {
-    border-right: 4px solid #00ff00;
+    border-right: 4px solid #8a8aff;
     border-left: none;
 }
 
 .side-panel.bottom {
-    border-bottom: 4px solid #00ff00;
-    width: 60%;
+    border-bottom: 4px solid #8a8aff;
     min-height: 200px;
 }
 
-.stacked {  
-    width: 100%;
-    max-width: 100%;
+.stacked { 
+    width: 90%; 
     height: auto;
     margin-bottom: 1rem;
-  }
+}
   
   .stacked.left, .stacked.right, .stacked.bottom {
-    border-left: none;
-    border-right: none;
     border: 2px solid #3a3a3a;
-
   }
   
-  @media (max-width: 800px) {
-    .side-panel {
-      max-width: 100%;
-    }
-  }
+
   

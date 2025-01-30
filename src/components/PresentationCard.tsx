@@ -5,6 +5,8 @@ import Contact from "./Contact";
 import Projects from "./Projects";
 import Team from "./Team";
 import './PresentationCard.css';
+import { StackedContextProvider } from "../context/StackedContext";
+import { AnimatePresence } from "framer-motion";
 
 const PresentationCard = () => {
   const { starSelected, starIndex, setStarSelected } = useCamera();
@@ -15,15 +17,19 @@ const PresentationCard = () => {
   const { title } = initialReferencePoints[starIndex];
 
   return (
-    <div
-      className="presentation-card"
-      onClick={() => {setStarSelected(false);}}
-    >
-      {title === 'About' && <About />}
-      {title === 'Team' && <Team />}
-      {title === 'Projects' && <Projects />}
-      {title === 'Contact' && <Contact />}
-    </div>
+    <StackedContextProvider>
+      <AnimatePresence>
+        <div
+          className="presentation-card"
+          onClick={() => {setStarSelected(false);}}
+        >
+          {title === 'About' && <About />}
+          {title === 'Team' && <Team />}
+          {title === 'Projects' && <Projects />}
+          {title === 'Contact' && <Contact />}
+        </div>
+      </AnimatePresence>
+    </StackedContextProvider>
 
   );
 };
