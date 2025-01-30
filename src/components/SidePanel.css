@@ -3,8 +3,8 @@
     border: 2px solid #3a3a3a;
     border-radius: 4px;
     padding: 1.5rem;
-    min-width: 320px;
-    max-width: 600px;
+    max-width: 500px;
+    height: fit-content;
     box-shadow: 0 0 15px rgba(0, 0, 0, 0.6);
     color: #00ff00;
     font-family: 'Courier New', monospace;
@@ -25,3 +25,24 @@
     width: 60%;
     min-height: 200px;
 }
+
+.stacked {  
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    margin-bottom: 1rem;
+  }
+  
+  .stacked.left, .stacked.right, .stacked.bottom {
+    border-left: none;
+    border-right: none;
+    border: 2px solid #3a3a3a;
+
+  }
+  
+  @media (max-width: 800px) {
+    .side-panel {
+      max-width: 100%;
+    }
+  }
+  

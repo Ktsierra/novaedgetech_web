@@ -5,8 +5,7 @@ import './Header.css';
 
 const Header = () => {
   const { loading } = useLoading();
-  const {starSelected} = useCamera();
-  console.log(starSelected)
+  const { starSelected } = useCamera();
   return (
 
     <div className={`header ${loading || starSelected ? 'goUp' : 'goDown'}`}>

@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import './SidePanel.css';
+import { useEffect, useState } from "react";
 
 interface SidePanelProps {
     direction: 'left' | 'right' | 'bottom';
@@ -7,6 +8,7 @@ interface SidePanelProps {
 }
 
 const SidePanel: React.FC<SidePanelProps> = ({ direction, children } : SidePanelProps) => {
+  const [stacked, setStacked] = useState(false);
   const getInitialPosition = () => {
     switch (direction) {
     case 'left': return { x: '-100vw' };
@@ -16,26 +18,36 @@ const SidePanel: React.FC<SidePanelProps> = ({ direction, children } : SidePanel
     }
   };
 
+  useEffect(() => {
+    const handleResize = () => {
+      setStacked(window.innerWidth <= 800);
+    };
+
+    handleResize(); // Initial check
+    window.addEventListener('resize', handleResize);
+    return () => { window.removeEventListener('resize', handleResize); };
+  }, []);
+
   return (
     <motion.div
-      className={`side-panel ${direction}`}
-      initial={getInitialPosition()}
-      animate={{
+      className={`side-panel ${direction} ${stacked ? 'stacked' : ''}`}
+      initial={stacked ? { opacity: 0 } : getInitialPosition()}
+      animate={stacked ? { opacity: 1 } : {
         x: direction !== 'bottom' ? 0 : undefined,
         y: direction === 'bottom' ? 0 : undefined
       }}
       transition={{
         type: 'spring',
-        stiffness: 120,
-        damping: 20,
-        duration: 0.8
+        duration: 0.5
       }}
-      exit={getInitialPosition()}
+      exit={stacked ? { opacity: 0 } : getInitialPosition()}
       style={{
-        position: 'fixed',
-        ...(direction === 'bottom' ? { bottom: 0, left: '50%', transform: 'translateX(-50%)' } :
-          direction === 'left' ? { left: 0, top: '30%' } :
-            { right: 0, top: '10%' })
+        position: stacked ? 'static' : 'fixed',
+        ...((!stacked && direction === 'bottom')
+          ? { bottom: 0, left: '50%', transform: 'translateX(-50%)' }
+          : direction === 'left'
+            ? { left: 0, top: '30%' }
+            : { right: 0, top: '10%' })
       }}
     >
       {children}
