@@ -1,0 +1,22 @@
+.bottom-sheet {
+    position: fixed;
+    bottom: 0;
+    height: 90%;
+    width: 100%;
+    overflow-y: scroll;
+    border-top: 4px solid #8ac4ff;
+    border-radius: 64px 64px 0 0;
+    padding-top: 4px;
+    scrollbar-width: none;
+    background-color: transparent;
+/*     background: linear-gradient(to bottom right,#8a8aff 0%,#8ac4ff 100%);
+ */}
+
+.bottom-sheet-content {
+    padding: 20px;
+    gap: 10px;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow-y: scroll;
+}

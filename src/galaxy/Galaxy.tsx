@@ -6,25 +6,26 @@ import Haze from './Haze';
 import Stars from './Stars';
 import useGalaxyRef from '../hooks/useGalaxyRef';
 import { HazeProps } from '../types/types';
+import { colors } from '../constants/colors';
 
 const Galaxy: React.FC = () => {
   const { galaxyRef } = useGalaxyRef();
   const { starSelected, setStarSelected, setCameraPosition } = useCamera();
   const hazeOutCenter = useRef<HazeProps>({
     direction: -1,
-    color: 0xff8a8a, // red
+    color: colors.red, // red
     cluster : 'center'
   });
 
   const hazeStaticPeriphery = useRef<HazeProps>({
     direction: 0,
-    color: 0x8a8aff, // purple
+    color: colors.purple, // purple
     cluster : 'periphery'
   });
 
   const hazeInArms = useRef<HazeProps>({
     direction: 1,
-    color: 0x8ac4ff, // blue
+    color: colors.blue, // blue
     cluster : 'arms'
   });
 

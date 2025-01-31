@@ -1,0 +1,43 @@
+.left-panels, .right-panels {
+    width: 50%;
+    position: absolute;
+    top: 0;
+    max-width: 50%;
+    height: 100%;
+    overflow-x: hidden;
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+
+.left-panels {
+    left: 0;
+    scrollbar-width: none;
+  }
+  
+.right-panels {
+    right: 0;
+    scrollbar-width: none;
+  }
+
+
+  /* About.css */
+.terminal-text {
+  color: #ffffff;
+  line-height: 1.5;
+  text-shadow: 0 0 8px rgba(0, 0, 0, 0.4);
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr; 
+  gap: 1rem;
+  border-top: 1px solid #3a3a3a;
+  padding-top: 1rem;
+}
+
+.command-interface {
+  border: 1px solid #3a3a3a;
+  padding: 1rem;
+  margin-top: 1rem;
+  background: rgba(0, 0, 0, 0.3);
+}

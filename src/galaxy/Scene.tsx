@@ -15,7 +15,7 @@ function Scene() {
   const [dpr, setDpr] = useState(1.25);
 
   return (
-    <div style={{ width: '100vw', height: '100vh', position: 'absolute' }}>
+    <div style={{ width: '100%', height: '100%', position: 'absolute' }}>
       <Canvas
         dpr={dpr}
         gl={{
