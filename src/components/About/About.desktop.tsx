@@ -7,7 +7,7 @@ const AboutDesktop = () => {
 
   return (
     <>
-      <SidePanel styles={{ top: '15%', left: '0%', bottom: '0%' }} transitionFrom={{ x: '-100vw', y: '0' }}>
+      <SidePanel styles={{ top: '15%', left: '0%', bottom: '0%', overflow: 'scroll' }} transitionFrom={{ x: '-100vw', y: '0' }}>
         <div className='top-bar'>
           <h2 className="title">About NovaEdge Tech</h2>
           <button onClick={() => {setStarSelected(false);}} className="back-button">X</button>
@@ -19,7 +19,7 @@ const AboutDesktop = () => {
         </section>
         <section>
           <h3>Mission</h3>
-          <div className="section-text">
+          <div className="section-text section-width">
             To provide innovative IT and software solutions
             that empower businesses through cutting-edge technology,
             ensuring seamless operations and enhanced connectivity.
@@ -27,7 +27,7 @@ const AboutDesktop = () => {
         </section>
         <section>
           <h3>Vision</h3>
-          <div className="section-text">
+          <div className="section-text section-width">
             To revolutionize business technology infrastructure by creating
             intelligent, secure, and scalable solutions that elevate operational
             efficiency and drive industry advancement.
