@@ -14,6 +14,7 @@ const SidePanel: React.FC<SidePanelProps> = ({ transitionFrom, styles, children 
   return (
     <motion.div
       className={`side-panel ${styles.left ? 'left' : ''} ${styles.right ? 'right' : ''} ${styles.bottom ? 'bottom' : ''}`}
+      onClick={(e) => { e.stopPropagation(); }}
       initial={transitionFrom}
       animate={{
         x: styles.left ? 0 : styles.right ? 0 : 0,

@@ -1,5 +1,5 @@
 .side-panel {
-    background: linear-gradient(to bottom, #0a0a0a 0%, #1a1a1a 100%);
+    background-color: transparent;
     border: 2px solid #3a3a3a;
     border-radius: 4px;
     padding: 1.5rem;
@@ -10,17 +10,20 @@
 }
 
 .side-panel.left {
-    border-left: 4px solid #8a8aff;
+    border-left: 4px solid #8ac4ff;
     border-right: none;
+    border-radius: 0 64px 64px 0;
+
 }
 
 .side-panel.right {
-    border-right: 4px solid #8a8aff;
+    border-right: 4px solid #8ac4ff;
     border-left: none;
+    border-radius: 64px 0 0 64px;
 }
 
 .side-panel.bottom {
-    border-bottom: 4px solid #8a8aff;
+    border-bottom: 4px solid #8ac4ff;
     min-height: 200px;
 }
 

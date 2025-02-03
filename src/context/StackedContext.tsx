@@ -13,7 +13,7 @@ const StackedContextProvider = ({ children }: { children: React.ReactNode }) => 
 
   useEffect(() => {
     const handleResize = () => {
-      setStacked(window.innerWidth <= 800);
+      setStacked(window.innerWidth <= 1200);
     };
 
     handleResize(); // Initial check

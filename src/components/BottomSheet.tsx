@@ -12,6 +12,7 @@ const BottomSheet = ({ children }: BottomSheetProps) => {
 
   return (
     <motion.div
+      onClick={(e) => { e.stopPropagation(); }}
       onScroll={(e)=> { handleScroll(e); }}
       className="bottom-sheet"
       initial={{ y: '100%' }}

@@ -1,0 +1,125 @@
+.top-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    margin-bottom: 2rem;
+  }
+
+.back-button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1.5rem;
+    color: #8ac4ff;
+    text-shadow: 0 0 10px #8ac4ff, 0 0 20px #8ac4ff, 0 0 30px #8ac4ff;
+  }
+
+.title {
+    color: #fff;
+    text-shadow: 0 0 10px #8ac4ff, 0 0 20px #8ac4ff, 0 0 30px #8ac4ff;
+  }
+
+.main-skills {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    color: #fff;
+    margin-bottom: 2rem;
+  }
+
+.main-skills div {
+    text-align: center;
+    padding: 1rem;
+    border-radius: 4px;
+    background: rgba(138, 196, 255, 0.1);
+    flex: 1 1;
+  }
+
+section {
+    background: rgba(10, 10, 10, 0.7);
+    border: 1px solid #3a3a3a;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+
+.section-text {
+    color: #8ac4ff;
+    line-height: 1.8;
+  }
+
+.specs-flex {
+    display: flex;
+    flex-wrap: wrap;
+    width: 100%;
+    gap: 1.5rem;
+    margin-top: 1rem;
+  }
+
+.spec-item {
+    text-align: center;
+    background: rgba(138, 196, 255, 0.1);
+    padding: 1.5rem;
+    border-radius: 4px;
+    flex: 1 1;
+  }
+
+.tech-list {
+    list-style: none;
+    padding: 0;
+    margin: 0.5rem 0 0 0;
+    color: #fff;
+  }
+ 
+.tech-list li {
+    padding: 0.3rem 0;
+    color: #8ac4ff;
+  }
+
+.timeline .log-entry {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    padding-left: 1rem;
+    border-left: 2px solid #8ac4ff;
+  }
+  
+.timestamp {
+    color: #8ac4ff;
+  }
+  
+.footer-interface {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    background: rgba(10, 10, 10, 0.9);
+    border-radius: 4px;
+  }
+  
+.pulse-indicator {
+    width: 10px;
+    height: 10px;
+    background: #8ac4ff;
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+  }
+  
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.3; }
+    100% { opacity: 1; }
+  }
+
+  
+h3 {
+    color: #8ac4ff;
+    margin-bottom: 1rem;
+  }
+  
+h4 {
+    color: #fff;
+    margin-bottom: 0.5rem;
+  }
+  
