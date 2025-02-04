@@ -13,7 +13,7 @@
     border-left: 4px solid #8ac4ff;
     border-right: none;
     border-radius: 0 64px 64px 0;
-
+    direction: rtl;
 }
 
 .side-panel.right {
@@ -32,7 +32,7 @@
     margin-bottom: 1rem;
 }
   
-  .stacked.left, .stacked.right, .stacked.bottom {
+.stacked.left, .stacked.right, .stacked.bottom {
     border: 2px solid #3a3a3a;
   }
   

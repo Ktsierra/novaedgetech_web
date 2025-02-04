@@ -1,12 +1,35 @@
+/* About.desktop.css */
+.desktop-panels {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none; /* Allow clicking through to background */
+}
+
+.side-panel {
+  scrollbar-width:auto;
+  scrollbar-color: #8ac4ff rgba(10, 10, 10, 0.5);
+  pointer-events: auto; /* Re-enable clicking on panels */
+}
+
+/* Adjust content widths */
 .section-width {
-  max-width: 400px;
+  max-width: 100%;
 }
 
 .specs-width {
-  max-width: 600px;
+  max-width: 100%;
 }
 
-.timeline {
-  max-width: 400px;
+.specs-flex {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
 }
 
+.spec-item {
+  flex: 1;
+  min-width: 200px;
+}

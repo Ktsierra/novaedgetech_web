@@ -4,6 +4,7 @@
     align-items: center;
     padding: 1rem;
     margin-bottom: 2rem;
+    direction: ltr;
   }
 
 .back-button {
@@ -43,6 +44,7 @@ section {
     border-radius: 8px;
     padding: 1.5rem;
     margin-bottom: 1.5rem;
+    direction: ltr;
   }
 
 .section-text {

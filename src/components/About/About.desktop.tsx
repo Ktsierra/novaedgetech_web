@@ -6,8 +6,16 @@ const AboutDesktop = () => {
   const { setStarSelected } = useCamera();
 
   return (
-    <>
-      <SidePanel styles={{ top: '15%', left: '0%', bottom: '0%', overflow: 'scroll' }} transitionFrom={{ x: '-100vw', y: '0' }}>
+    <div className="desktop-about-panels">
+      <SidePanel
+        styles={{
+          left: '2rem',
+          top: '10%',
+          width: '35%',
+          maxHeight: '80vh',
+          overflow: 'auto',
+        }}
+        transitionFrom={{ x: '-100vw', y: '0' }}>
         <div className='top-bar'>
           <h2 className="title">About NovaEdge Tech</h2>
           <button onClick={() => {setStarSelected(false);}} className="back-button">X</button>
@@ -35,7 +43,15 @@ const AboutDesktop = () => {
         </section>
       </SidePanel>
 
-      <SidePanel styles={{ top: '5%', right: '0%' }} transitionFrom={{ x: '100vw', y: '0' }}>
+      <SidePanel
+        styles={{
+          right: '2rem',
+          top: '5%',
+          width: '45%',
+          maxHeight: '45vh',
+          overflow: 'auto',
+        }}
+        transitionFrom={{ x: '100vw', y: '0' }}>
         <h3>Technical Expertise</h3>
         <div className="specs-flex specs-width">
           <div className="spec-item">
@@ -73,7 +89,15 @@ const AboutDesktop = () => {
         </div>
       </SidePanel>
 
-      <SidePanel styles={{ bottom: '2.5%', right: '0%' }} transitionFrom={{ x: '0', y: '100vh' }}>
+      <SidePanel
+        styles={{
+          right: '2rem',
+          bottom: '5%',
+          width: '45%',
+          maxHeight: '30vh',
+          overflow: 'auto',
+        }}
+        transitionFrom={{ x: '0', y: '100vh' }}>
         <section>
           <h3>Recent Achievements</h3>
           <div className="timeline">
@@ -88,7 +112,7 @@ const AboutDesktop = () => {
           <div className="pulse-indicator"></div>
         </div>
       </SidePanel>
-    </>
+    </div>
   );
 };
 
