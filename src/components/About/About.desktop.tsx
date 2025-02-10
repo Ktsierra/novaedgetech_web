@@ -1,6 +1,6 @@
 import useCamera from "../../hooks/useCamera";
 import SidePanel from "../SidePanel";
-import about from './about.json';
+import { about } from './aboutText';
 import './About.desktop.css';
 
 const AboutDesktop = () => {
@@ -10,7 +10,7 @@ const AboutDesktop = () => {
     <div className="desktop-about-panels">
       <SidePanel
         styles={{
-          left: '2rem',
+          left: '0',
           top: '10%',
           width: '35%',
           maxHeight: '80vh',
@@ -49,7 +49,7 @@ const AboutDesktop = () => {
 
       <SidePanel
         styles={{
-          right: '2rem',
+          right: '0',
           top: '5%',
           width: '45%',
           maxHeight: '45vh',
@@ -75,7 +75,7 @@ const AboutDesktop = () => {
 
       <SidePanel
         styles={{
-          right: '2rem',
+          right: '0',
           bottom: '5%',
           width: '45%',
           maxHeight: '30vh',

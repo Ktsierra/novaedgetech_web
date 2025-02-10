@@ -1,4 +1,3 @@
-// About.tsx
 import { AnimatePresence } from 'framer-motion';
 import useStacked from '../../hooks/useStacked';
 import AboutDesktop from './About.desktop';

@@ -3,7 +3,7 @@ import { initialReferencePoints } from "../constants/referencePoints";
 import About from "./About/About";
 import Contact from "./Contact";
 import Projects from "./Projects";
-import Team from "./Team";
+import Team from "./Team/Team";
 import './PresentationCard.css';
 import { StackedContextProvider } from "../context/StackedContext";
 import { AnimatePresence, motion } from "framer-motion";

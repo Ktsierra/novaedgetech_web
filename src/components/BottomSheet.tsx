@@ -1,10 +1,8 @@
 import './BottomSheet.css';
 import { motion } from 'framer-motion';
 
-interface BottomSheetProps {
-    children?: React.ReactNode
-}
-const BottomSheet = ({ children }: BottomSheetProps) => {
+
+const BottomSheet = ({ children }: { children: React.ReactNode } ) => {
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     e.stopPropagation();

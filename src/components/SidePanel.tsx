@@ -1,14 +1,8 @@
 import { motion } from "framer-motion";
 import './SidePanel.css';
+import { SidePanelProps } from "../types/types";
 
-interface SidePanelProps {
-    transitionFrom: {
-      x?: string;
-      y?: string;
-    };
-    styles: React.CSSProperties;
-    children: React.ReactNode;
-}
+
 
 const SidePanel: React.FC<SidePanelProps> = ({ transitionFrom, styles, children } : SidePanelProps) => {
   return (

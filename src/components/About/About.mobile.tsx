@@ -1,6 +1,6 @@
 import useCamera from '../../hooks/useCamera';
 import BottomSheet from '../BottomSheet';
-import about from './about.json';
+import { about } from './aboutText';
 import './About.mobile.css';
 
 const AboutMobile = () => {

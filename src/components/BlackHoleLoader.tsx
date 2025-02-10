@@ -5,8 +5,6 @@ import useLoading from '../hooks/useLoading';
 
 const BlackHoleLoader = () => {
 
-  // const color = useMemo(() => `#${Math.floor(Math.random() * 16777215).toString(16)}`, []);
-
   const { loading } = useLoading();
   const [color, setColor] = useState(`#${Math.floor(Math.random() * 16777215).toString(16)}`);
   const [blurAnimation, setBlurAnimation] = useState(false);
