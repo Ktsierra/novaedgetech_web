@@ -68,18 +68,53 @@ export interface Team {
     mainSkills: string[];
   };
   sections: {
-    leadership: {
+    profile: {
+      heading: string;
+      content: string;
+      image: string;
+    };
+    details: {
       heading: string;
       content: string;
     };
-    teamMembers: {
+  }
+  footer: {
+    footerLine: string;
+  };
+}
+
+
+export interface Projects {
+  header: {
+    title: string;
+    backButtonText: string;
+    mainSkills: string[];
+  };
+  sections: {
+    featuredProjects: {
+      heading: string;
+      content: string;
+      projects: {
+        title: string;
+        description: string;
+        image: string;
+      }[];
+    };
+    upcomingProjects: {
       heading: string;
       content: string;
     };
-    coreValues: {
-      heading: string;
-      content: string;
-    };
+  };
+  footer: {
+    footerLine: string;
+  }
+}
+
+
+export interface Contact {
+  header: {
+    title: string;
+    backButtonText: string;
   };
   footer: {
     footerLine: string;

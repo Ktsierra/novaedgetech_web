@@ -1,21 +1,22 @@
-// TeamDesktop.tsx
 import useCamera from "../../hooks/useCamera";
 import SidePanel from "../SidePanel";
 import { team } from "./teamText";
 import "./Team.desktop.css";
+import Github from "../logos/github";
+import LinkedIn from "../logos/linkedin";
 
 const TeamDesktop = () => {
   const { setStarSelected } = useCamera();
 
   return (
     <div className="desktop-team-panels">
-      {/* Left Panel: Header & Leadership */}
+      {/* Left Panel: Header, Skills & Profile */}
       <SidePanel
         styles={{
           left: "0",
           top: "10%",
-          width: "30%",
-          maxHeight: "70vh",
+          width: "45%",
+          maxHeight: "80vh",
           overflow: "auto"
         }}
         transitionFrom={{ x: "-100vw", y: "0" }}
@@ -31,48 +32,52 @@ const TeamDesktop = () => {
             <div key={index}>{skill}</div>
           ))}
         </section>
-        <section>
-          <h3>{team.sections.leadership.heading}</h3>
-          <div className="section-text section-width">
-            {team.sections.leadership.content}
+        <section className="profile-desktop">
+          <div className="profile-header">
+            <h3>{team.sections.profile.heading}</h3>
+            <div>
+              <Github
+                className="logo-icon"
+                onClick={() => {
+                  window.open("https://github.com/Ktsierra", "_blank");
+                }}
+              />
+              <LinkedIn
+                className="logo-icon"
+                onClick={() => {
+                  window.open("https://www.linkedin.com/in/jose-javier-sierra-delgado-5a8249246/", "_blank");
+                }}
+              />
+            </div>
+          </div>
+          <div className="section-text">
+            {team.sections.profile.image && (
+              <img
+                src={team.sections.profile.image}
+                alt="Profile"
+                className="profile-image profile-image-desktop"
+              />
+            )}
+            {team.sections.profile.content}
           </div>
         </section>
       </SidePanel>
 
-      {/* Right Panel: Team Members */}
+      {/* Right Panel: Details */}
       <SidePanel
         styles={{
           right: "0",
-          top: "10%",
-          width: "30%",
-          maxHeight: "70vh",
+          bottom: "10%",
+          width: "45%",
+          maxHeight: "80vh",
           overflow: "auto"
         }}
         transitionFrom={{ x: "100vw", y: "0" }}
       >
         <section>
-          <h3>{team.sections.teamMembers.heading}</h3>
+          <h3>{team.sections.details.heading}</h3>
           <div className="section-text section-width">
-            {team.sections.teamMembers.content}
-          </div>
-        </section>
-      </SidePanel>
-
-      {/* Bottom Panel: Core Values & Footer */}
-      <SidePanel
-        styles={{
-          right: "0",
-          bottom: "5%",
-          width: "30%",
-          maxHeight: "30vh",
-          overflow: "auto"
-        }}
-        transitionFrom={{ x: "0", y: "100vh" }}
-      >
-        <section>
-          <h3>{team.sections.coreValues.heading}</h3>
-          <div className="section-text section-width">
-            {team.sections.coreValues.content}
+            {team.sections.details.content}
           </div>
         </section>
         <div className="footer-interface">

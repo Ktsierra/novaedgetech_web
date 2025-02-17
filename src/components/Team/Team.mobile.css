@@ -1,0 +1,13 @@
+.profile-image-mobile {
+    width: 100px;
+    height: 100px;
+    transition: all 0.3s ease;
+}
+
+
+@media screen and (max-width: 800px) {
+    .profile-image-mobile {
+      width: 150px;
+      height: 150px;
+    }
+}

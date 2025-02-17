@@ -9,3 +9,7 @@ A mesmerizing 3D galaxy visualization showcasing our company's portfolio. Visit 
 
 ## License
 Apache License 2.0
+
+
+## Credits
+Galaxy render based on [https://github.com/pickles976/GalaxyThreeJS]

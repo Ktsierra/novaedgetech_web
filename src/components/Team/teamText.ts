@@ -2,32 +2,28 @@ import { Team } from "../../types/types";
 
 export const team: Team = {
   header: {
-    title: "Meet Our Team",
-    backButtonText: "Back",
+    title: "Meet Me",
+    backButtonText: "X",
     mainSkills: [
-      "Expert Leadership",
-      "Creative Innovation",
-      "Collaborative Spirit"
+      "Visionary Founder",
+      "Innovative Developer",
+      "Passionate Entrepreneur"
     ]
   },
   sections: {
-    leadership: {
-      heading: "Leadership",
+    profile: {
+      heading: "About Me",
       content:
-        "Our leadership team combines decades of industry experience with an innovative vision to guide our company forward. They are committed to strategic growth and fostering a culture of excellence."
+        "Hello, I'm Jose Sierra – the heartbeat behind this venture. With a solid background in software engineering and a flair for creative problem-solving, I founded this company to turn innovative ideas into real-world solutions. Every project is a personal journey, and every challenge, an opportunity to learn and grow.",
+      image: "https://avatar.iran.liara.run/public/boy"
     },
-    teamMembers: {
-      heading: "Team Members",
+    details: {
+      heading: "My Story & Achievements",
       content:
-        "Our team consists of dedicated professionals from various disciplines. From skilled developers to innovative designers, every member contributes unique expertise that drives our projects."
-    },
-    coreValues: {
-      heading: "Core Values",
-      content:
-        "Integrity, collaboration, and continuous improvement are at the heart of our work. We foster a dynamic environment where creativity and teamwork lead to breakthrough solutions."
+        "From early prototypes to full-scale solutions, my career is a testament to dedication and relentless curiosity. Not only have I built products that drive innovation, but I’ve also embraced every setback as a stepping stone toward success. I look forward to collaborating with you to create meaningful solutions that make a difference."
     }
   },
   footer: {
-    footerLine: "Together, we build the future of technology."
+    footerLine: "Let’s collaborate to achieve your goals."
   }
 };

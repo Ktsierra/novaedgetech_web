@@ -1,22 +1,21 @@
-// Team.tsx
 import { AnimatePresence } from "framer-motion";
 import useStacked from "../../hooks/useStacked";
-import TeamDesktop from "./Team.desktop";
-import TeamMobile from "./Team.mobile";
-import "./Team.css";
+import ContactDesktop from "./Contact.desktop";
+import ContactMobile from "./Contact.mobile";
+import "./Contact.css";
 
-const Team = () => {
+const Projects = () => {
   const { stacked } = useStacked();
 
   return (
     <AnimatePresence mode="wait">
       {stacked ? (
-        <TeamMobile key="mobile" />
+        <ContactMobile key="mobile" />
       ) : (
-        <TeamDesktop key="desktop" />
+        <ContactDesktop key="desktop" />
       )}
     </AnimatePresence>
   );
 };
 
-export default Team;
+export default Projects;

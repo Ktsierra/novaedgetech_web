@@ -1,4 +1,3 @@
-// TeamMobile.tsx
 import useCamera from "../../hooks/useCamera";
 import BottomSheet from "../BottomSheet";
 import { team } from "./teamText";
@@ -12,10 +11,7 @@ const TeamMobile = () => {
       <div className="team-header-mobile">
         <div className="top-bar">
           <h2 className="title">{team.header.title}</h2>
-          <button
-            className="back-button"
-            onClick={() => { setStarSelected(false); }}
-          >
+          <button className="back-button" onClick={() => { setStarSelected(false); }}>
             {team.header.backButtonText}
           </button>
         </div>
@@ -27,24 +23,23 @@ const TeamMobile = () => {
       </div>
 
       <div className="team-content">
-        <section>
-          <h3>{team.sections.leadership.heading}</h3>
+        <section className="profile-mobile">
+          <h3>{team.sections.profile.heading}</h3>
           <div className="section-text">
-            {team.sections.leadership.content}
+            {team.sections.profile.image && (
+              <img
+                src={team.sections.profile.image}
+                alt="Profile"
+                className="profile-image profile-image-mobile"
+              />
+            )}
+            {team.sections.profile.content}
           </div>
         </section>
-
         <section>
-          <h3>{team.sections.teamMembers.heading}</h3>
+          <h3>{team.sections.details.heading}</h3>
           <div className="section-text">
-            {team.sections.teamMembers.content}
-          </div>
-        </section>
-
-        <section>
-          <h3>{team.sections.coreValues.heading}</h3>
-          <div className="section-text">
-            {team.sections.coreValues.content}
+            {team.sections.details.content}
           </div>
         </section>
       </div>
