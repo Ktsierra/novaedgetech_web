@@ -2,7 +2,7 @@ import useCamera from "../../hooks/useCamera";
 import SidePanel from "../SidePanel";
 import { team } from "./teamText";
 import "./Team.desktop.css";
-import Github from "../logos/Github";
+import Github from "../logos/GitHubLogo";
 import LinkedIn from "../logos/Linkedin";
 
 const TeamDesktop = () => {
