@@ -6,7 +6,7 @@ export const contact : Contact = {
     backButtonText: "X"
   },
   footer: {
-    footerLine: "I look forward to hearing from you."
+    footerLine: ".I look forward to hearing from you"
   }
 };
 

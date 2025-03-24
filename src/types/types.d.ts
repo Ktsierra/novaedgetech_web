@@ -120,3 +120,10 @@ export interface Contact {
     footerLine: string;
   };
 }
+
+export interface ApiResponse {
+    success?: boolean;
+    adminEmailId?: string;
+    clientEmailId?: string;
+    error?: string;
+  }

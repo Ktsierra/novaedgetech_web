@@ -18,7 +18,7 @@
     width: 150px;
     height: 150px;
     margin: 0 auto;
-    background-color: white;
+    background-image: radial-gradient(circle, #505050, #303030);
     transition: all 0.3s ease;
 }
 

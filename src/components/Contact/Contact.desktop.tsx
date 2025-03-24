@@ -31,7 +31,7 @@ const ContactDesktop = () => {
       <ContactForm />
       <div className="footer-interface">
         <div className="pulse-indicator"></div>
-        <div className="footer-line">{contact.footer.footerLine}</div>
+        <div>{contact.footer.footerLine}</div>
       </div>
     </SidePanel>
   );

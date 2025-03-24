@@ -17,7 +17,7 @@ const ContactMobile = () => {
       </div>
       <ContactForm />
       <div className="footer-interface">
-        <div className="footer-line">{contact.footer.footerLine}</div>
+        <div>{contact.footer.footerLine}</div>
         <div className="pulse-indicator"></div>
       </div>
     </BottomSheet>

@@ -2,8 +2,8 @@ import useCamera from "../../hooks/useCamera";
 import SidePanel from "../SidePanel";
 import { team } from "./teamText";
 import "./Team.desktop.css";
-import Github from "../logos/github";
-import LinkedIn from "../logos/linkedin";
+import Github from "../logos/Github";
+import LinkedIn from "../logos/Linkedin";
 
 const TeamDesktop = () => {
   const { setStarSelected } = useCamera();
