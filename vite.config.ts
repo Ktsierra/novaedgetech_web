@@ -5,9 +5,9 @@ import react from '@vitejs/plugin-react-swc';
 export default defineConfig({
   plugins: [react()],
   assetsInclude: ['**/*.gltf', '**/*.bin', '**/*.glb'], // Add GLTF and BIN to asset types
-  build: {
+/*   build: {
     rollupOptions: {
       external: ['three']
     }
-  }
+  } */
 });
