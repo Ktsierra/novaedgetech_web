@@ -1,4 +1,4 @@
-import React from 'react';
+itport React from 'react';
 import './Team.css';
 
 const Team: React.FC = () => {

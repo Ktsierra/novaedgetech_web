@@ -44,6 +44,7 @@ const ProjectsDesktop = () => {
                     <h3>{project.title}</h3>
                     <img
                       src={project.image}
+                      alt={project.title}
                       className="project-image"
                     />
                     <p>{project.description}</p>

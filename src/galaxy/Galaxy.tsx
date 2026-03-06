@@ -31,7 +31,7 @@ const Galaxy: React.FC = () => {
 
   useFrame((_, delta) => {
     if (galaxyRef.current) {
-      galaxyRef.current.rotation.z += delta * (starSelected ? 0 : 0.05);
+      galaxyRef.current.rotation.z += delta * (starSelected ? 0.005 : 0.05);
     }
   });
 

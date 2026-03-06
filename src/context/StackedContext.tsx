@@ -9,7 +9,7 @@ interface StackedContextProps {
 const StackedContext = createContext<StackedContextProps | undefined>(undefined);
 
 const StackedContextProvider = ({ children }: { children: React.ReactNode }) => {
-  const [stacked, setStacked] = useState(() => window.innerWidth <= 800);
+  const [stacked, setStacked] = useState(() => window.innerWidth <= 1200);
 
   useEffect(() => {
     const handleResize = () => {

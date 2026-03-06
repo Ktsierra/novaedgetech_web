@@ -1,51 +1,15 @@
 .contact-form {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-  }
-  
-  .form-group {
-    display: flex;
-    flex-direction: column;
-  }
-  
-  .form-group label {
-    font-weight: bold;
-  }
-  
-  .form-group input,
-  .form-group textarea {
-    padding: 0.5rem;
-    border-radius: 4px;
-    border: 1px solid #ccc;
-    resize: vertical;
-  }
-  
-  button[type="submit"] {
-    padding: 0.75rem;
-    background-color: #007bff;
-    color: white;
-    border-radius: 4px;
-    border: none;
-    cursor: pointer;
-  }
-  
-  button[type="submit"]:disabled {
-    background-color: #ccc;
-  }
-  
-  .success-message {
-    color: green;
-  }
-  
-  .error-message {
-    color: red;
-  }
-  
-  .footer-interface  {
+    width: 80%;
+    margin: 0 auto;
+    padding: 2rem;
+    border: 1px solid #3a3a3a;
+    border-radius: 8px;
+    background-color: rgba(10, 10, 10, 0.6);
+}
+
+.contact-form .footer-interface {
     padding-right: 2rem;
     padding-left: 2rem;
     width: 80%;
     margin: 1rem auto;
   }
-  

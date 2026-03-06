@@ -4,7 +4,7 @@ import ContactDesktop from "./Contact.desktop";
 import ContactMobile from "./Contact.mobile";
 import "./Contact.css";
 
-const Projects = () => {
+const Contact = () => {
   const { stacked } = useStacked();
 
   return (
@@ -18,4 +18,4 @@ const Projects = () => {
   );
 };
 
-export default Projects;
+export default Contact;

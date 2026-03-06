@@ -1,84 +1,94 @@
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect } from 'react'
 
 interface StarryNightProps {
-    starCount?: number;
-    nebulaCount?: number;
-    speed?: number;
+  starCount?: number
+  nebulaCount?: number
+  speed?: number
 }
 
 interface NebulaProps {
-    x: number;
-    y: number;
-    radius: number;
-    hue: number;
-    alpha: number;
+  x: number
+  y: number
+  radius: number
+  hue: number
+  alpha: number
 }
 
 interface StarProps {
-    x: number;
-    y: number;
-    z: number
-    radius: number;
-    alpha: number;
-    decreasing: boolean;
+  x: number
+  y: number
+  z: number
+  radius: number
+  alpha: number
+  decreasing: boolean
 }
-
-const StarryNight = ({ starCount = 200, nebulaCount = 5, speed = 0.02 }: StarryNightProps) => {
-  const speedFactor = useRef(speed > 0.05 || speed < -0.05 ? Math.abs(speed) : 0.05);
-  const targetSpeedFactor = useRef(0.05);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const prevTime = useRef<number>();
-  const prevScroll = useRef(0);
-  const animationFrameId = useRef<number>(0);
-  const scrollDelta = useRef(0);
-  const nebulasRef = useRef<NebulaProps[]>([]);
+const Starrsa = (): StarProps => {
+  return <h1></h1>
+}
+const StarryNight = ({
+  starCount = 200,
+  nebulaCount = 5,
+  speed = 0.02,
+}: StarryNightProps) => {
+  const speedFactor = useRef(
+    speed > 0.05 || speed < -0.05 ? Math.abs(speed) : 0.05
+  )
+  const targetSpeedFactor = useRef(0.05)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const prevTime = useRef<number>()
+  const prevScroll = useRef(0)
+  const animationFrameId = useRef<number>(0)
+  const scrollDelta = useRef(0)
+  const nebulasRef = useRef<NebulaProps[]>([])
 
   if (0 < speed && speed > 0.05) {
-    throw new Error('Speed must be between 0 and 0.05');
+    throw new Error('Speed must be between 0 and 0.05')
   }
 
   useEffect(() => {
-    const canvas = canvasRef.current;
+    const canvas = canvasRef.current
 
     if (!canvas) {
-      console.error('Could not find canvas element');
-      return;
+      console.error('Could not find canvas element')
+      return
     }
 
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d')
 
     if (!ctx) {
-      console.error('Could not get 2d context from canvas element');
-      return;
+      console.error('Could not get 2d context from canvas element')
+      return
     }
 
     // Set canvas size
     const resizeCanvas = () => {
+      const aspectRatioX = window.innerWidth / canvas.width
+      const aspectRatioY = window.innerHeight / canvas.height
 
-      const aspectRatioX = window.innerWidth / canvas.width;
-      const aspectRatioY = window.innerHeight / canvas.height;
+      nebulasRef.current.forEach((nebula) => {
+        nebula.x *= aspectRatioX
+        nebula.y *= aspectRatioY
+      })
 
-      nebulasRef.current.forEach(nebula => {
-        nebula.x *= aspectRatioX;
-        nebula.y *= aspectRatioY;
-      });
-
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-    };
+      canvas.width = window.innerWidth
+      canvas.height = window.innerHeight
+    }
 
     const scrollHandler = () => {
-      scrollDelta.current = window.scrollY - prevScroll.current;
-      prevScroll.current = window.scrollY;
-      targetSpeedFactor.current = Math.min(0.2, Math.max(-0.2, targetSpeedFactor.current + scrollDelta.current / 1000));
-    };
+      scrollDelta.current = window.scrollY - prevScroll.current
+      prevScroll.current = window.scrollY
+      targetSpeedFactor.current = Math.min(
+        0.2,
+        Math.max(-0.2, targetSpeedFactor.current + scrollDelta.current / 1000)
+      )
+    }
 
     const scrollendHandler = () => {
-      targetSpeedFactor.current = speedFactor.current > 0 ? 0.05 : -0.05;
-    };
+      targetSpeedFactor.current = speedFactor.current > 0 ? 0.05 : -0.05
+    }
 
     const initStars = () => {
-      const stars: StarProps[] = [];
+      const stars: StarProps[] = []
       for (let i = 0; i < starCount; i++) {
         stars.push({
           x: Math.random() * 1600 - 800,
@@ -86,149 +96,151 @@ const StarryNight = ({ starCount = 200, nebulaCount = 5, speed = 0.02 }: StarryN
           z: Math.random() * 1000,
           radius: Math.random() + 1,
           alpha: Math.random(),
-          decreasing: Math.random() < 0.5
-        });
+          decreasing: Math.random() < 0.5,
+        })
       }
-      return stars;
-    };
+      return stars
+    }
 
-    const stars = initStars();
+    const stars = initStars()
 
     const clear = () => {
-      ctx.fillStyle = 'black';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-    };
+      ctx.fillStyle = 'black'
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
+    }
 
     const moveStarsZ = (distance: number) => {
-      const count = stars.length;
+      const count = stars.length
       for (let i = 0; i < count; i++) {
-        const s = stars[i];
-        s.z -= distance;
+        const s = stars[i]
+        s.z -= distance
         if (s.z >= 1000) {
-          s.z -= 1000;
+          s.z -= 1000
         }
         while (s.z <= 1) {
-          s.z += 1000;
-          s.x = Math.random() * 1600 - 800;
-          s.y = Math.random() * 900 - 450;
+          s.z += 1000
+          s.x = Math.random() * 1600 - 800
+          s.y = Math.random() * 900 - 450
         }
       }
-    };
+    }
 
     const moveStarsY = (distance: number) => {
-      const count = stars.length;
+      const count = stars.length
       for (let i = 0; i < count; i++) {
-        const s = stars[i];
-        s.y += distance;
+        const s = stars[i]
+        s.y += distance
         if (s.y > canvas.height) {
-          s.y = 0;
+          s.y = 0
         }
       }
-    };
+    }
 
     // Create nebulas using canvas dimensions
     const initNebulas = () => {
-      nebulasRef.current = [];
+      nebulasRef.current = []
       for (let i = 0; i < nebulaCount; i++) {
         nebulasRef.current.push({
           x: Math.random() * canvas.width, // Use actual canvas width
           y: Math.random() * canvas.height, // Use actual canvas height
           radius: Math.random() * 100 + 50,
           hue: Math.random() * 60 + 200,
-          alpha: Math.random() * 0.5
-        });
+          alpha: Math.random() * 0.5,
+        })
       }
-    };
+    }
 
-    initNebulas();
+    initNebulas()
 
     // Draw nebula
     const drawNebula = ({ x, y, radius, hue, alpha }: NebulaProps) => {
-      const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
-      gradient.addColorStop(0, `hsla(${hue.toString()}, 100%, 60%, ${alpha.toString()})`);
-      gradient.addColorStop(1, 'transparent');
-      ctx.fillStyle = gradient;
-      ctx.beginPath();
-      ctx.arc(x, y, radius, 0, Math.PI * 2);
-      ctx.fill();
-    };
-
+      const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius)
+      gradient.addColorStop(
+        0,
+        `hsla(${hue.toString()}, 100%, 60%, ${alpha.toString()})`
+      )
+      gradient.addColorStop(1, 'transparent')
+      ctx.fillStyle = gradient
+      ctx.beginPath()
+      ctx.arc(x, y, radius, 0, Math.PI * 2)
+      ctx.fill()
+    }
+    //dsfgggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggsdgggggggfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     // Animate stars and nebulas
     const animate = (time: number) => {
       // Interpolate speedFactor
-      speedFactor.current += (targetSpeedFactor.current - speedFactor.current) * 0.05;
+      speedFactor.current +=
+        (targetSpeedFactor.current - speedFactor.current) * 0.05
 
-      if (!prevTime.current) prevTime.current = time;
-      const elapsed = time - prevTime.current;
-      prevTime.current = time;
+      prevTime.current ??= time
+      const elapsed = time - prevTime.current
+      prevTime.current = time
 
-      clear();
+      clear()
 
       // Draw nebulas
-      nebulasRef.current.forEach(nebula => {
-        drawNebula(nebula);
-      });
+      nebulasRef.current.forEach((nebula) => {
+        drawNebula(nebula)
+      })
 
-      moveStarsZ(elapsed * speedFactor.current);
-      moveStarsY(elapsed * speedFactor.current);
+      moveStarsZ(elapsed * speedFactor.current)
+      moveStarsY(elapsed * speedFactor.current)
 
-      const cx = canvas.width / 2;
-      const cy = canvas.height / 2;
+      const cx = canvas.width / 2
+      const cy = canvas.height / 2
 
-      ctx.shadowBlur = 2;
-      ctx.shadowColor = 'white';
+      ctx.shadowBlur = 2
+      ctx.shadowColor = 'white'
 
-      stars.forEach(star => {
+      stars.forEach((star) => {
         if (star.y < -450) {
-          star.y = Math.random() * 900 - 450;
+          star.y = Math.random() * 900 - 450
         }
 
-        const x = cx + star.x / (star.z * 0.001);
-        const y = cy + star.y / (star.z * 0.001);
+        const x = cx + star.x / (star.z * 0.001)
+        const y = cy + star.y / (star.z * 0.001)
 
         if (x < 0 || x >= canvas.width || y < 0 || y >= canvas.height) {
-          return;
+          return
         }
 
-        ctx.beginPath();
-        ctx.arc(x, y, star.radius, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(255, 255, 255, ${star.alpha.toString()})`;
-        ctx.fill();
+        ctx.beginPath()
+        ctx.arc(x, y, star.radius, 0, Math.PI * 2)
+        ctx.fillStyle = `rgba(255, 255, 255, ${star.alpha.toString()})`
+        ctx.fill()
 
         if (star.decreasing) {
-          star.alpha -= 0.003;
+          star.alpha -= 0.003
           if (star.alpha <= 0) {
-            star.decreasing = false;
+            star.decreasing = false
           }
         } else {
-          star.alpha += 0.003;
+          star.alpha += 0.003
           if (star.alpha >= 1) {
-            star.decreasing = true;
+            star.decreasing = true
           }
         }
-      });
+      })
 
-      ctx.shadowBlur = 0;
-      animationFrameId.current = window.requestAnimationFrame(animate);
-    };
+      ctx.shadowBlur = 0
+      animationFrameId.current = window.requestAnimationFrame(animate)
+    }
 
     // Initial setup
-    resizeCanvas();
-    animate(0);
+    resizeCanvas()
+    animate(0)
 
-
-
-    window.addEventListener('resize', resizeCanvas);
-    window.addEventListener('scroll', scrollHandler);
-    window.addEventListener('scrollend', scrollendHandler);
+    window.addEventListener('resize', resizeCanvas)
+    window.addEventListener('scroll', scrollHandler)
+    window.addEventListener('scrollend', scrollendHandler)
 
     return () => {
-      window.removeEventListener('resize', resizeCanvas);
-      window.removeEventListener('scroll', scrollHandler);
-      window.removeEventListener('scrollend', scrollendHandler);
-      window.cancelAnimationFrame(animationFrameId.current);
-    };
-  }, [starCount, nebulaCount, speedFactor]);
+      window.removeEventListener('resize', resizeCanvas)
+      window.removeEventListener('scroll', scrollHandler)
+      window.removeEventListener('scrollend', scrollendHandler)
+      window.cancelAnimationFrame(animationFrameId.current)
+    }
+  }, [starCount, nebulaCount, speedFactor])
 
   return (
     <canvas
@@ -238,10 +250,10 @@ const StarryNight = ({ starCount = 200, nebulaCount = 5, speed = 0.02 }: StarryN
         top: 0,
         left: 0,
         zIndex: -1,
-        pointerEvents: 'none'
+        pointerEvents: 'none',
       }}
     />
-  );
-};
+  )
+}
 
-export default StarryNight;
+export default StarryNight

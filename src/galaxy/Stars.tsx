@@ -15,6 +15,13 @@ import GalaxyButton from "./GalaxyButton";
 import useGalaxyRef from "../hooks/useGalaxyRef";
 import { Star, StarNoReference } from "../types/types";
 
+const subtitles: Record<string, string> = {
+  'About': 'Who we are',
+  'Team': 'Meet the crew',
+  'Projects': 'Our work',
+  'Contact': 'Get in touch',
+};
+
 
 const Stars = () => {
   const [buttonSides, setButtonSides] = useState<('left' | 'right')[]>([]);
@@ -126,7 +133,12 @@ const Stars = () => {
       const currentAngle = (ref.originalAngle + rotationZ + Math.PI / 2) % (2 * Math.PI);
       return currentAngle < Math.PI ? 'left' : 'right';
     });
-    setButtonSides(prev => JSON.stringify(prev) === JSON.stringify(newSides) ? prev : newSides);
+    setButtonSides(prev => {
+      for (let i = 0; i < newSides.length; i++) {
+        if (newSides[i] !== prev[i]) return newSides;
+      }
+      return prev;
+    });
 
   });
 
@@ -149,6 +161,7 @@ const Stars = () => {
           >
             <GalaxyButton
               title={reference.title}
+              subtitle={subtitles[reference.title] ?? ''}
               side={side}
               onClick={() => {
                 setStarSelected(true);
