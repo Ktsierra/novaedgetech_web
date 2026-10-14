@@ -10,7 +10,8 @@ export interface EarthView {
   /** backing-store size in device pixels (the canvas CSS size is set by Journey.css) */
   setSize: (px: number) => void;
   /** focus 0 = free spin, 1 = target location locked dead-centre */
-  render: (now: number, focus?: number) => void;
+  /** scroll progress 0..1 also turns the globe and moon, so scrolling always shows motion */
+  render: (now: number, focus?: number, scroll?: number) => void;
   /** location to turn toward (and mark) as focus rises */
   setTarget: (lat: number, lon: number) => void;
   dispose: () => void;
@@ -174,12 +175,12 @@ export async function createEarth(canvas: HTMLCanvasElement): Promise<EarthView>
       // inverse of the surface's y-rotation for this longitude, so the dot lands on the location
       dot.position.set(rr * Math.cos(p) * Math.sin(a), rr * POLAR * Math.sin(p), rr * Math.cos(p) * Math.cos(a));
     },
-    render: (now: number, focus = 0) => {
+    render: (now: number, focus = 0, scroll = 0) => {
       if (t0 < 0) t0 = now;
       const t = (now - t0) / 1000;
       const f = target ? Math.min(1, Math.max(0, focus)) : 0;
       // free spin, blended along the shortest arc toward the target longitude
-      const spin = faceY + t * 0.018;
+      const spin = faceY + t * 0.018 + scroll * 9;
       const y = target ? spin + wrapPi(-(target.lon + 90) * D - spin) * f : spin;
       surface.rotation.y = y;
       cloudMesh.rotation.y = y + t * 0.006;
@@ -191,7 +192,7 @@ export async function createEarth(canvas: HTMLCanvasElement): Promise<EarthView>
         dot.visible = dotMat.opacity > 0.01;
         dot.scale.setScalar(0.05 * (1 + 0.25 * Math.sin(t * 4)));
       }
-      const ma = t * 0.11 + 2.1;
+      const ma = t * 0.11 + scroll * 14 + 2.1;
       const mz = Math.sin(ma) * MOON_ORBIT;
       moon.position.set(Math.cos(ma) * MOON_ORBIT, -mz * Math.sin(MOON_INCL), mz * Math.cos(MOON_INCL));
       moon.rotation.y = -ma + Math.PI; // tidally locked

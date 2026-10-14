@@ -16,6 +16,8 @@ const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 const seg = (p: number, a: number, b: number) => clamp((p - a) / (b - a), 0, 1);
 const ease = (t: number) => 1 - Math.pow(1 - t, 3);
 const easeIO = (t: number) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+// gentler tails than easeIO: keeps responding to scroll near the start and end of a move
+const sstep = (t: number) => t * t * (3 - 2 * t);
 const bell = (p: number, c: number, w: number) => Math.exp(-((p - c) / w) * ((p - c) / w));
 const rnd = Math.random;
 const TAU = Math.PI * 2;
@@ -80,7 +82,7 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
   let earth: EarthView | null = null, earthOn = false, earthPx = 0, earthTier = 1;
   const syncEarthSize = () => {
     if (!earth) return;
-    const px = Math.min(3072, 2 * Rend * EARTH_FRAME * Math.min(devicePixelRatio || 1, 2) * earthTier);
+    const px = Math.min(3072, 2 * Rend * EARTH_FRAME * Math.min(devicePixelRatio || 1, 1.5) * earthTier);
     if (Math.abs(px - earthPx) > 1) { earthPx = px; earth.setSize(px); }
   };
   const planetDef = { el: planetStage, in0: 0.30, in1: 0.36, out0: 0.60, out1: 0.67, maxZ: 10, drift: 1.08, enterFrom: 1, ey: 0 };
@@ -305,9 +307,13 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
   if (codeEl) codeEl.textContent = '';
 
   // ---------- main loop ----------
+  let lastNow = 0;
   const loop = (now: number) => {
     if (dead) return;
-    ssy += (scrollY - ssy) * 0.09;
+    // frame-rate independent smoothing (≈0.09/frame at 60fps) so slow frames don't feel like scroll lag
+    const dt = lastNow ? Math.min(0.1, (now - lastNow) / 1000) : 1 / 60;
+    lastNow = now;
+    ssy += (scrollY - ssy) * (1 - Math.exp(-dt * 5.7));
     smx += (mx - smx) * 0.05; smy += (my - smy) * 0.05;
     if ((frameC++ % 60) === 0) scrollMax = Math.max(1, document.documentElement.scrollHeight - H);
     const p = clamp(ssy / scrollMax, 0, 1);
@@ -346,13 +352,14 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
     // --- 3D Earth: swap in only while the planet is off-screen, render only while it is ---
     if (earth && pwrap) {
       const planetActive = planetStage?.style.display === 'block';
-      if (!earthOn && !planetActive) { earthOn = true; pwrap.classList.add('is-earth'); }
+      // swap while the planet is off-screen or still a speck on its orbit (sysZ starts at 0.34), never mid-view
+      if (!earthOn && (!planetActive || p < 0.345)) { earthOn = true; pwrap.classList.add('is-earth'); }
       if (earthOn && planetActive) {
         // sharpen the backing store as the exit dive magnifies the globe
         const tier = planetScale < 1.6 ? 1 : planetScale < 3 ? 1.5 : 2;
         if (tier !== earthTier) { earthTier = tier; syncEarthSize(); }
         // lock onto the visitor's location just before the dive, so the zoom lands on it
-        earth.render(now, easeIO(seg(p, 0.545, 0.615)));
+        earth.render(now, sstep(seg(p, 0.545, 0.615)), p);
       }
     }
 
@@ -459,14 +466,16 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
     }
     // sun recedes as orbits expand; the SAME DOM planet rides its orbit the whole way
     const sunVis = seg(p, 0.10, 0.18) * (1 - seg(p, 0.60, 0.66));
-    const sysZ = easeIO(seg(p, 0.34, 0.46));
+    const sysZ = sstep(seg(p, 0.34, 0.46));
+    // while parked in orbit the planet keeps creeping closer, so every scroll tick shows movement
+    const orbitGrow = 1 + (W < MOBILE_BREAKPOINT ? 0.12 : 0.04) * seg(p, 0.46, 0.60);
     if (sysZ < 0.02) tAng += 0.0012;
     const oScale = (H * 0.16) * (1 + sysZ * 2.2);
     const oEnd = (H * 0.16) * 3.2;
     if (sunVis > 0.01) {
       g.globalCompositeOperation = 'lighter';
       const grow = Math.pow(seg(p, 0.14, 0.315), 2.2);
-      const rec = easeIO(seg(p, 0.315, 0.46));
+      const rec = sstep(seg(p, 0.315, 0.46));
       const sr = (3 + grow * H * 0.55) * (1 - 0.93 * rec);
       const sunX0 = viewX + (fwx - fx) * Z, sunY0 = viewY + (fwy - fy) * Z;
       // solved backwards from the planet's orbit slot so the slot lands on the planet's resting spot
@@ -494,10 +503,10 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
       if (pwrap) {
         const px = sx2 + Math.cos(tAng) * oScale * 2, py = sy2 + Math.sin(tAng) * oScale * 2 * 0.38;
         const s2 = (4 + Math.pow(sysZ, 1.6) * (Rend - 4)) / Rend;
-        pwrap.style.transform = 'translate(-50%,-50%) translate(' + (px - W * AX).toFixed(1) + 'px,' + (py - H * AY).toFixed(1) + 'px) scale(' + s2.toFixed(4) + ')';
+        pwrap.style.transform = 'translate(-50%,-50%) translate(' + (px - W * AX).toFixed(1) + 'px,' + (py - H * AY).toFixed(1) + 'px) scale(' + (s2 * orbitGrow).toFixed(4) + ')';
       }
     } else if (pwrap && p > 0.6) {
-      pwrap.style.transform = 'translate(-50%,-50%)';
+      pwrap.style.transform = 'translate(-50%,-50%) scale(' + orbitGrow.toFixed(4) + ')';
     }
     // atmosphere-scattered sun in the planet's sky
     const skyA = seg(p, 0.46, 0.52) * (1 - seg(p, 0.60, 0.66));
