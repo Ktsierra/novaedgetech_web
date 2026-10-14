@@ -23,7 +23,7 @@ export interface Band {
   status: string;
 }
 
-export const CONTACT_EMAIL = 'hello@novaedgetechnology.com';
+export const CONTACT_EMAIL = 'jose.sierra@novaedgetechnology.com';
 
 export const loaderStatuses = [
   'initializing particle field',
