@@ -1,6 +1,6 @@
-import { render, screen } from "@testing-library/react";
+import { render } from "@testing-library/react";
 import BlackHoleLoader from "../src/components/BlackHoleLoader";
-import { describe, it, expect } from 'vitest';
+import { describe, it } from 'vitest';
 import { LoadingProvider } from "../src/context/LoadingContext";
 
 describe('BlackHoleLoader', () => {
