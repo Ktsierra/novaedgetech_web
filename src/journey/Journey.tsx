@@ -2,6 +2,7 @@ import { CSSProperties, useEffect, useRef } from 'react';
 import './Journey.css';
 import { JourneyOptions, runJourney } from './engine';
 import JourneyContact from './JourneyContact';
+import WorkCard from './WorkCard';
 import { CONTACT_EMAIL, GO, services, work } from './journeyText';
 
 /** CSS custom properties for the reveal classes */
@@ -25,6 +26,7 @@ const Journey = (props: JourneyOptions) => {
       <canvas data-gal className="j-canvas" />
       <div data-clouds className="j-clouds" />
       <div data-iris className="j-iris" />
+      <div data-veil className="j-veil" aria-hidden="true" />
       <div data-cur2 className="j-cur2" />
       <div data-cur1 className="j-cur1" />
 
@@ -74,7 +76,7 @@ const Journey = (props: JourneyOptions) => {
           </p>
           <div data-hero className="j-rise j-hero-ctas" style={v({ '--dur': '.9s', '--delay': '.2s' })}>
             <a href="#contact" data-go={GO.contact} data-hov className="j-btn j-btn--solid">START A PROJECT ↗</a>
-            <a href="#journey" data-go={GO.journey} data-hov className="j-btn j-btn--ghost">TAKE THE JOURNEY ↓</a>
+            <a href="#journey" data-go={GO.journey} data-go-play data-hov className="j-btn j-btn--ghost">TAKE THE JOURNEY ↓</a>
           </div>
         </div>
         <div data-hero data-cue className="j-fade j-cue" style={v({ '--dur': '1.2s', '--delay': '.5s' })}>
@@ -117,41 +119,32 @@ const Journey = (props: JourneyOptions) => {
 
       {/* ---------- surface: work ---------- */}
       <section id="work" data-stage="surface" className="j-stage j-surface" aria-label="Selected work">
-        <div className="j-sky" />
-        <div className="j-moon" />
-        <div className="j-ridge j-ridge--far" />
-        <div className="j-ridge j-ridge--near" />
-        <div className="j-outpost" />
-        <div className="j-mast" style={{ left: '23%', top: '44.5%', height: '9%' }}><span style={{ animationDuration: '1.6s' }} /></div>
-        <div className="j-mast" style={{ left: '76%', top: '46.5%', height: '7%' }}><span style={{ animationDuration: '2.1s' }} /></div>
-        <div className="j-horizon" />
-        <div className="j-haze" />
-        <div className="j-grid" />
+        <canvas data-surface3d className="j-surface3d" aria-hidden="true" />
+        {/* CSS scene: fallback when WebGL2 is unavailable */}
+        <div className="j-surface-css" aria-hidden="true">
+          <div className="j-sky" />
+          <div className="j-moon" />
+          <div className="j-ridge j-ridge--far" />
+          <div className="j-ridge j-ridge--near" />
+          <div className="j-outpost" />
+          <div className="j-mast" style={{ left: '23%', top: '44.5%', height: '9%' }}><span style={{ animationDuration: '1.6s' }} /></div>
+          <div className="j-mast" style={{ left: '76%', top: '46.5%', height: '7%' }}><span style={{ animationDuration: '2.1s' }} /></div>
+          <div className="j-horizon" />
+          <div className="j-haze" />
+          <div className="j-grid" />
+        </div>
+        <div className="j-surface-shade" />
         <div className="j-surface-content">
           <div className="j-surface-head">
-            <div data-at="0.655" data-scr className="j-fade j-eyebrow">02 / SELECTED WORK · SURFACE LEVEL</div>
-            <h2 data-at="0.67" className="j-rise j-h2 j-surface-title">Touchdown: the work.</h2>
-            <div data-at="0.685" data-coords className="j-fade j-coords">LAT 12.7° ✦ LON −48.2° ✦ OUTPOST 04 · EARTH</div>
+            <div>
+              <div data-at="0.655" data-scr className="j-fade j-eyebrow">02 / SELECTED WORK · SURFACE LEVEL</div>
+              <h2 data-at="0.67" className="j-rise j-h2 j-surface-title">Touchdown: the work.</h2>
+              <div data-at="0.685" data-coords className="j-fade j-coords">LAT 12.7° ✦ LON −48.2° ✦ OUTPOST 04 · EARTH</div>
+            </div>
+            <p data-at="0.69" className="j-fade j-surface-blurb">Products we&apos;ve taken from first commit to launch, on the web and in your pocket.</p>
           </div>
           <div className="j-work-grid">
-            {work.map(w => (
-              <div key={w.id} data-at={w.at} className="j-rise j-work-item" style={v({ '--rise': '46px', '--offset': `${String(w.offset)}px` })}>
-                <div className="j-wcard" style={v({ '--tilt': w.tilt })}>
-                  <div className="j-wcard-shot">
-                    {w.image
-                      ? <img src={w.image} alt={`${w.title} screenshot`} loading="lazy" />
-                      : <div className="j-wcard-placeholder" aria-hidden="true"><span>{w.title}</span></div>}
-                  </div>
-                  <div className="j-wcard-meta">
-                    <span className="j-wcard-title">{w.title}</span>
-                    <span className="j-wcard-tags">{w.meta}</span>
-                  </div>
-                  <div className="j-scanlines" />
-                </div>
-                <div className="j-beam" />
-                <div className="j-beam-glow" />
-              </div>
-            ))}
+            {work.map((w, i) => <WorkCard key={w.id} w={w} index={i} total={work.length} />)}
           </div>
         </div>
       </section>

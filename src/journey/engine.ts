@@ -1,4 +1,5 @@
 import { EARTH_FRAME, EarthView, createEarth } from './earth';
+import { SurfaceView, createSurface } from './surface';
 import { bands, loaderStatuses, terminalCode } from './journeyText';
 
 export interface JourneyOptions {
@@ -24,7 +25,7 @@ const TAU = Math.PI * 2;
 
 type SpriteKey = 'w' | 'b' | 'c' | 'v' | 'a';
 interface GalaxyStar { r: number; th: number; k: SpriteKey; sz: number; tw: number; tws: number; sx: number; sy: number; d: number }
-interface Nebula { r: number; th: number; rad: number; img: HTMLCanvasElement }
+interface Nebula { r: number; th: number; rad: number; img: HTMLCanvasElement; a: number }
 interface FarStar { x: number; y: number; sz: number; a: number; tw: number; tws: number }
 interface Orbiter { o: number; a: number; w: number; s: number; img: HTMLCanvasElement }
 interface Stage { el: HTMLElement; in0: number; in1: number; out0: number; out1: number; maxZ: number; drift: number; enterFrom: number; ey: number }
@@ -79,6 +80,7 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
   // where the planet rests on screen (fraction of viewport) and its resting radius
   let AX = 0.63, AY = 0.5, Rend = 1;
   // 3D Earth (WebGL); the CSS planet stays as the fallback until it is ready
+  let surface: SurfaceView | null = null, surfaceOn = false;
   let earth: EarthView | null = null, earthOn = false, earthPx = 0, earthTier = 1;
   const syncEarthSize = () => {
     if (!earth) return;
@@ -100,6 +102,7 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
     // keep in sync with .j-pwrap sizes in Journey.css
     Rend = mobile ? Math.min(0.27 * W, 0.14 * H) : Math.min(0.28 * Math.min(W, H), 0.21 * W);
     syncEarthSize();
+    surface?.setSize(W, H);
     if (planetStage) planetStage.style.transformOrigin = `${String(AX * 100)}% ${String(AY * 100)}%`;
     const cue = q('[data-cue]');
     if (cue) cue.style.display = H < 650 || mobile ? 'none' : 'flex';
@@ -119,7 +122,7 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
   };
   const KEYS: SpriteKey[] = ['w', 'w', 'b', 'b', 'c', 'v', 'a'];
   // phones get fewer sprites; the galaxy is also physically smaller there
-  const N = Math.round(clamp(opts.galaxyDensity ?? 2200, 300, 4000) * (W < MOBILE_BREAKPOINT ? 0.65 : 1));
+  const N = Math.round(clamp(opts.galaxyDensity ?? 1300, 300, 4000) * (W < MOBILE_BREAKPOINT ? 0.65 : 1));
   const ARMS = clamp(opts.armCount ?? 6, 2, 6);
   const gauss = () => (rnd() + rnd() + rnd() - 1.5) / 1.5;
   const maxR = Math.max(W, H) * 0.46;
@@ -132,7 +135,7 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
     let r: number, th: number, spine = false;
     if (u < 0.22) { r = Math.abs(gauss()) * maxR * 0.17; th = rnd() * TAU; }
     else if (u < 0.28) { r = Math.pow(rnd(), 1.1) * maxR; th = rnd() * TAU; }
-    else if (u < 0.52) { spine = true; r = (0.12 + 0.88 * Math.pow(rnd(), 1.2)) * maxR; th = armTh(i % ARMS, r) + gauss() * (0.07 + 0.08 * (r / maxR)); }
+    else if (u < 0.48) { spine = true; r = (0.12 + 0.88 * Math.pow(rnd(), 1.2)) * maxR; th = armTh(i % ARMS, r) + gauss() * (0.07 + 0.08 * (r / maxR)); }
     else { r = Math.pow(rnd(), 1.35) * maxR; th = armTh(i % ARMS, r) + gauss() * (0.2 + 0.22 * (r / maxR)); }
     const core = r < maxR * 0.18;
     P.push({
@@ -144,17 +147,34 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
       d: rnd() * 0.5,
     });
   }
+  // gas: what makes it read as a galaxy rather than a star field
   const NEBC = ['rgba(80,110,255,', 'rgba(0,229,255,', 'rgba(160,110,255,', 'rgba(255,170,110,'];
-  // big soft clouds plus a chain of smaller ones riding each arm, so the arms read as glowing lanes
+  const glow = (c: string, a: number) => mkGlow(128, [[0, c + String(a) + ')'], [0.45, c + String(a * 0.45) + ')'], [1, c + '0)']]);
+  // a few huge, faint clouds over the disc
   for (let i = 0; i < 9; i++) {
     const r = (0.15 + rnd() * 0.6) * maxR;
-    NEB.push({ r, th: armTh(i % ARMS, r) + gauss() * 0.3, rad: 110 + rnd() * 180, img: mkGlow(128, [[0, NEBC[i % 4] + '0.09)'], [1, NEBC[i % 4] + '0)']]) });
+    NEB.push({ r, th: armTh(i % ARMS, r) + gauss() * 0.3, rad: 120 + rnd() * 180, img: glow(NEBC[i % 4], 0.05), a: 1 });
   }
+  const GAS: Nebula[] = [], DUST: Nebula[] = [];
+  const ARM_GAS = ['rgba(150,175,255,', 'rgba(120,160,255,', 'rgba(170,190,255,', 'rgba(110,190,255,'];
+  const gasImgs = ARM_GAS.map(c => glow(c, 0.13));
+  const hiiImg = glow('rgba(255,110,170,', 0.16); // pink star-forming knots
+  const dustImg = mkGlow(128, [[0, 'rgba(3,4,12,0.85)'], [0.5, 'rgba(3,4,12,0.4)'], [1, 'rgba(3,4,12,0)']]);
   for (let a = 0; a < ARMS; a++) {
-    for (let j = 0; j < 4; j++) {
-      const r = (0.2 + j * 0.19 + rnd() * 0.08) * maxR;
-      const c = NEBC[(a + j) % 3];
-      NEB.push({ r, th: armTh(a, r) + gauss() * 0.06, rad: 50 + rnd() * 50, img: mkGlow(128, [[0, c + '0.12)'], [1, c + '0)']]) });
+    // continuous glowing lane along each arm
+    for (let j = 0; j < 22; j++) {
+      const r = (0.12 + j * 0.04 + rnd() * 0.02) * maxR;
+      const fade = 1 - 0.55 * (r / maxR); // arms brightest near the bulge, thinning out
+      GAS.push({ r, th: armTh(a, r) + gauss() * 0.04, rad: (30 + rnd() * 26) * (0.8 + 0.7 * (r / maxR)), img: gasImgs[(a + j) % gasImgs.length], a: (0.75 + rnd() * 0.4) * fade });
+    }
+    for (let j = 0; j < 2; j++) {
+      const r = (0.3 + rnd() * 0.55) * maxR;
+      GAS.push({ r, th: armTh(a, r) + gauss() * 0.05, rad: 16 + rnd() * 22, img: hiiImg, a: 1 });
+    }
+    // dark dust lane hugging the inner (trailing) edge of the arm
+    for (let j = 0; j < 14; j++) {
+      const r = (0.1 + j * 0.06 + rnd() * 0.02) * maxR;
+      DUST.push({ r, th: armTh(a, r) - 0.1 - 0.04 * (r / maxR) + gauss() * 0.02, rad: (18 + rnd() * 16) * (0.8 + 0.5 * (r / maxR)), img: dustImg, a: 0.7 + rnd() * 0.25 });
     }
   }
   const coreImg = mkGlow(512, [[0, 'rgba(255,244,222,0.95)'], [0.2, 'rgba(255,214,160,0.4)'], [0.55, 'rgba(140,150,255,0.12)'], [1, 'rgba(0,0,0,0)']]);
@@ -239,6 +259,15 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
     }).catch(() => { /* no WebGL or textures failed: keep the CSS planet */ });
   }
   let planetScale = 1;
+  const surfaceStage = stg('surface');
+  const surfCv = q('[data-surface3d]') as HTMLCanvasElement | null;
+  if (surfCv) {
+    createSurface(surfCv).then(v => {
+      if (dead) { v.dispose(); return; }
+      surface = v;
+      v.setSize(W, H);
+    }).catch(() => { /* no WebGL2: keep the CSS surface */ });
+  }
 
   // visitor's approximate location (Vercel IP geolocation via /api/geo): the globe turns to it before the dive
   let geo: { lat: number; lon: number } | null = null;
@@ -260,7 +289,8 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
     .catch(() => { /* local dev or no geo headers: keep the default framing */ });
   const stageDefs: (Omit<Stage, 'el'> & { el: HTMLElement | null })[] = [
     planetDef,
-    { el: stg('surface'), in0: 0.635, in1: 0.70, out0: 0.84, out1: 0.90, maxZ: 11, drift: 1.18, enterFrom: 1.7, ey: -0.24 },
+    // the 3D descent carries the motion now, so the stage itself barely scales on the way in
+    { el: surfaceStage, in0: 0.62, in1: 0.665, out0: 0.84, out1: 0.90, maxZ: 11, drift: 1.0, enterFrom: 1.08, ey: 0 },
     { el: stg('desk'), in0: 0.875, in1: 0.93, out0: 2, out1: 3, maxZ: 1, drift: 1.06, enterFrom: 1.12, ey: 0.05 },
   ];
   const stages = stageDefs.filter((s): s is Stage => s.el !== null);
@@ -271,11 +301,56 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
   let formShown = false;
 
   // nav → scroll targets
+  // nearby chapters: eased scroll. Far jumps: fade to black, cut, fade back (no fast-forward strobe).
+  // "Take the journey" (data-go-play): plays the journey to its target at a watchable pace.
+  const veil = q('[data-veil]');
+  const maxScroll = () => Math.max(1, document.documentElement.scrollHeight - innerHeight);
+  let anim = 0, warpT = 0;
+  const stopAnim = () => { if (anim) { cancelAnimationFrame(anim); anim = 0; } };
+  const animateTo = (top: number, ms: number) => {
+    stopAnim();
+    const from = scrollY, t0s = performance.now();
+    const step = (t: number) => {
+      const k = Math.min(1, (t - t0s) / ms);
+      scrollTo(0, from + (top - from) * sstep(k));
+      anim = k < 1 ? requestAnimationFrame(step) : 0;
+    };
+    anim = requestAnimationFrame(step);
+  };
+  const warpTo = (top: number) => {
+    stopAnim();
+    clearTimeout(warpT);
+    if (!veil) { scrollTo(0, top); ssy = top; return; }
+    // cut only once the veil is fully opaque (transitionend), with a timeout in case it never fires
+    let cut = false;
+    const doCut = () => {
+      if (cut || dead) return;
+      cut = true;
+      veil.removeEventListener('transitionend', doCut);
+      scrollTo(0, top);
+      ssy = top; // skip the catch-up glide while covered
+      timers.push(window.setTimeout(() => { veil.style.opacity = '0'; }, 140));
+    };
+    veil.addEventListener('transitionend', doCut);
+    warpT = window.setTimeout(doCut, 900);
+    veil.style.opacity = '1';
+  };
+  cleanups.push(() => { stopAnim(); clearTimeout(warpT); });
+  // any manual input takes control back from an auto-scroll
+  const userTakesOver = () => { stopAnim(); };
+  listen('wheel', userTakesOver);
+  listen('touchstart', userTakesOver);
+  listen('keydown', userTakesOver);
   qa('[data-go]').forEach(a => {
     const onClick = (e: MouseEvent) => {
       e.preventDefault();
       const p2 = parseFloat(a.dataset.go ?? '0') || 0;
-      scrollTo({ top: p2 * Math.max(1, document.documentElement.scrollHeight - innerHeight), behavior: 'smooth' });
+      const top = p2 * maxScroll();
+      const dist = Math.abs(p2 - scrollY / maxScroll());
+      if (reduced) { warpTo(top); return; }
+      if (a.dataset.goPlay != null) animateTo(top, Math.max(2500, dist * 13500));
+      else if (dist <= 0.26) animateTo(top, 900 + dist * 4500);
+      else warpTo(top);
     };
     a.addEventListener('click', onClick);
     cleanups.push(() => { a.removeEventListener('click', onClick); });
@@ -347,6 +422,13 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
       s.el.style.transform = 'translate(' + (smx * 14).toFixed(1) + 'px,' + (smy * 10 + ey).toFixed(1) + 'px) scale(' + scale.toFixed(4) + ')';
       s.el.style.pointerEvents = op > 0.85 ? 'auto' : 'none';
       if (s === planetDef) planetScale = scale;
+    }
+
+    // --- 3D surface: swap in while off-screen (or hidden under the cloud layer), render only while visible ---
+    if (surface && surfaceStage) {
+      const active = surfaceStage.style.display === 'block';
+      if (!surfaceOn && (!active || p < 0.655)) { surfaceOn = true; surfaceStage.classList.add('is-3d'); }
+      if (surfaceOn && active) surface.render(now, seg(p, 0.615, 0.73), seg(p, 0.70, 0.90), smx, smy);
     }
 
     // --- 3D Earth: swap in only while the planet is off-screen, render only while it is ---
@@ -431,15 +513,20 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
     if (gA > 0.005 && form > 0.02) {
       g.globalCompositeOperation = 'lighter';
       const fe = ease(clamp((form - 0.2) / 0.8, 0, 1));
-      for (const nb of NEB) {
-        nb.th += 0.00022 + 0.04 / (nb.r + 60);
-        const wx = viewX + Math.cos(nb.th) * nb.r, wy = viewY + Math.sin(nb.th) * nb.r * 0.58;
-        const x = viewX + (wx - fx) * Z, y = viewY + (wy - fy) * Z;
-        const rad = nb.rad * (0.6 + Z * 0.5);
-        if (x < -rad || x > W + rad || y < -rad || y > H + rad) continue;
-        g.globalAlpha = gA * fe * 0.9;
-        g.drawImage(nb.img, x - rad, y - rad, rad * 2, rad * 2);
-      }
+      // clouds turn at the same rate as the stars so gas and dust stay on their arms
+      const clouds = (list: Nebula[], alpha: number) => {
+        for (const nb of list) {
+          nb.th += 0.00022 + 0.05 / (nb.r + 60);
+          const wx = viewX + Math.cos(nb.th) * nb.r, wy = viewY + Math.sin(nb.th) * nb.r * 0.58;
+          const x = viewX + (wx - fx) * Z, y = viewY + (wy - fy) * Z;
+          const rad = nb.rad * (0.6 + Z * 0.5), ry = rad * 0.72; // flattened with the disc
+          if (x < -rad || x > W + rad || y < -ry || y > H + ry) continue;
+          g.globalAlpha = Math.min(1, alpha * nb.a);
+          g.drawImage(nb.img, x - rad, y - ry, rad * 2, ry * 2);
+        }
+      };
+      clouds(NEB, gA * fe * 0.9);
+      clouds(GAS, gA * fe);
       if (fe > 0.01) {
         const cwx = viewX + (viewX - fx) * Z, cwy = viewY + (viewY - fy) * Z;
         const coreR = maxR * 0.42 * (0.5 + Z * 0.4);
@@ -448,6 +535,10 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
         g.globalAlpha = gA * fe * 0.8;
         g.drawImage(flareImg, cwx - coreR * 1.9, cwy - coreR * 0.17, coreR * 3.8, coreR * 0.34);
       }
+      // dust darkens the glow behind it (normal blending), then stars shine on top
+      g.globalCompositeOperation = 'source-over';
+      clouds(DUST, gA * fe);
+      g.globalCompositeOperation = 'lighter';
       for (const pt of P) {
         pt.th += 0.00022 + 0.05 / (pt.r + 60);
         const f = ease(clamp((form - pt.d) / 0.5, 0, 1));
@@ -531,6 +622,7 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
     timers.forEach(t => { clearTimeout(t); });
     cleanups.forEach(fn => { fn(); });
     earth?.dispose();
+    surface?.dispose();
     document.body.style.overflow = '';
   };
 }

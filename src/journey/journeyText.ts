@@ -8,7 +8,14 @@ export interface Service {
 export interface WorkItem {
   id: string;
   title: string;
-  meta: string;
+  /** one line on what it is */
+  blurb: string;
+  tags: string[];
+  year: string;
+  /** which device mock the placeholder frame shows */
+  kind: 'web' | 'mobile' | 'both';
+  /** per-project accent colour */
+  accent: string;
   tilt: string;
   at: number;
   /** staggered billboard height on desktop */
@@ -38,11 +45,12 @@ export const services: Service[] = [
   { num: '03', title: 'MVP → LAUNCH', body: 'Idea to shipped in weeks. Design, build, deploy. Then iterate with real users.', at: 0.56 },
 ];
 
+// placeholder projects: swap in real ones (and `image` screenshots) when ready
 export const work: WorkItem[] = [
-  { id: 'orbit', title: 'ORBIT', meta: 'FINTECH · WEB · 2026', tilt: 'rotateX(3deg) rotateY(6deg)', at: 0.705, offset: 0 },
-  { id: 'pulse', title: 'PULSE', meta: 'HEALTH · IOS + ANDROID · 2025', tilt: 'rotateX(2deg) rotateY(2deg)', at: 0.73, offset: 36 },
-  { id: 'relay', title: 'RELAY', meta: 'LOGISTICS · WEB + MOBILE · 2025', tilt: 'rotateX(2deg) rotateY(-2deg)', at: 0.755, offset: 36 },
-  { id: 'halo', title: 'HALO', meta: 'AI ONBOARDING · WEB · 2024', tilt: 'rotateX(3deg) rotateY(-6deg)', at: 0.78, offset: 0 },
+  { id: 'orbit', title: 'ORBIT', blurb: 'Treasury dashboard for seed-stage teams: runway, burn and forecasts in one view.', tags: ['FINTECH', 'WEB'], year: '2026', kind: 'web', accent: '#00E5FF', tilt: 'rotateX(3deg) rotateY(6deg)', at: 0.705, offset: 0 },
+  { id: 'pulse', title: 'PULSE', blurb: 'Recovery tracking that pairs wearables with a daily care plan.', tags: ['HEALTH', 'IOS + ANDROID'], year: '2025', kind: 'mobile', accent: '#5CF2B8', tilt: 'rotateX(2deg) rotateY(2deg)', at: 0.73, offset: 36 },
+  { id: 'relay', title: 'RELAY', blurb: 'Dispatch console and driver app for last-mile delivery fleets.', tags: ['LOGISTICS', 'WEB + MOBILE'], year: '2025', kind: 'both', accent: '#FFB35C', tilt: 'rotateX(2deg) rotateY(-2deg)', at: 0.755, offset: 36 },
+  { id: 'halo', title: 'HALO', blurb: 'An AI guide that turns product docs into interactive onboarding.', tags: ['AI', 'WEB'], year: '2024', kind: 'web', accent: '#A98BFF', tilt: 'rotateX(3deg) rotateY(-6deg)', at: 0.78, offset: 0 },
 ];
 
 /** HUD chapters, keyed by journey progress */
@@ -65,7 +73,8 @@ opening secure channel....... done
 /** scroll-progress targets for nav links */
 export const GO = {
   top: 0,
-  journey: 0.3,
+  /** "take the journey" plays through to the services chapter */
+  journey: 0.52,
   services: 0.52,
   work: 0.76,
   contact: 0.97,
