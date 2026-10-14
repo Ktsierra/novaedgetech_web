@@ -116,32 +116,44 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
     a: sprite('rgba(255,190,120,0.55)', 'rgba(255,244,225,1)'),
   };
   const KEYS: SpriteKey[] = ['w', 'w', 'b', 'b', 'c', 'v', 'a'];
-  const N = clamp(opts.galaxyDensity ?? 1100, 300, 2600);
+  // phones get fewer sprites; the galaxy is also physically smaller there
+  const N = Math.round(clamp(opts.galaxyDensity ?? 2200, 300, 4000) * (W < MOBILE_BREAKPOINT ? 0.65 : 1));
   const ARMS = clamp(opts.armCount ?? 6, 2, 6);
   const gauss = () => (rnd() + rnd() + rnd() - 1.5) / 1.5;
   const maxR = Math.max(W, H) * 0.46;
   const P: GalaxyStar[] = [], NEB: Nebula[] = [], FAR: FarStar[] = [];
-  // dense bulge + field stars + loose arms that dissolve outward
+  const armTh = (arm: number, r: number) => arm * TAU / ARMS + (r / maxR) * 3.1;
+  const SPINE_KEYS: SpriteKey[] = ['b', 'b', 'c', 'w', 'v'];
+  // dense bulge + sparse field + arms: a tight bright spine inside a softer envelope that widens outward
   for (let i = 0; i < N; i++) {
     const u = rnd();
-    let r: number, th: number;
-    if (u < 0.28) { r = Math.abs(gauss()) * maxR * 0.17; th = rnd() * TAU; }
-    else if (u < 0.38) { r = Math.pow(rnd(), 1.1) * maxR; th = rnd() * TAU; }
-    else { r = Math.pow(rnd(), 1.45) * maxR; th = (i % ARMS) * TAU / ARMS + (r / maxR) * 3.1 + gauss() * (0.4 + 0.34 * (r / maxR)); }
+    let r: number, th: number, spine = false;
+    if (u < 0.22) { r = Math.abs(gauss()) * maxR * 0.17; th = rnd() * TAU; }
+    else if (u < 0.28) { r = Math.pow(rnd(), 1.1) * maxR; th = rnd() * TAU; }
+    else if (u < 0.52) { spine = true; r = (0.12 + 0.88 * Math.pow(rnd(), 1.2)) * maxR; th = armTh(i % ARMS, r) + gauss() * (0.07 + 0.08 * (r / maxR)); }
+    else { r = Math.pow(rnd(), 1.35) * maxR; th = armTh(i % ARMS, r) + gauss() * (0.2 + 0.22 * (r / maxR)); }
     const core = r < maxR * 0.18;
     P.push({
       r, th,
-      k: core ? 'a' : KEYS[Math.floor(rnd() * KEYS.length)],
-      sz: (0.5 + rnd() * 1.6) * (core ? 1.55 : 1) * (1 - 0.3 * (r / maxR)),
+      k: core ? 'a' : spine ? SPINE_KEYS[Math.floor(rnd() * SPINE_KEYS.length)] : KEYS[Math.floor(rnd() * KEYS.length)],
+      sz: (0.5 + rnd() * 1.6) * (core ? 1.55 : spine ? 1.2 : 1) * (1 - 0.3 * (r / maxR)),
       tw: rnd() * TAU, tws: 0.6 + rnd() * 2.2,
       sx: (rnd() - 0.5) * W * 1.7, sy: (rnd() - 0.5) * H * 1.7,
       d: rnd() * 0.5,
     });
   }
   const NEBC = ['rgba(80,110,255,', 'rgba(0,229,255,', 'rgba(160,110,255,', 'rgba(255,170,110,'];
+  // big soft clouds plus a chain of smaller ones riding each arm, so the arms read as glowing lanes
   for (let i = 0; i < 9; i++) {
     const r = (0.15 + rnd() * 0.6) * maxR;
-    NEB.push({ r, th: (i % ARMS) * TAU / ARMS + (r / maxR) * 3.1 + gauss() * 0.3, rad: 110 + rnd() * 180, img: mkGlow(128, [[0, NEBC[i % 4] + '0.09)'], [1, NEBC[i % 4] + '0)']]) });
+    NEB.push({ r, th: armTh(i % ARMS, r) + gauss() * 0.3, rad: 110 + rnd() * 180, img: mkGlow(128, [[0, NEBC[i % 4] + '0.09)'], [1, NEBC[i % 4] + '0)']]) });
+  }
+  for (let a = 0; a < ARMS; a++) {
+    for (let j = 0; j < 4; j++) {
+      const r = (0.2 + j * 0.19 + rnd() * 0.08) * maxR;
+      const c = NEBC[(a + j) % 3];
+      NEB.push({ r, th: armTh(a, r) + gauss() * 0.06, rad: 50 + rnd() * 50, img: mkGlow(128, [[0, c + '0.12)'], [1, c + '0)']]) });
+    }
   }
   const coreImg = mkGlow(512, [[0, 'rgba(255,244,222,0.95)'], [0.2, 'rgba(255,214,160,0.4)'], [0.55, 'rgba(140,150,255,0.12)'], [1, 'rgba(0,0,0,0)']]);
   const flareImg = mkGlow(256, [[0, 'rgba(255,250,240,0.6)'], [0.4, 'rgba(0,229,255,0.15)'], [1, 'rgba(0,0,0,0)']]);
@@ -220,10 +232,30 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
     createEarth(earthCv).then(e => {
       if (dead) { e.dispose(); return; }
       earth = e;
+      if (geo) earth.setTarget(geo.lat, geo.lon);
       syncEarthSize();
     }).catch(() => { /* no WebGL or textures failed: keep the CSS planet */ });
   }
   let planetScale = 1;
+
+  // visitor's approximate location (Vercel IP geolocation via /api/geo): the globe turns to it before the dive
+  let geo: { lat: number; lon: number } | null = null;
+  const coordsEl = q('[data-coords]');
+  const ctrl = new AbortController();
+  cleanups.push(() => { ctrl.abort(); });
+  fetch('/api/geo', { signal: ctrl.signal })
+    .then(r => r.ok && (r.headers.get('content-type') ?? '').includes('json') ? r.json() as Promise<{ lat?: unknown; lon?: unknown; city?: unknown }> : null)
+    .then(g => {
+      if (!g || typeof g.lat !== 'number' || typeof g.lon !== 'number') return;
+      geo = { lat: g.lat, lon: g.lon };
+      earth?.setTarget(geo.lat, geo.lon);
+      if (coordsEl) {
+        const fmt = (v: number) => (v < 0 ? '−' : '') + Math.abs(v).toFixed(1) + '°';
+        const place = typeof g.city === 'string' && g.city ? g.city.toUpperCase() : 'YOUR ORBIT';
+        coordsEl.textContent = `LAT ${fmt(geo.lat)} ✦ LON ${fmt(geo.lon)} ✦ ${place} · EARTH`;
+      }
+    })
+    .catch(() => { /* local dev or no geo headers: keep the default framing */ });
   const stageDefs: (Omit<Stage, 'el'> & { el: HTMLElement | null })[] = [
     planetDef,
     { el: stg('surface'), in0: 0.635, in1: 0.70, out0: 0.84, out1: 0.90, maxZ: 11, drift: 1.18, enterFrom: 1.7, ey: -0.24 },
@@ -317,9 +349,10 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
       if (!earthOn && !planetActive) { earthOn = true; pwrap.classList.add('is-earth'); }
       if (earthOn && planetActive) {
         // sharpen the backing store as the exit dive magnifies the globe
-        const tier = planetScale < 1.6 ? 1 : planetScale < 3 ? 2 : 4;
+        const tier = planetScale < 1.6 ? 1 : planetScale < 3 ? 1.5 : 2;
         if (tier !== earthTier) { earthTier = tier; syncEarthSize(); }
-        earth.render(now);
+        // lock onto the visitor's location just before the dive, so the zoom lands on it
+        earth.render(now, easeIO(seg(p, 0.545, 0.615)));
       }
     }
 

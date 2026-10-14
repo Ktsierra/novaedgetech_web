@@ -7,6 +7,9 @@ HTMLCanvasElement.prototype.getContext = (() => null) as unknown as typeof HTMLC
 
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
+// the engine also asks /api/geo for the visitor's location; only look at contact submissions
+const contactCalls = (spy: { mock: { calls: unknown[][] } }) => spy.mock.calls.filter(c => c[0] === '/api/contact');
+
 describe('Journey', () => {
   it('renders every chapter of the scroll journey', () => {
     render(<Journey skipIntro />);
@@ -22,7 +25,7 @@ describe('Journey', () => {
     render(<Journey skipIntro />);
     fireEvent.click(screen.getByRole('button', { name: /transmit/i }));
     expect(screen.getByRole('status').textContent).toContain('name + email required');
-    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(contactCalls(fetchSpy)).toHaveLength(0);
   });
 
   it('posts the message to /api/contact', async () => {
@@ -36,7 +39,7 @@ describe('Journey', () => {
     fireEvent.click(screen.getByRole('button', { name: /transmit/i }));
     await waitFor(() => { expect(screen.getByRole('status').textContent).toContain('message queued'); });
     expect(fetchSpy).toHaveBeenCalledWith('/api/contact', expect.objectContaining({ method: 'POST' }));
-    const init = fetchSpy.mock.calls[0][1];
+    const init = contactCalls(fetchSpy)[0][1] as RequestInit | undefined;
     const body = JSON.parse(init?.body as string) as Record<string, string>;
     expect(body).toEqual({ name: 'Ada', email: 'ada@example.com', message: 'A mobile app' });
   });

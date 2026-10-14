@@ -186,8 +186,8 @@ body {
 }
 .j-planet-shade { position: absolute; inset: 0; background: radial-gradient(circle at 30% 28%, rgba(0, 0, 0, 0) 42%, rgba(2, 6, 16, 0.88) 78%); }
 .j-planet-rim { position: absolute; inset: 0; border-radius: 50%; box-shadow: inset 14px 12px 70px rgba(120, 220, 255, 0.28), inset -24px -20px 80px rgba(0, 0, 0, 0.75); }
-/* 3D Earth canvas: 6% bleed on each side for the atmosphere (EARTH_FRAME in earth.ts) */
-.j-earth { position: absolute; inset: -6%; width: 112%; height: 112%; display: none; }
+/* 3D Earth canvas: bleeds (EARTH_FRAME - 1) / 2 = 52.5% past the globe on each side for the atmosphere + moon orbit */
+.j-earth { position: absolute; inset: -52.5%; width: 205%; height: 205%; display: none; pointer-events: none; }
 .j-pwrap.is-earth .j-earth { display: block; }
 .j-pwrap.is-earth .j-planet { visibility: hidden; }
 .j-planet-ringwrap { position: absolute; inset: 0; }

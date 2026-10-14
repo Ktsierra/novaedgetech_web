@@ -131,7 +131,7 @@ const Journey = (props: JourneyOptions) => {
           <div className="j-surface-head">
             <div data-at="0.655" data-scr className="j-fade j-eyebrow">02 / SELECTED WORK · SURFACE LEVEL</div>
             <h2 data-at="0.67" className="j-rise j-h2 j-surface-title">Touchdown: the work.</h2>
-            <div data-at="0.685" className="j-fade j-coords">LAT 12.7° ✦ LON −48.2° ✦ OUTPOST 04 · EARTH</div>
+            <div data-at="0.685" data-coords className="j-fade j-coords">LAT 12.7° ✦ LON −48.2° ✦ OUTPOST 04 · EARTH</div>
           </div>
           <div className="j-work-grid">
             {work.map(w => (
