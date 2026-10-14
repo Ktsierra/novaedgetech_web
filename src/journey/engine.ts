@@ -1,3 +1,4 @@
+import { EARTH_FRAME, EarthView, createEarth } from './earth';
 import { bands, loaderStatuses, terminalCode } from './journeyText';
 
 export interface JourneyOptions {
@@ -75,6 +76,13 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
   let W = innerWidth, H = innerHeight, scrollMax = 1;
   // where the planet rests on screen (fraction of viewport) and its resting radius
   let AX = 0.63, AY = 0.5, Rend = 1;
+  // 3D Earth (WebGL); the CSS planet stays as the fallback until it is ready
+  let earth: EarthView | null = null, earthOn = false, earthPx = 0, earthTier = 1;
+  const syncEarthSize = () => {
+    if (!earth) return;
+    const px = Math.min(3072, 2 * Rend * EARTH_FRAME * Math.min(devicePixelRatio || 1, 2) * earthTier);
+    if (Math.abs(px - earthPx) > 1) { earthPx = px; earth.setSize(px); }
+  };
   const planetDef = { el: planetStage, in0: 0.30, in1: 0.36, out0: 0.60, out1: 0.67, maxZ: 10, drift: 1.08, enterFrom: 1, ey: 0 };
   const measure = () => {
     W = innerWidth; H = innerHeight;
@@ -89,6 +97,7 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
     AY = mobile ? 0.27 : 0.5;
     // keep in sync with .j-pwrap sizes in Journey.css
     Rend = mobile ? Math.min(0.27 * W, 0.14 * H) : Math.min(0.28 * Math.min(W, H), 0.21 * W);
+    syncEarthSize();
     if (planetStage) planetStage.style.transformOrigin = `${String(AX * 100)}% ${String(AY * 100)}%`;
     const cue = q('[data-cue]');
     if (cue) cue.style.display = H < 650 || mobile ? 'none' : 'flex';
@@ -108,7 +117,7 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
   };
   const KEYS: SpriteKey[] = ['w', 'w', 'b', 'b', 'c', 'v', 'a'];
   const N = clamp(opts.galaxyDensity ?? 1100, 300, 2600);
-  const ARMS = clamp(opts.armCount ?? 4, 2, 6);
+  const ARMS = clamp(opts.armCount ?? 6, 2, 6);
   const gauss = () => (rnd() + rnd() + rnd() - 1.5) / 1.5;
   const maxR = Math.max(W, H) * 0.46;
   const P: GalaxyStar[] = [], NEB: Nebula[] = [], FAR: FarStar[] = [];
@@ -206,6 +215,15 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
   const stg = (name: string) => q('[data-stage="' + name + '"]');
   const hero = stg('hero'), hLines = qa('[data-hline]');
   const pwrap = q('[data-pwrap]');
+  const earthCv = q('[data-earth]') as HTMLCanvasElement | null;
+  if (earthCv) {
+    createEarth(earthCv).then(e => {
+      if (dead) { e.dispose(); return; }
+      earth = e;
+      syncEarthSize();
+    }).catch(() => { /* no WebGL or textures failed: keep the CSS planet */ });
+  }
+  let planetScale = 1;
   const stageDefs: (Omit<Stage, 'el'> & { el: HTMLElement | null })[] = [
     planetDef,
     { el: stg('surface'), in0: 0.635, in1: 0.70, out0: 0.84, out1: 0.90, maxZ: 11, drift: 1.18, enterFrom: 1.7, ey: -0.24 },
@@ -290,6 +308,19 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
       s.el.style.opacity = op.toFixed(3);
       s.el.style.transform = 'translate(' + (smx * 14).toFixed(1) + 'px,' + (smy * 10 + ey).toFixed(1) + 'px) scale(' + scale.toFixed(4) + ')';
       s.el.style.pointerEvents = op > 0.85 ? 'auto' : 'none';
+      if (s === planetDef) planetScale = scale;
+    }
+
+    // --- 3D Earth: swap in only while the planet is off-screen, render only while it is ---
+    if (earth && pwrap) {
+      const planetActive = planetStage?.style.display === 'block';
+      if (!earthOn && !planetActive) { earthOn = true; pwrap.classList.add('is-earth'); }
+      if (earthOn && planetActive) {
+        // sharpen the backing store as the exit dive magnifies the globe
+        const tier = planetScale < 1.6 ? 1 : planetScale < 3 ? 2 : 4;
+        if (tier !== earthTier) { earthTier = tier; syncEarthSize(); }
+        earth.render(now);
+      }
     }
 
     // --- p reveals ---
@@ -457,6 +488,7 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
     clearInterval(stInt);
     timers.forEach(t => { clearTimeout(t); });
     cleanups.forEach(fn => { fn(); });
+    earth?.dispose();
     document.body.style.overflow = '';
   };
 }

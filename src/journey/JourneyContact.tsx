@@ -31,10 +31,10 @@ const JourneyContact = () => {
       });
       const result = await res.json() as ApiResponse;
       if (!res.ok || !result.success) throw new Error(result.error ?? 'send failed');
-      setStatus({ tone: 'ok', text: '> message queued — we\'ll be in your orbit within 24h' });
+      setStatus({ tone: 'ok', text: '> message queued. we\'ll be in your orbit within 24h' });
       setForm(f => ({ ...f, message: '' }));
     } catch {
-      setStatus({ tone: 'warn', text: '> transmission failed — email us directly below' });
+      setStatus({ tone: 'warn', text: '> transmission failed. email us directly below' });
     } finally {
       setSending(false);
     }
@@ -52,7 +52,7 @@ const JourneyContact = () => {
       </label>
       <label className="j-field j-field--wide">
         <span className="j-prompt">&gt;</span>
-        <textarea name="message" aria-label="Your idea" rows={2} placeholder="the idea — web app, mobile app, both?" value={form.message} onChange={onChange} />
+        <textarea name="message" aria-label="Your idea" rows={2} placeholder="the idea: web app, mobile app, both?" value={form.message} onChange={onChange} />
       </label>
       <div className="j-form-foot">
         <span className={'j-form-status j-form-status--' + status.tone} role="status" aria-live="polite">{status.text}</span>

@@ -33,9 +33,9 @@ export const loaderStatuses = [
 ];
 
 export const services: Service[] = [
-  { num: '01', title: 'WEB APPLICATIONS', body: 'SaaS platforms, dashboards, internal tools. React, Next.js and Node — typed end to end.', at: 0.5 },
+  { num: '01', title: 'WEB APPLICATIONS', body: 'SaaS platforms, dashboards, internal tools. React, Next.js and Node, typed end to end.', at: 0.5 },
   { num: '02', title: 'MOBILE APPLICATIONS', body: 'iOS and Android that feel native. One codebase when it\'s smart, two when it matters.', at: 0.53 },
-  { num: '03', title: 'MVP → LAUNCH', body: 'Idea to shipped in weeks. Design, build, deploy — then iterate with real users.', at: 0.56 },
+  { num: '03', title: 'MVP → LAUNCH', body: 'Idea to shipped in weeks. Design, build, deploy. Then iterate with real users.', at: 0.56 },
 ];
 
 export const work: WorkItem[] = [
@@ -47,11 +47,11 @@ export const work: WorkItem[] = [
 
 /** HUD chapters, keyed by journey progress */
 export const bands: Band[] = [
-  { to: 0.315, scale: '10²¹ M — GALACTIC SCALE', status: 'TRAVERSING THE ARM' },
-  { to: 0.455, scale: '10¹² M — STELLAR SCALE', status: 'SYSTEM ACQUIRED' },
-  { to: 0.62, scale: '10⁷ M — PLANETARY SCALE', status: 'ENTERING LOW ORBIT' },
-  { to: 0.87, scale: '10⁴ M — SURFACE SCALE', status: 'TOUCHDOWN CONFIRMED' },
-  { to: 9, scale: '10⁰ M — YOUR DESK', status: 'DOCKED — SAY HELLO' },
+  { to: 0.315, scale: '10²¹ M · GALACTIC SCALE', status: 'TRAVERSING THE ARM' },
+  { to: 0.455, scale: '10¹² M · STELLAR SCALE', status: 'SYSTEM ACQUIRED' },
+  { to: 0.62, scale: '10⁷ M · PLANETARY SCALE', status: 'ENTERING LOW ORBIT' },
+  { to: 0.87, scale: '10⁴ M · SURFACE SCALE', status: 'TOUCHDOWN CONFIRMED' },
+  { to: 9, scale: '10⁰ M · YOUR DESK', status: 'DOCKED · SAY HELLO' },
 ];
 
 export const terminalCode = `$ novaedge new-project

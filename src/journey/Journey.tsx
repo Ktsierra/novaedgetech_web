@@ -70,7 +70,7 @@ const Journey = (props: JourneyOptions) => {
         </h1>
         <div className="j-hero-foot">
           <p data-hero className="j-rise j-hero-copy" style={v({ '--dur': '.9s', '--delay': '.1s' })}>
-            Web apps. Mobile apps. Engineered for startups that move fast — from first commit to orbit. Scroll: we&apos;ll take you from the galaxy to your desk.
+            Web apps. Mobile apps. Engineered for startups that move fast, from first commit to orbit. Scroll: we&apos;ll take you from the galaxy to your desk.
           </p>
           <div data-hero className="j-rise j-hero-ctas" style={v({ '--dur': '.9s', '--delay': '.2s' })}>
             <a href="#contact" data-go={GO.contact} data-hov className="j-btn j-btn--solid">START A PROJECT ↗</a>
@@ -93,12 +93,13 @@ const Journey = (props: JourneyOptions) => {
             <div className="j-planet-shade" />
             <div className="j-planet-rim" />
           </div>
+          <canvas data-earth className="j-earth" aria-hidden="true" />
           <div data-at="0.475" className="j-fade j-planet-ringwrap"><div className="j-planet-ring" /></div>
           <Corner pos="tl" /><Corner pos="tr" /><Corner pos="bl" /><Corner pos="br" />
-          <div data-at="0.475" className="j-fade j-planet-tag"><div>NOVA PRIME // CLIENT ORBIT</div></div>
+          <div data-at="0.475" className="j-fade j-planet-tag"><div>EARTH // CLIENT ORBIT</div></div>
         </div>
         <div className="j-services">
-          <div data-at="0.465" data-scr className="j-fade j-eyebrow">01 / SERVICES — LOW ORBIT</div>
+          <div data-at="0.465" data-scr className="j-fade j-eyebrow">01 / SERVICES · LOW ORBIT</div>
           <h2 data-at="0.48" className="j-rise j-h2 j-services-title">Full-stack,<br />full-orbit.</h2>
           <div className="j-service-list">
             {services.map(s => (
@@ -128,9 +129,9 @@ const Journey = (props: JourneyOptions) => {
         <div className="j-grid" />
         <div className="j-surface-content">
           <div className="j-surface-head">
-            <div data-at="0.655" data-scr className="j-fade j-eyebrow">02 / SELECTED WORK — SURFACE LEVEL</div>
+            <div data-at="0.655" data-scr className="j-fade j-eyebrow">02 / SELECTED WORK · SURFACE LEVEL</div>
             <h2 data-at="0.67" className="j-rise j-h2 j-surface-title">Touchdown: the work.</h2>
-            <div data-at="0.685" className="j-fade j-coords">LAT 12.7° ✦ LON −48.2° ✦ OUTPOST 04 — NOVA PRIME</div>
+            <div data-at="0.685" className="j-fade j-coords">LAT 12.7° ✦ LON −48.2° ✦ OUTPOST 04 · EARTH</div>
           </div>
           <div className="j-work-grid">
             {work.map(w => (
@@ -159,7 +160,7 @@ const Journey = (props: JourneyOptions) => {
       <section id="contact" data-stage="desk" className="j-stage j-desk" aria-label="Contact">
         <div className="j-desk-glow" />
         <div className="j-desk-col">
-          <div data-at="0.90" data-scr className="j-fade j-eyebrow j-desk-eyebrow">03 / CONTACT — SEA LEVEL, YOUR DESK</div>
+          <div data-at="0.90" data-scr className="j-fade j-eyebrow j-desk-eyebrow">03 / CONTACT · SEA LEVEL, YOUR DESK</div>
           <h2 data-at="0.91" className="j-rise j-h2 j-desk-title" style={v({ '--rise': '26px' })}>Every universe ends<br />at a keyboard.</h2>
           <div data-at="0.918" className="j-rise j-laptop" style={v({ '--rise': '34px', '--dur': '.9s' })}>
             <div className="j-screen">
@@ -167,7 +168,7 @@ const Journey = (props: JourneyOptions) => {
                 <span className="j-light" style={{ background: '#FF5F57' }} />
                 <span className="j-light" style={{ background: '#FEBC2E' }} />
                 <span className="j-light" style={{ background: '#28C840' }} />
-                <span className="j-titlebar-name">novaedge — start a project</span>
+                <span className="j-titlebar-name">novaedge · start a project</span>
               </div>
               <div className="j-screen-body">
                 <pre data-code className="j-code" />
