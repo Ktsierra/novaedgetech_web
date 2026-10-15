@@ -479,19 +479,20 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
       if (s === planetDef) planetScale = scale;
     }
 
-    // --- 3D surface: swap in while off-screen (or hidden under the cloud layer), render only while visible ---
+    // --- 3D surface: swap in as soon as it's ready, render only while visible ---
     if (surface && surfaceStage) {
       const active = surfaceStage.style.display === 'block';
-      if (!surfaceOn && (!active || p < 0.655)) { surfaceOn = true; surfaceStage.classList.add('is-3d'); }
-      if (surfaceOn && active) surface.render(now, seg(p, 0.615, 0.73), seg(p, 0.70, 0.835), smx, smy, seg(p, 0.835, 0.892));
+      // usually ready long before this scene; if not (reload mid-journey), CSS fades it in over the fallback
+      if (!surfaceOn) { surfaceOn = true; surfaceStage.classList.add('is-3d'); }
+      if (active) surface.render(now, seg(p, 0.615, 0.73), seg(p, 0.70, 0.835), smx, smy, seg(p, 0.835, 0.892));
     }
 
-    // --- 3D Earth: swap in only while the planet is off-screen, render only while it is ---
+    // --- 3D Earth: swap in as soon as it's ready, render only while the planet is on screen ---
     if (earth && pwrap) {
       const planetActive = planetStage?.style.display === 'block';
-      // swap while the planet is off-screen or still a speck on its orbit (sysZ starts at 0.34), never mid-view
-      if (!earthOn && (!planetActive || p < 0.345)) { earthOn = true; pwrap.classList.add('is-earth'); }
-      if (earthOn && planetActive) {
+      // usually ready during the intro, so the swap is invisible; on a reload mid-journey CSS fades it in
+      if (!earthOn) { earthOn = true; pwrap.classList.add('is-earth'); }
+      if (planetActive) {
         // sharpen the backing store as the exit dive magnifies the globe
         const tier = planetScale < 1.6 ? 1 : planetScale < 3 ? 1.5 : 2;
         if (tier !== earthTier) { earthTier = tier; syncEarthSize(); }

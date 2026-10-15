@@ -51,7 +51,11 @@ body {
 .j-h2 { margin: 14px 0 0; font-family: var(--j-display); font-weight: 500; letter-spacing: -0.01em; }
 .j-row { display: flex; justify-content: space-between; align-items: baseline; }
 .j-row--end { align-items: flex-end; }
-.j-logo { font-family: var(--j-display); font-weight: 700; font-size: 13px; letter-spacing: 0.22em; cursor: pointer; }
+.journey .j-logo { display: inline-flex; cursor: pointer; color: inherit; }
+/* brand lockup: Sora ExtraBold per the brand guidelines (the rest of the site keeps its display face) */
+.j-brand { display: inline-flex; align-items: center; }
+.j-brand-word { font-family: 'Sora', sans-serif; font-weight: 800; letter-spacing: -0.02em; line-height: 1; color: #FFFFFF; white-space: nowrap; }
+.j-brand-edge { color: #00E5FF; }
 
 /* ---------- buttons ---------- */
 .journey .j-btn {
@@ -195,9 +199,12 @@ body {
 .j-planet-shade { position: absolute; inset: 0; background: radial-gradient(circle at 30% 28%, rgba(0, 0, 0, 0) 42%, rgba(2, 6, 16, 0.88) 78%); }
 .j-planet-rim { position: absolute; inset: 0; border-radius: 50%; box-shadow: inset 14px 12px 70px rgba(120, 220, 255, 0.28), inset -24px -20px 80px rgba(0, 0, 0, 0.75); }
 /* 3D Earth canvas: bleeds (EARTH_FRAME - 1) / 2 = 52.5% past the globe on each side for the atmosphere + moon orbit */
-.j-earth { position: absolute; inset: -52.5%; width: 205%; height: 205%; display: none; pointer-events: none; }
-.j-pwrap.is-earth .j-earth { display: block; }
-.j-pwrap.is-earth .j-planet { visibility: hidden; }
+.j-earth { position: absolute; inset: -52.5%; width: 205%; height: 205%; pointer-events: none; opacity: 0; transition: opacity .9s ease; }
+/* the swap normally happens off-screen (instant); if the models finish loading while the scene is on screen
+   (e.g. a reload mid-journey) the 3D version fades in over the fallback instead */
+.j-pwrap.is-earth .j-earth { opacity: 1; }
+.j-planet { transition: opacity .9s ease; }
+.j-pwrap.is-earth .j-planet { opacity: 0; }
 .j-planet-ringwrap { position: absolute; inset: 0; }
 .j-planet-ring {
   position: absolute; left: 50%; top: 50%; width: 168%; height: 168%; transform: translate(-50%, -50%) rotateX(72deg);
@@ -265,10 +272,10 @@ body {
 .j-surface-title { margin-top: 18px; font-size: clamp(26px, 3.2vw, 46px); }
 .j-coords { margin-top: 14px; font-size: 9px; letter-spacing: 0.24em; color: rgba(237, 241, 255, 0.45); }
 /* 3D surface (WebGL2) replaces the CSS scene once ready */
-.j-surface3d { position: absolute; inset: 0; width: 100%; height: 100%; display: none; }
-.j-surface.is-3d .j-surface3d { display: block; }
-.j-surface.is-3d .j-surface-css { display: none; }
-.j-surface-css { position: absolute; inset: 0; }
+.j-surface3d { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; transition: opacity .9s ease; }
+.j-surface.is-3d .j-surface3d { opacity: 1; }
+.j-surface-css { position: absolute; inset: 0; transition: opacity .9s ease; }
+.j-surface.is-3d .j-surface-css { opacity: 0; }
 /* keeps the copy legible over the terrain */
 .j-surface-shade {
   position: absolute; inset: 0; pointer-events: none;

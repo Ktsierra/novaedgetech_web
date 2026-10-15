@@ -3,6 +3,7 @@ import './Journey.css';
 import { JourneyOptions, runJourney } from './engine';
 import JourneyContact from './JourneyContact';
 import WorkCard from './WorkCard';
+import BrandLogo from './BrandLogo';
 import { CONTACT_EMAIL, GO, services, work } from './journeyText';
 
 /** CSS custom properties for the reveal classes */
@@ -33,7 +34,7 @@ const Journey = (props: JourneyOptions) => {
       {/* ---------- loader ---------- */}
       <div data-loader className="j-loader">
         <div className="j-row">
-          <div className="j-logo">NOVAEDGE</div>
+          <BrandLogo size={30} />
           <div className="j-loader-tag">BOOT SEQUENCE // V2.1</div>
         </div>
         <div className="j-row j-row--end">
@@ -44,7 +45,7 @@ const Journey = (props: JourneyOptions) => {
 
       {/* ---------- nav ---------- */}
       <nav data-nav className="j-nav">
-        <a href="#top" data-go={GO.top} data-hov className="j-logo">NOVAEDGE<span className="j-cyan">.</span></a>
+        <a href="#top" data-go={GO.top} data-hov className="j-logo" aria-label="NovaEdge Technology, back to top"><BrandLogo size={32} /></a>
         <div className="j-nav-links">
           <a href="#services" data-go={GO.services} data-hov>SERVICES</a>
           <a href="#work" data-go={GO.work} data-hov>WORK</a>
