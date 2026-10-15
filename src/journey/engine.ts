@@ -266,7 +266,7 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
     tick();
   };
   // letters glitch through code glyphs and lock in left to right
-  const morph = (el: HTMLElement, to: string, dur = 1100) => {
+  const morph = (el: HTMLElement, to: string, dur = 1400) => {
     const st = performance.now();
     el.classList.add('j-morphing');
     const tick = () => {
@@ -309,7 +309,7 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
         if (t?.dataset.morphTo) {
           const tail = t, to = t.dataset.morphTo;
           if (reduced) { tail.dataset.txt = to; tail.textContent = to; }
-          else timers.push(window.setTimeout(() => { morph(tail, to); }, 650 + i * 110 + 1100));
+          else timers.push(window.setTimeout(() => { morph(tail, to); }, 650 + i * 110 + 900)); // 0.9s pause on NOVA
         }
       }, 90 * i));
     });
