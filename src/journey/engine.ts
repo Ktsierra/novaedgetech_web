@@ -22,13 +22,25 @@ const easeIO = (t: number) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2,
 const sstep = (t: number) => t * t * (3 - 2 * t);
 const bell = (p: number, c: number, w: number) => Math.exp(-((p - c) / w) * ((p - c) / w));
 const rnd = Math.random;
+type V3 = [number, number, number];
+const add = (a: V3, b: V3): V3 => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
+const sub = (a: V3, b: V3): V3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+const scale = (a: V3, k: number): V3 => [a[0] * k, a[1] * k, a[2] * k];
+const dot = (a: V3, b: V3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+const len = (a: V3) => Math.sqrt(dot(a, a));
+const norm = (a: V3): V3 => scale(a, 1 / (len(a) || 1));
+const cross = (a: V3, b: V3): V3 => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+/** look-at basis for a y-up camera */
+const camBasis = (c: V3, l: V3) => {
+  const fw = norm(sub(l, c)), rt = norm(cross(fw, [0, 1, 0])), up = cross(rt, fw);
+  return { fw, rt, up };
+};
 const TAU = Math.PI * 2;
 
 type SpriteKey = 'w' | 'b' | 'c' | 'v' | 'a';
 interface GalaxyStar { r: number; th: number; k: SpriteKey; sz: number; tw: number; tws: number; sx: number; sy: number; d: number }
 interface Nebula { r: number; th: number; rad: number; img: HTMLCanvasElement; a: number }
 interface FarStar { x: number; y: number; sz: number; a: number; tw: number; tws: number }
-interface Orbiter { o: number; a: number; w: number; s: number; img: HTMLCanvasElement }
 interface Stage { el: HTMLElement; in0: number; in1: number; out0: number; out1: number; maxZ: number; drift: number; enterFrom: number; ey: number }
 
 const mkCanvas = (size: number) => {
@@ -240,11 +252,20 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
   // camera focus: a point ON an arm we dive toward (rotates with the disc)
   const fr = maxR * 0.55;
   let fTh = (fr / maxR) * 3.1;
-  const ORB: Orbiter[] = [
-    { o: 1, a: rnd() * TAU, w: 0.003, s: 3.5, img: mkGlow(64, [[0, 'rgba(255,190,140,1)'], [0.6, 'rgba(120,60,30,0.8)'], [1, 'rgba(0,0,0,0)']]) },
-    { o: 3, a: rnd() * TAU, w: 0.0015, s: 5, img: mkGlow(64, [[0, 'rgba(180,160,255,1)'], [0.6, 'rgba(70,60,140,0.8)'], [1, 'rgba(0,0,0,0)']]) },
+  // solar system in world units: sun at the origin, orbits in the XZ plane (layout tuned so the sun
+  // ends upper-left of Earth once the camera parks)
+  const SYS_FOV = 50 * Math.PI / 180, SYS_DA = 13, SUN_R = 1.0, EARTH_R = 0.45, EARTH_ORBIT = 10;
+  const EARTH_TH = 80 * Math.PI / 180;
+  const EARTH_POS: V3 = [Math.cos(EARTH_TH) * EARTH_ORBIT, 0, Math.sin(EARTH_TH) * EARTH_ORBIT];
+  const EARTH_TANGENT: V3 = [-Math.sin(EARTH_TH), 0, Math.cos(EARTH_TH)];
+  const planetGlow = (c: string, rim: string) => mkGlow(64, [[0, c], [0.38, rim], [0.5, 'rgba(0,0,0,0.0)'], [1, 'rgba(0,0,0,0)']]);
+  const PLANETS = [
+    { r: 4.2, size: 0.22, th: rnd() * TAU, w: 0.0016, earth: false, img: planetGlow('rgba(255,190,140,1)', 'rgba(150,80,40,0.9)') },
+    { r: EARTH_ORBIT, size: EARTH_R, th: EARTH_TH, w: 0, earth: true, img: planetGlow('#fff', '#fff') },
+    { r: 16, size: 0.85, th: rnd() * TAU, w: 0.0005, earth: false, img: planetGlow('rgba(220,190,255,1)', 'rgba(110,90,170,0.9)') },
+    { r: 23, size: 0.6, th: rnd() * TAU, w: 0.0003, earth: false, img: planetGlow('rgba(170,225,255,1)', 'rgba(70,120,160,0.9)') },
   ];
-  let tAng = rnd() * TAU, frameC = 0;
+  let frameC = 0;
   for (let i = 0; i < 340; i++) FAR.push({ x: rnd() * W, y: rnd() * H, sz: 0.4 + rnd() * 0.9, a: 0.12 + rnd() * 0.3, tw: rnd() * TAU, tws: 0.3 + rnd() * 1.4 });
 
   let mx = 0, my = 0, smx = 0, smy = 0, ssy = scrollY;
@@ -681,37 +702,70 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
       }
       g.globalCompositeOperation = 'source-over';
     }
-    // sun recedes as orbits expand; the SAME DOM planet rides its orbit the whole way
+    // ---- the solar system as one 3D scene seen through one perspective camera ----
+    // approach: the arm's star resolves into a sun with planets on their orbits; then the camera flies to
+    // Earth (which grows by perspective while the sun slides away by parallax) and parks where the
+    // services layout expects it (AX/AY, radius Rend)
     const sunVis = seg(p, 0.10, 0.18) * (1 - seg(p, 0.60, 0.66));
-    const sysZ = sstep(seg(p, 0.34, 0.46));
     // while parked in orbit the planet keeps creeping closer, so every scroll tick shows movement
     const orbitGrow = 1 + (W < MOBILE_BREAKPOINT ? 0.12 : 0.04) * seg(p, 0.46, 0.60);
-    if (sysZ < 0.02) tAng += 0.0012;
-    const oScale = (H * 0.16) * (1 + sysZ * 2.2);
-    const oEnd = (H * 0.16) * 3.2;
-    if (sunVis <= 0.01) sunState.a = 0;
-    if (sunVis > 0.01) {
+    const sunX0 = viewX + (fwx - fx) * Z, sunY0 = viewY + (fwy - fy) * Z;
+    if (p < 0.7) {
+      const f = H / 2 / Math.tan(SYS_FOV / 2);
+      const a = sstep(seg(p, 0.14, 0.36)); // approach the system
+      const b = sstep(seg(p, 0.36, 0.47)); // fly to Earth
+      const lookK = sstep(seg(p, 0.355, 0.43)); // turn toward Earth a little ahead of the dolly
+      if (a < 1) for (const pl of PLANETS) pl.th += pl.w; // planets drift until we commit to Earth
+      // approach camera: log-distance zoom, sweeping down from above the plane to a low angle
+      const el = (38 - 30 * a) * Math.PI / 180;
+      const dA = Math.exp(Math.log(700) + (Math.log(SYS_DA) - Math.log(700)) * a);
+      const CA: V3 = [0, dA * Math.sin(el), dA * Math.cos(el)];
+      // fly-to-Earth: from the end of the approach to a stand-off where Earth's radius projects to Rend
+      const dEnd = f * EARTH_R / Rend;
+      const elE = 8 * Math.PI / 180;
+      const CAe: V3 = [0, SYS_DA * Math.sin(elE), SYS_DA * Math.cos(elE)];
+      const d0v = norm(sub(CAe, EARTH_POS)), d0 = len(sub(CAe, EARTH_POS));
+      // parking direction: tuned so the sun slides just past the top-left corner (clear of the logo and the
+      // services copy), leaving its corona lighting the corner and the globe from that side
+      const vEnd = norm(add(add(d0v, [0, 0.4, 0]), scale(EARTH_TANGENT, 0.2)));
+      const dirB = norm(add(scale(d0v, 1 - b), scale(vEnd, b)));
+      const dB = Math.exp(Math.log(d0) + (Math.log(dEnd) - Math.log(d0)) * b);
+      const cam: V3 = b > 0 ? add(EARTH_POS, scale(dirB, dB)) : CA;
+      const look: V3 = scale(EARTH_POS, lookK);
+      // screen offset: start aligned to the galaxy star, end with Earth on its services anchor
+      const starK = 1 - seg(p, 0.24, 0.34);
+      const offX = (sunX0 - W / 2) * starK + (W * AX - W / 2) * lookK;
+      const offY = (sunY0 - H / 2) * starK + (H * AY - H / 2) * lookK;
+      const basis = camBasis(cam, look);
+      const project = (P: V3): [number, number, number] => {
+        const d = sub(P, cam), z = dot(d, basis.fw);
+        return [W / 2 + offX + f * dot(d, basis.rt) / z, H / 2 + offY - f * dot(d, basis.up) / z, z];
+      };
+      const [sx2, sy2, sz] = project([0, 0, 0]);
+      const sr = sz > 0.05 ? f * SUN_R / sz : 0;
       g.globalCompositeOperation = 'lighter';
-      const grow = Math.pow(seg(p, 0.14, 0.315), 2.2);
-      const rec = sstep(seg(p, 0.315, 0.46));
-      // disc radius: a point of light that swells to ~a quarter of the screen (never a white-out), then recedes
-      const sr = (1.2 + grow * Math.min(W, H) * 0.13) * (1 - 0.88 * rec);
-      const sunX0 = viewX + (fwx - fx) * Z, sunY0 = viewY + (fwy - fy) * Z;
-      // solved backwards from the planet's orbit slot so the slot lands on the planet's resting spot
-      const exX = W * AX - Math.cos(tAng) * oEnd * 2, exY = H * AY - Math.sin(tAng) * oEnd * 2 * 0.38;
-      const sx2 = sunX0 + (exX - sunX0) * rec, sy2 = sunY0 + (exY - sunY0) * rec;
-      const oA = seg(p, 0.32, 0.38) * (1 - seg(p, 0.56, 0.63));
+      // orbits + the other planets
+      const oA = seg(p, 0.18, 0.28) * (1 - seg(p, 0.47, 0.56));
       if (oA > 0.01) {
-        g.globalAlpha = oA * 0.5;
-        g.strokeStyle = 'rgba(0,229,255,0.35)';
         g.lineWidth = 1;
-        for (let oi = 1; oi <= 3; oi++) { g.beginPath(); g.ellipse(sx2, sy2, oScale * oi, oScale * oi * 0.38, 0, 0, TAU); g.stroke(); }
-        for (const ob of ORB) {
-          ob.a += ob.w;
-          const px2 = sx2 + Math.cos(ob.a) * oScale * ob.o, py2 = sy2 + Math.sin(ob.a) * oScale * ob.o * 0.38;
-          const prr = ob.s * (1 + sysZ * 1.5);
+        for (const pl of PLANETS) {
+          g.strokeStyle = pl.earth ? 'rgba(0,229,255,0.55)' : 'rgba(150,190,255,0.28)';
+          g.globalAlpha = oA * (pl.earth ? 0.9 : 0.6);
+          g.beginPath();
+          let pen = false;
+          for (let i = 0; i <= 128; i++) {
+            const t = i / 128 * TAU;
+            const [x, y, z] = project([Math.cos(t) * pl.r, 0, Math.sin(t) * pl.r]);
+            if (z < 0.3) { pen = false; continue; }
+            if (pen) g.lineTo(x, y); else { g.moveTo(x, y); pen = true; }
+          }
+          g.stroke();
+          if (pl.earth) continue; // Earth itself is the DOM/WebGL planet
+          const [x, y, z] = project([Math.cos(pl.th) * pl.r, 0, Math.sin(pl.th) * pl.r]);
+          if (z < 0.3) continue;
+          const pr = Math.max(1.2, f * pl.size / z) * 2.2;
           g.globalAlpha = oA;
-          g.drawImage(ob.img, px2 - prr, py2 - prr, prr * 2, prr * 2);
+          g.drawImage(pl.img, x - pr, y - pr, pr * 2, pr * 2);
         }
       }
       // the arm's stars stream past outward from the star as we close in, so the approach keeps its speed
@@ -732,33 +786,24 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
           g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke();
         }
       }
-      if (sun3d) {
-        sunState.x = sx2; sunState.y = sy2; sunState.r = sr; sunState.a = sunVis;
-      } else {
-        // fallback: the soft canvas glow (its bright core is ~a fifth of the sprite radius)
-        const gr = sr * 5;
-        g.globalAlpha = sunVis;
-        g.drawImage(sunImg, sx2 - gr, sy2 - gr, gr * 2, gr * 2);
-      }
+      if (sunVis > 0.01 && sr > 0) {
+        if (sun3d) {
+          sunState.x = sx2; sunState.y = sy2; sunState.r = sr; sunState.a = sunVis;
+        } else {
+          // fallback: the soft canvas glow (its bright core is ~a fifth of the sprite radius)
+          const gr = sr * 5;
+          g.globalAlpha = sunVis;
+          g.drawImage(sunImg, sx2 - gr, sy2 - gr, gr * 2, gr * 2);
+        }
+      } else sunState.a = 0;
       g.globalCompositeOperation = 'source-over';
+      // the SAME DOM/WebGL Earth, placed by the camera
       if (pwrap) {
-        const px = sx2 + Math.cos(tAng) * oScale * 2, py = sy2 + Math.sin(tAng) * oScale * 2 * 0.38;
-        const s2 = (4 + Math.pow(sysZ, 1.6) * (Rend - 4)) / Rend;
-        pwrap.style.transform = 'translate(-50%,-50%) translate(' + (px - W * AX).toFixed(1) + 'px,' + (py - H * AY).toFixed(1) + 'px) scale(' + (s2 * orbitGrow).toFixed(4) + ')';
+        const [ex, ey, ez] = project(EARTH_POS);
+        const er = ez > 0.05 ? f * EARTH_R / ez : 0;
+        pwrap.style.transform = 'translate(-50%,-50%) translate(' + (ex - W * AX).toFixed(1) + 'px,' + (ey - H * AY).toFixed(1) + 'px) scale(' + (er / Rend * orbitGrow).toFixed(4) + ')';
       }
-    } else if (pwrap && p > 0.6) {
-      sunState.a = 0;
-      pwrap.style.transform = 'translate(-50%,-50%) scale(' + orbitGrow.toFixed(4) + ')';
-    }
-    // atmosphere-scattered sun in the planet's sky
-    const skyA = seg(p, 0.46, 0.52) * (1 - seg(p, 0.60, 0.66));
-    if (skyA > 0.01) {
-      g.globalCompositeOperation = 'lighter';
-      const kr = H * 0.09;
-      g.globalAlpha = skyA * 0.9;
-      g.drawImage(sunImg, W * 0.16 - kr, H * 0.2 - kr, kr * 2, kr * 2);
-      g.globalCompositeOperation = 'source-over';
-    }
+    } else sunState.a = 0;
     g.globalAlpha = 1;
     sun3d?.render(now, sunState.x, sunState.y, sunState.r, sunState.a);
   };
