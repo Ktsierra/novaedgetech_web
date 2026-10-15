@@ -67,8 +67,8 @@ const Journey = (props: JourneyOptions) => {
         <div data-hero className="j-rise j-eyebrow j-hero-eyebrow">NOVAEDGE TECH CORP ✦ WEB &amp; MOBILE ENGINEERING</div>
         <h1 className="j-hero-title">
           <div data-hline><span data-hero data-scr className="j-rise j-block" style={v({ '--rise': '60px', '--dur': '.9s' })}>WE BUILD</span></div>
-          <div data-hline><span data-hero data-scr className="j-rise j-block j-outline" style={v({ '--rise': '60px', '--dur': '.9s' })}>WHAT&apos;S</span></div>
-          <div data-hline><span data-hero className="j-rise j-block" style={v({ '--rise': '60px', '--dur': '.9s' })}><span data-scr>NEXT</span><span className="j-cyan">.</span></span></div>
+          <div data-hline><span data-hero data-scr className="j-rise j-block" style={v({ '--rise': '60px', '--dur': '.9s' })}>WHAT&apos;S</span></div>
+          <div data-hline><span data-hero className="j-rise j-block" style={v({ '--rise': '60px', '--dur': '.9s' })}><span data-scr className="j-hero-next">NEXT</span>.</span></div>
         </h1>
         <div className="j-hero-foot">
           <p data-hero className="j-rise j-hero-copy" style={v({ '--dur': '.9s', '--delay': '.1s' })}>

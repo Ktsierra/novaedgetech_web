@@ -47,9 +47,6 @@ body {
 }
 .j-block { display: block; }
 .j-cyan { color: var(--j-cyan); }
-/* the display font's glyphs overlap internally; a plain stroke traces those overlaps (lines through H, A...).
-   Painting the stroke first and a background-coloured fill over it leaves only the clean outer half. */
-.j-outline { color: var(--j-bg); -webkit-text-stroke: 3px rgba(237, 241, 255, 0.85); paint-order: stroke fill; }
 .j-eyebrow { font-size: 11px; letter-spacing: 0.3em; color: var(--j-cyan); }
 .j-h2 { margin: 14px 0 0; font-family: var(--j-display); font-weight: 500; letter-spacing: -0.01em; }
 .j-row { display: flex; justify-content: space-between; align-items: baseline; }
@@ -150,6 +147,7 @@ body {
   font-size: clamp(40px, min(9vw, 13vh), 138px); line-height: 1.04; letter-spacing: -0.01em;
 }
 .j-hero-foot { display: flex; justify-content: space-between; align-items: flex-end; gap: 40px; margin-top: min(52px, 6vh); flex-wrap: wrap; }
+.j-hero-next { color: var(--j-cyan); text-shadow: 0 0 40px rgba(0, 229, 255, 0.35); }
 .j-hero-copy { margin: 0; max-width: 440px; font-size: 13px; line-height: 1.8; color: rgba(237, 241, 255, 0.6); }
 .j-hero-ctas { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; pointer-events: auto; }
 .j-cue {
@@ -484,7 +482,6 @@ body {
   .j-nav { padding: 16px var(--j-gutter); }
   .j-nav-links { display: none; }
   .j-hero { padding-top: 84px; padding-bottom: 72px; }
-  .j-outline { -webkit-text-stroke-width: 2px; }
   .j-hero-eyebrow { font-size: 9px; letter-spacing: 0.22em; line-height: 1.7; }
   .j-hero-foot { gap: 22px; }
   .j-hero-copy { font-size: 12px; }
