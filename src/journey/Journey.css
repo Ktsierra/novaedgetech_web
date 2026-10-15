@@ -78,6 +78,8 @@ body {
 
 /* ---------- fixed layers ---------- */
 .j-canvas { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; }
+/* 3D sun layer: screen-blended so its corona adds light over the galaxy canvas */
+.j-sun3d { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; opacity: 0; mix-blend-mode: screen; }
 .j-clouds {
   position: fixed; left: -10%; right: -10%; top: -150vh; height: 400vh; z-index: 20; pointer-events: none; opacity: 0;
   background:

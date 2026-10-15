@@ -1,5 +1,6 @@
 import { EARTH_FRAME, EarthView, createEarth } from './earth';
 import { SurfaceView, createSurface } from './surface';
+import { SunView, createSun } from './sun';
 import { bands, loaderStatuses, terminalCode } from './journeyText';
 
 export interface JourneyOptions {
@@ -81,6 +82,7 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
   let AX = 0.63, AY = 0.5, Rend = 1;
   // 3D Earth (WebGL); the CSS planet stays as the fallback until it is ready
   let surface: SurfaceView | null = null, surfaceOn = false;
+  let sun3d: SunView | null = null;
   let earth: EarthView | null = null, earthOn = false, earthPx = 0, earthTier = 1;
   const syncEarthSize = () => {
     if (!earth) return;
@@ -103,6 +105,7 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
     Rend = mobile ? Math.min(0.27 * W, 0.14 * H) : Math.min(0.28 * Math.min(W, H), 0.21 * W);
     syncEarthSize();
     surface?.setSize(W, H);
+    sun3d?.setSize(W, H);
     if (planetStage) planetStage.style.transformOrigin = `${String(AX * 100)}% ${String(AY * 100)}%`;
     const cue = q('[data-cue]');
     if (cue) cue.style.display = H < 650 || mobile ? 'none' : 'flex';
@@ -227,6 +230,12 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
     og.globalAlpha = 0.6; og.drawImage(lo, 0, 0, 1024, 1024);
     return out;
   })();
+  // stars of the arm we're flying through (unit cube, streamed toward the camera during the approach)
+  const LOCAL = Array.from({ length: W < MOBILE_BREAKPOINT ? 140 : 240 }, () => ({
+    x: (rnd() - 0.5) * 2.4, y: (rnd() - 0.5) * 1.6, z: rnd(), a: 0.4 + rnd() * 0.6,
+    c: rnd() < 0.7 ? '#dbe4ff' : rnd() < 0.5 ? '#9fd8ff' : '#ffd9a8',
+  }));
+  const sunState = { x: 0, y: 0, r: 0, a: 0 };
   const sunImg = mkGlow(512, [[0, 'rgba(255,255,255,1)'], [0.14, 'rgba(255,246,230,0.98)'], [0.3, 'rgba(255,210,150,0.5)'], [0.6, 'rgba(255,170,110,0.14)'], [1, 'rgba(0,0,0,0)']]);
   // camera focus: a point ON an arm we dive toward (rotates with the disc)
   const fr = maxR * 0.55;
@@ -332,6 +341,14 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
   }
   let planetScale = 1;
   const surfaceStage = stg('surface'), deskStage = stg('desk');
+  const sunCv = q('[data-sun3d]') as HTMLCanvasElement | null;
+  if (sunCv) {
+    createSun(sunCv).then(v => {
+      if (dead) { v.dispose(); return; }
+      sun3d = v;
+      v.setSize(W, H);
+    }).catch(() => { /* no WebGL: the canvas glow sun is the fallback */ });
+  }
   const surfCv = q('[data-surface3d]') as HTMLCanvasElement | null;
   if (surfCv) {
     createSurface(surfCv).then(v => {
@@ -672,11 +689,13 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
     if (sysZ < 0.02) tAng += 0.0012;
     const oScale = (H * 0.16) * (1 + sysZ * 2.2);
     const oEnd = (H * 0.16) * 3.2;
+    if (sunVis <= 0.01) sunState.a = 0;
     if (sunVis > 0.01) {
       g.globalCompositeOperation = 'lighter';
       const grow = Math.pow(seg(p, 0.14, 0.315), 2.2);
       const rec = sstep(seg(p, 0.315, 0.46));
-      const sr = (3 + grow * H * 0.55) * (1 - 0.93 * rec);
+      // disc radius: a point of light that swells to ~a quarter of the screen (never a white-out), then recedes
+      const sr = (1.2 + grow * Math.min(W, H) * 0.13) * (1 - 0.88 * rec);
       const sunX0 = viewX + (fwx - fx) * Z, sunY0 = viewY + (fwy - fy) * Z;
       // solved backwards from the planet's orbit slot so the slot lands on the planet's resting spot
       const exX = W * AX - Math.cos(tAng) * oEnd * 2, exY = H * AY - Math.sin(tAng) * oEnd * 2 * 0.38;
@@ -695,10 +714,32 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
           g.drawImage(ob.img, px2 - prr, py2 - prr, prr * 2, prr * 2);
         }
       }
-      g.globalAlpha = sunVis;
-      g.drawImage(sunImg, sx2 - sr, sy2 - sr, sr * 2, sr * 2);
-      g.globalAlpha = sunVis * 0.7;
-      g.drawImage(flareImg, sx2 - sr * 1.7, sy2 - sr * 0.14, sr * 3.4, sr * 0.28);
+      // the arm's stars stream past outward from the star as we close in, so the approach keeps its speed
+      const ap = seg(p, 0.1, 0.36);
+      if (ap > 0 && ap < 1) {
+        const fly = ap * 1.7, vis = Math.sin(Math.PI * ap);
+        g.lineCap = 'round';
+        for (const ls of LOCAL) {
+          const z = 1 - ((ls.z + fly) % 1); // 1 = far, ~0 = passing the camera
+          if (z < 0.04) continue;
+          const z2 = z + 0.012; // short trails, not warp streaks
+          const k = Math.min(W, H) * 0.32;
+          const x1 = sx2 + ls.x / z * k, y1 = sy2 + ls.y / z * k, x0 = sx2 + ls.x / z2 * k, y0 = sy2 + ls.y / z2 * k;
+          if (x1 < -20 || x1 > W + 20 || y1 < -20 || y1 > H + 20) continue;
+          g.globalAlpha = vis * Math.min(1, (1 - z) * 2.2) * ls.a;
+          g.strokeStyle = ls.c;
+          g.lineWidth = Math.min(2.4, 0.5 + 0.6 / z);
+          g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke();
+        }
+      }
+      if (sun3d) {
+        sunState.x = sx2; sunState.y = sy2; sunState.r = sr; sunState.a = sunVis;
+      } else {
+        // fallback: the soft canvas glow (its bright core is ~a fifth of the sprite radius)
+        const gr = sr * 5;
+        g.globalAlpha = sunVis;
+        g.drawImage(sunImg, sx2 - gr, sy2 - gr, gr * 2, gr * 2);
+      }
       g.globalCompositeOperation = 'source-over';
       if (pwrap) {
         const px = sx2 + Math.cos(tAng) * oScale * 2, py = sy2 + Math.sin(tAng) * oScale * 2 * 0.38;
@@ -706,6 +747,7 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
         pwrap.style.transform = 'translate(-50%,-50%) translate(' + (px - W * AX).toFixed(1) + 'px,' + (py - H * AY).toFixed(1) + 'px) scale(' + (s2 * orbitGrow).toFixed(4) + ')';
       }
     } else if (pwrap && p > 0.6) {
+      sunState.a = 0;
       pwrap.style.transform = 'translate(-50%,-50%) scale(' + orbitGrow.toFixed(4) + ')';
     }
     // atmosphere-scattered sun in the planet's sky
@@ -715,11 +757,10 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
       const kr = H * 0.09;
       g.globalAlpha = skyA * 0.9;
       g.drawImage(sunImg, W * 0.16 - kr, H * 0.2 - kr, kr * 2, kr * 2);
-      g.globalAlpha = skyA * 0.5;
-      g.drawImage(flareImg, W * 0.16 - kr * 2.2, H * 0.2 - kr * 0.18, kr * 4.4, kr * 0.36);
       g.globalCompositeOperation = 'source-over';
     }
     g.globalAlpha = 1;
+    sun3d?.render(now, sunState.x, sunState.y, sunState.r, sunState.a);
   };
 
   raf = requestAnimationFrame(loop);
@@ -732,6 +773,7 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
     cleanups.forEach(fn => { fn(); });
     earth?.dispose();
     surface?.dispose();
+    sun3d?.dispose();
     document.body.style.overflow = '';
   };
 }

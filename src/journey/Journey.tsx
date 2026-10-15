@@ -25,6 +25,7 @@ const Journey = (props: JourneyOptions) => {
   return (
     <div ref={rootRef} className="journey">
       <canvas data-gal className="j-canvas" />
+      <canvas data-sun3d className="j-sun3d" aria-hidden="true" />
       <div data-clouds className="j-clouds" />
       <div data-handoff className="j-handoff" aria-hidden="true"><div data-handoff-dark className="j-handoff-dark" /></div>
       <div data-veil className="j-veil" aria-hidden="true" />
