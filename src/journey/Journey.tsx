@@ -69,7 +69,7 @@ const Journey = (props: JourneyOptions) => {
         <h1 className="j-hero-title">
           <div data-hline><span data-hero data-scr className="j-rise j-block" style={v({ '--rise': '60px', '--dur': '.9s' })}>WE BUILD</span></div>
           <div data-hline><span data-hero data-scr className="j-rise j-block" style={v({ '--rise': '60px', '--dur': '.9s' })}>WHAT&apos;S</span></div>
-          <div data-hline><span data-hero className="j-rise j-block" style={v({ '--rise': '60px', '--dur': '.9s' })}><span data-scr className="j-hero-next">NEXT</span>.</span></div>
+          <div data-hline><span data-hero className="j-rise j-block" style={v({ '--rise': '60px', '--dur': '.9s' })}><span className="j-hero-next"><span className="j-sr">NEXT</span><span aria-hidden="true">N<span data-scr data-txt="OVA" data-morph-to="EXT">EXT</span></span></span>.</span></div>
         </h1>
         <div className="j-hero-foot">
           <p data-hero className="j-rise j-hero-copy" style={v({ '--dur': '.9s', '--delay': '.1s' })}>

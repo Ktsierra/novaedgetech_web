@@ -265,6 +265,24 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
     };
     tick();
   };
+  // letters glitch through code glyphs and lock in left to right
+  const morph = (el: HTMLElement, to: string, dur = 1100) => {
+    const st = performance.now();
+    el.classList.add('j-morphing');
+    const tick = () => {
+      if (dead) return;
+      const k = clamp((performance.now() - st) / dur, 0, 1);
+      let out = '';
+      for (let i = 0; i < to.length; i++) {
+        const lock = 0.35 + 0.65 * ((i + 1) / to.length); // staggered lock-in points
+        out += k >= lock ? to[i] : CH[Math.floor(rnd() * CH.length)];
+      }
+      el.textContent = out;
+      if (k < 1) requestAnimationFrame(tick);
+      else { el.dataset.txt = to; el.classList.remove('j-morphing'); }
+    };
+    tick();
+  };
   // an element scrambles itself, or a nested [data-scr] child (keeps sibling accents intact)
   const scrTarget = (el: HTMLElement) => el.dataset.scr != null ? el : el.querySelector<HTMLElement>('[data-scr]');
 
@@ -287,6 +305,12 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
         if (el.dataset.cue == null) el.style.transform = 'none';
         const t = scrTarget(el);
         if (t) scramble(t, 650 + i * 110);
+        // NOVA -> NEXT: once the brand name has typed in, hold a beat, then glitch the tail into the tagline
+        if (t?.dataset.morphTo) {
+          const tail = t, to = t.dataset.morphTo;
+          if (reduced) { tail.dataset.txt = to; tail.textContent = to; }
+          else timers.push(window.setTimeout(() => { morph(tail, to); }, 650 + i * 110 + 1100));
+        }
       }, 90 * i));
     });
     if (nav) { nav.style.opacity = '1'; nav.style.transform = 'none'; }

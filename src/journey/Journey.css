@@ -152,6 +152,16 @@ body {
 }
 .j-hero-foot { display: flex; justify-content: space-between; align-items: flex-end; gap: 40px; margin-top: min(52px, 6vh); flex-wrap: wrap; }
 .j-hero-next { color: var(--j-cyan); text-shadow: 0 0 40px rgba(0, 229, 255, 0.35); }
+.j-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+/* NOVA -> NEXT: the tail glitches (chromatic split + jitter) while the N holds still */
+.j-morphing { display: inline-block; animation: j-glitch .12s steps(2) infinite; text-shadow: -3px 0 rgba(255, 43, 214, 0.75), 3px 0 rgba(0, 229, 255, 0.9), 0 0 40px rgba(0, 229, 255, 0.35); }
+@keyframes j-glitch {
+  0% { transform: translate(0, 0) skewX(0); clip-path: inset(0 0 0 0); }
+  25% { transform: translate(-2px, 1px) skewX(-6deg); clip-path: inset(12% 0 38% 0); }
+  50% { transform: translate(2px, -1px) skewX(4deg); clip-path: inset(0 0 0 0); }
+  75% { transform: translate(-1px, 0) skewX(0); clip-path: inset(46% 0 8% 0); }
+  100% { transform: translate(0, 0); clip-path: inset(0 0 0 0); }
+}
 .j-hero-copy { margin: 0; max-width: 440px; font-size: 13px; line-height: 1.8; color: rgba(237, 241, 255, 0.6); }
 .j-hero-ctas { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; pointer-events: auto; }
 .j-cue {
