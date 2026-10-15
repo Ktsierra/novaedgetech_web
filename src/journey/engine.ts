@@ -122,7 +122,7 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
   };
   const KEYS: SpriteKey[] = ['w', 'w', 'b', 'b', 'c', 'v', 'a'];
   // phones get fewer sprites; the galaxy is also physically smaller there
-  const N = Math.round(clamp(opts.galaxyDensity ?? 1300, 300, 4000) * (W < MOBILE_BREAKPOINT ? 0.65 : 1));
+  const N = Math.round(clamp(opts.galaxyDensity ?? 1100, 300, 4000) * (W < MOBILE_BREAKPOINT ? 0.65 : 1));
   const ARMS = clamp(opts.armCount ?? 6, 2, 6);
   const gauss = () => (rnd() + rnd() + rnd() - 1.5) / 1.5;
   const maxR = Math.max(W, H) * 0.46;
@@ -155,11 +155,10 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
     const r = (0.15 + rnd() * 0.6) * maxR;
     NEB.push({ r, th: armTh(i % ARMS, r) + gauss() * 0.3, rad: 120 + rnd() * 180, img: glow(NEBC[i % 4], 0.05), a: 1 });
   }
-  const GAS: Nebula[] = [], DUST: Nebula[] = [];
+  const GAS: Nebula[] = [];
   const ARM_GAS = ['rgba(150,175,255,', 'rgba(120,160,255,', 'rgba(170,190,255,', 'rgba(110,190,255,'];
   const gasImgs = ARM_GAS.map(c => glow(c, 0.13));
   const hiiImg = glow('rgba(255,110,170,', 0.16); // pink star-forming knots
-  const dustImg = mkGlow(128, [[0, 'rgba(3,4,12,0.85)'], [0.5, 'rgba(3,4,12,0.4)'], [1, 'rgba(3,4,12,0)']]);
   for (let a = 0; a < ARMS; a++) {
     // continuous glowing lane along each arm
     for (let j = 0; j < 22; j++) {
@@ -171,14 +170,63 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
       const r = (0.3 + rnd() * 0.55) * maxR;
       GAS.push({ r, th: armTh(a, r) + gauss() * 0.05, rad: 16 + rnd() * 22, img: hiiImg, a: 1 });
     }
-    // dark dust lane hugging the inner (trailing) edge of the arm
-    for (let j = 0; j < 14; j++) {
-      const r = (0.1 + j * 0.06 + rnd() * 0.02) * maxR;
-      DUST.push({ r, th: armTh(a, r) - 0.1 - 0.04 * (r / maxR) + gauss() * 0.02, rad: (18 + rnd() * 16) * (0.8 + 0.5 * (r / maxR)), img: dustImg, a: 0.7 + rnd() * 0.25 });
-    }
   }
   const coreImg = mkGlow(512, [[0, 'rgba(255,244,222,0.95)'], [0.2, 'rgba(255,214,160,0.4)'], [0.55, 'rgba(140,150,255,0.12)'], [1, 'rgba(0,0,0,0)']]);
   const flareImg = mkGlow(256, [[0, 'rgba(255,250,240,0.6)'], [0.4, 'rgba(0,229,255,0.15)'], [1, 'rgba(0,0,0,0)']]);
+  // ---- diffuse disc: the unresolved-star haze that makes it read as a real galaxy ----
+  // built once offscreen; dust lanes are cut OUT of this glow (destination-out), so they can
+  // only dim haze, never punch dark holes over stars or empty space
+  const ROT = 0.00042; // the spiral pattern turns rigidly so every layer stays aligned
+  let discRot = 0;
+  const DISC_R = maxR * 1.05;
+  const disc = (() => {
+    const S = 512, k = (S / 2) / DISC_R;
+    const lo = mkCanvas(S), lg = lo.getContext('2d');
+    const out = mkCanvas(1024), og = out.getContext('2d');
+    if (!lg || !og) return out;
+    lg.translate(S / 2, S / 2);
+    lg.globalCompositeOperation = 'lighter';
+    const HAZE = W < MOBILE_BREAKPOINT ? 18000 : 30000;
+    for (let i = 0; i < HAZE; i++) {
+      const u = rnd();
+      let r: number, th: number, col: string;
+      let patch = 1;
+      if (u < 0.3) { r = Math.abs(gauss()) * maxR * 0.3; th = rnd() * TAU; col = '255,210,150'; }
+      else if (u < 0.55) { r = Math.pow(rnd(), 0.8) * maxR * 0.95; th = rnd() * TAU; col = '175,180,215'; }
+      else {
+        r = (0.1 + 0.9 * Math.pow(rnd(), 1.15)) * maxR;
+        th = armTh(i % ARMS, r) + gauss() * (0.2 + 0.24 * (r / maxR));
+        col = r < maxR * 0.28 ? '240,215,190' : '165,190,255';
+        // star clouds: brightness clumps along each arm
+        patch = 0.45 + 0.55 * Math.abs(Math.sin(r * 0.031 + (i % ARMS) * 1.7) * Math.sin(r * 0.013 + th * 2.1));
+      }
+      const fade = 1 - 0.65 * (r / maxR);
+      lg.fillStyle = 'rgba(' + col + ',' + ((0.028 + 0.05 * fade) * patch).toFixed(3) + ')';
+      const sz = 0.8 + rnd() * 0.9;
+      lg.fillRect(Math.cos(th) * r * k, Math.sin(th) * r * k, sz, sz);
+    }
+    // soft dust lanes along the inner edge of each arm, as overlapping streaks
+    lg.globalCompositeOperation = 'destination-out';
+    const dustDot = mkGlow(64, [[0, 'rgba(0,0,0,0.5)'], [0.6, 'rgba(0,0,0,0.18)'], [1, 'rgba(0,0,0,0)']]);
+    for (let a = 0; a < ARMS; a++) {
+      for (let j = 0; j < 70; j++) {
+        const r = (0.14 + j * 0.0115) * maxR;
+        const th = armTh(a, r) - 0.09 - 0.05 * (r / maxR) + gauss() * 0.015;
+        const rad = (2.2 + rnd() * 2.6) * (0.8 + 0.6 * (r / maxR));
+        lg.globalAlpha = 0.5 + rnd() * 0.3;
+        lg.drawImage(dustDot, Math.cos(th) * r * k - rad, Math.sin(th) * r * k - rad, rad * 2, rad * 2);
+      }
+    }
+    lg.globalAlpha = 1;
+    // final: wide glow (from a tiny copy, upscaled = cheap blur) + the finer haze on top
+    const tiny = mkCanvas(96), tg = tiny.getContext('2d');
+    if (tg) tg.drawImage(lo, 0, 0, 96, 96);
+    og.globalCompositeOperation = 'lighter';
+    og.imageSmoothingQuality = 'high';
+    og.globalAlpha = 1; og.drawImage(tiny, 0, 0, 1024, 1024);
+    og.globalAlpha = 0.6; og.drawImage(lo, 0, 0, 1024, 1024);
+    return out;
+  })();
   const sunImg = mkGlow(512, [[0, 'rgba(255,255,255,1)'], [0.14, 'rgba(255,246,230,0.98)'], [0.3, 'rgba(255,210,150,0.5)'], [0.6, 'rgba(255,170,110,0.14)'], [1, 'rgba(0,0,0,0)']]);
   // camera focus: a point ON an arm we dive toward (rotates with the disc)
   const fr = maxR * 0.55;
@@ -259,7 +307,7 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
     }).catch(() => { /* no WebGL or textures failed: keep the CSS planet */ });
   }
   let planetScale = 1;
-  const surfaceStage = stg('surface');
+  const surfaceStage = stg('surface'), deskStage = stg('desk');
   const surfCv = q('[data-surface3d]') as HTMLCanvasElement | null;
   if (surfCv) {
     createSurface(surfCv).then(v => {
@@ -290,8 +338,10 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
   const stageDefs: (Omit<Stage, 'el'> & { el: HTMLElement | null })[] = [
     planetDef,
     // the 3D descent carries the motion now, so the stage itself barely scales on the way in
-    { el: surfaceStage, in0: 0.62, in1: 0.665, out0: 0.84, out1: 0.90, maxZ: 11, drift: 1.0, enterFrom: 1.08, ey: 0 },
-    { el: stg('desk'), in0: 0.875, in1: 0.93, out0: 2, out1: 3, maxZ: 1, drift: 1.06, enterFrom: 1.12, ey: 0.05 },
+    // exit is the 3D fly-up to the tower window, so the stage itself doesn't zoom; it's hidden behind the desk by then
+    { el: surfaceStage, in0: 0.62, in1: 0.665, out0: 0.90, out1: 0.915, maxZ: 1, drift: 1.0, enterFrom: 1.08, ey: 0 },
+    // the desk room fades in underneath the full-screen window panel, then the panel shrinks onto the laptop screen
+    { el: deskStage, in0: 0.889, in1: 0.896, out0: 2, out1: 3, maxZ: 1, drift: 1.0, enterFrom: 1, ey: 0 },
   ];
   const stages = stageDefs.filter((s): s is Stage => s.el !== null);
   stages.forEach(s => { s.el.style.willChange = 'transform,opacity'; });
@@ -348,7 +398,8 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
       const top = p2 * maxScroll();
       const dist = Math.abs(p2 - scrollY / maxScroll());
       if (reduced) { warpTo(top); return; }
-      if (a.dataset.goPlay != null) animateTo(top, Math.max(2500, dist * 13500));
+      // ~20s for the full trip: slow enough to watch every chapter, any input takes over
+      if (a.dataset.goPlay != null) animateTo(top, Math.max(3000, dist * 21000));
       else if (dist <= 0.26) animateTo(top, 900 + dist * 4500);
       else warpTo(top);
     };
@@ -373,7 +424,11 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
 
   // HUD
   const hudScale = q('[data-hudscale]'), hudStatus = q('[data-hudstatus]'), hudBar = q('[data-hudbar]');
-  const clouds = q('[data-clouds]'), iris = q('[data-iris]');
+  const clouds = q('[data-clouds]');
+  // window -> laptop hand-off
+  const handoff = q('[data-handoff]'), handoffDark = q('[data-handoff-dark]');
+  const screenEl = q('.j-screen'), laptopBase = q('.j-laptop-base'), deskSurf = q('[data-desk-surface]');
+  const surfContent = q('.j-surface-content');
   let band = -1;
 
   // typed terminal
@@ -428,7 +483,7 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
     if (surface && surfaceStage) {
       const active = surfaceStage.style.display === 'block';
       if (!surfaceOn && (!active || p < 0.655)) { surfaceOn = true; surfaceStage.classList.add('is-3d'); }
-      if (surfaceOn && active) surface.render(now, seg(p, 0.615, 0.73), seg(p, 0.70, 0.90), smx, smy);
+      if (surfaceOn && active) surface.render(now, seg(p, 0.615, 0.73), seg(p, 0.70, 0.835), smx, smy, seg(p, 0.835, 0.892));
     }
 
     // --- 3D Earth: swap in only while the planet is off-screen, render only while it is ---
@@ -458,7 +513,7 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
 
     // --- typed terminal + form ---
     if (codeEl) {
-      const tp = seg(p, 0.925, 0.965);
+      const tp = seg(p, 0.935, 0.968);
       const n = Math.floor(tp * terminalCode.length);
       if (n !== codeN) { codeN = n; codeEl.textContent = terminalCode.slice(0, n) + (n > 0 && n < terminalCode.length ? '▌' : ''); }
       if (!formShown && tp >= 1 && formEl) { formShown = true; formEl.style.opacity = '1'; formEl.style.transform = 'none'; }
@@ -469,7 +524,28 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
       clouds.style.opacity = (bell(p, 0.645, 0.036) * 0.85).toFixed(3);
       clouds.style.transform = 'translate(' + (Math.sin(now * 0.0004) * 30).toFixed(1) + 'px,' + (72 - 190 * seg(p, 0.585, 0.71)).toFixed(1) + 'vh)';
     }
-    if (iris) iris.style.opacity = (bell(p, 0.885, 0.028) * 0.96).toFixed(3);
+
+    // --- surface -> desk: the cards leave, the camera flies up to a lit window, the window becomes the laptop screen ---
+    if (surfContent) surfContent.style.opacity = (1 - seg(p, 0.83, 0.855)).toFixed(3);
+    if (handoff && screenEl) {
+      const a = seg(p, 0.884, 0.892) * (1 - seg(p, 0.936, 0.946));
+      handoff.style.display = a > 0.001 ? 'block' : 'none';
+      if (a > 0.001) {
+        const m = sstep(seg(p, 0.895, 0.935));
+        const r = screenEl.getBoundingClientRect();
+        handoff.style.left = (r.left * m).toFixed(1) + 'px';
+        handoff.style.top = (r.top * m).toFixed(1) + 'px';
+        handoff.style.width = (W + (r.width - W) * m).toFixed(1) + 'px';
+        handoff.style.height = (H + (r.height - H) * m).toFixed(1) + 'px';
+        handoff.style.borderRadius = (14 * m).toFixed(1) + 'px';
+        handoff.style.opacity = a.toFixed(3);
+        if (handoffDark) handoffDark.style.opacity = m.toFixed(3);
+      }
+    }
+    // the desk surface starts right under the laptop wherever the layout puts it
+    if (deskSurf && laptopBase && deskStage && deskStage.style.display === 'block') {
+      deskSurf.style.top = (laptopBase.getBoundingClientRect().bottom - deskStage.getBoundingClientRect().top - 3).toFixed(1) + 'px';
+    }
 
     // --- HUD ---
     let b = 0;
@@ -497,7 +573,8 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
     const Z = Math.exp(Math.log(16) * easeIO(seg(p, 0.045, 0.31)));
     const gA = 1 - seg(p, 0.25, 0.32);
     const viewX = W / 2 + smx * 26, viewY = H * 0.52 + smy * 16;
-    fTh += 0.00022 + 0.05 / (fr + 60);
+    fTh += ROT;
+    discRot += ROT;
     const fwx = viewX + Math.cos(fTh) * fr, fwy = viewY + Math.sin(fTh) * fr * 0.58;
     const mixF = easeIO(seg(p, 0.05, 0.24));
     const fx = viewX + (fwx - viewX) * mixF, fy = viewY + (fwy - viewY) * mixF;
@@ -516,7 +593,7 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
       // clouds turn at the same rate as the stars so gas and dust stay on their arms
       const clouds = (list: Nebula[], alpha: number) => {
         for (const nb of list) {
-          nb.th += 0.00022 + 0.05 / (nb.r + 60);
+          nb.th += ROT;
           const wx = viewX + Math.cos(nb.th) * nb.r, wy = viewY + Math.sin(nb.th) * nb.r * 0.58;
           const x = viewX + (wx - fx) * Z, y = viewY + (wy - fy) * Z;
           const rad = nb.rad * (0.6 + Z * 0.5), ry = rad * 0.72; // flattened with the disc
@@ -525,8 +602,19 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
           g.drawImage(nb.img, x - rad, y - ry, rad * 2, ry * 2);
         }
       };
-      clouds(NEB, gA * fe * 0.9);
-      clouds(GAS, gA * fe);
+      // diffuse disc first, squashed into the same tilted ellipse as the stars
+      {
+        const cx0 = viewX + (viewX - fx) * Z, cy0 = viewY + (viewY - fy) * Z;
+        g.save();
+        g.globalAlpha = gA * fe / (1 + (Z - 1) * 0.18);
+        g.translate(cx0, cy0);
+        g.scale(Z, Z * 0.58);
+        g.rotate(discRot);
+        g.drawImage(disc, -DISC_R, -DISC_R, DISC_R * 2, DISC_R * 2);
+        g.restore();
+      }
+      clouds(NEB, gA * fe * 0.7);
+      clouds(GAS, gA * fe * 0.6);
       if (fe > 0.01) {
         const cwx = viewX + (viewX - fx) * Z, cwy = viewY + (viewY - fy) * Z;
         const coreR = maxR * 0.42 * (0.5 + Z * 0.4);
@@ -535,12 +623,8 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
         g.globalAlpha = gA * fe * 0.8;
         g.drawImage(flareImg, cwx - coreR * 1.9, cwy - coreR * 0.17, coreR * 3.8, coreR * 0.34);
       }
-      // dust darkens the glow behind it (normal blending), then stars shine on top
-      g.globalCompositeOperation = 'source-over';
-      clouds(DUST, gA * fe);
-      g.globalCompositeOperation = 'lighter';
       for (const pt of P) {
-        pt.th += 0.00022 + 0.05 / (pt.r + 60);
+        pt.th += ROT;
         const f = ease(clamp((form - pt.d) / 0.5, 0, 1));
         const wx0 = viewX + Math.cos(pt.th) * pt.r, wy0 = viewY + Math.sin(pt.th) * pt.r * 0.58;
         const tx = viewX + (wx0 - fx) * Z, ty2 = viewY + (wy0 - fy) * Z;

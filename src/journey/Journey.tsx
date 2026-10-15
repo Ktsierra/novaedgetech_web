@@ -25,7 +25,7 @@ const Journey = (props: JourneyOptions) => {
     <div ref={rootRef} className="journey">
       <canvas data-gal className="j-canvas" />
       <div data-clouds className="j-clouds" />
-      <div data-iris className="j-iris" />
+      <div data-handoff className="j-handoff" aria-hidden="true"><div data-handoff-dark className="j-handoff-dark" /></div>
       <div data-veil className="j-veil" aria-hidden="true" />
       <div data-cur2 className="j-cur2" />
       <div data-cur1 className="j-cur1" />
@@ -151,11 +151,15 @@ const Journey = (props: JourneyOptions) => {
 
       {/* ---------- your desk: contact ---------- */}
       <section id="contact" data-stage="desk" className="j-stage j-desk" aria-label="Contact">
-        <div className="j-desk-glow" />
+        <div className="j-desk-room" aria-hidden="true">
+          <div className="j-desk-bokeh">{Array.from({ length: 16 }, (_, i) => <span key={i} />)}</div>
+          <div className="j-desk-glow" />
+          <div data-desk-surface className="j-desk-surface" />
+        </div>
         <div className="j-desk-col">
           <div data-at="0.90" data-scr className="j-fade j-eyebrow j-desk-eyebrow">03 / CONTACT · SEA LEVEL, YOUR DESK</div>
           <h2 data-at="0.91" className="j-rise j-h2 j-desk-title" style={v({ '--rise': '26px' })}>Every universe ends<br />at a keyboard.</h2>
-          <div data-at="0.918" className="j-rise j-laptop" style={v({ '--rise': '34px', '--dur': '.9s' })}>
+          <div data-at="0.93" className="j-fade j-laptop" style={v({ '--dur': '.35s' })}>
             <div className="j-screen">
               <div className="j-titlebar">
                 <span className="j-light" style={{ background: '#FF5F57' }} />
@@ -170,8 +174,8 @@ const Journey = (props: JourneyOptions) => {
             </div>
             <div className="j-laptop-base" />
           </div>
-          <a data-at="0.962" href={`mailto:${CONTACT_EMAIL}`} className="j-fade j-mail" style={v({ '--dur': '.9s' })}>{CONTACT_EMAIL}</a>
-          <div data-at="0.972" className="j-fade j-footer" style={v({ '--dur': '1s' })}>
+          <a data-at="0.968" href={`mailto:${CONTACT_EMAIL}`} className="j-fade j-mail" style={v({ '--dur': '.9s' })}>{CONTACT_EMAIL}</a>
+          <div data-at="0.974" className="j-fade j-footer" style={v({ '--dur': '1s' })}>
             <span>© {new Date().getFullYear()} NOVAEDGE TECH CORP</span>
             <span>NOVAEDGETECHNOLOGY.COM</span>
             <span>REACT ✦ THREE.JS ✦ STARDUST</span>

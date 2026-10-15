@@ -58,7 +58,7 @@ export const bands: Band[] = [
   { to: 0.315, scale: '10²¹ M · GALACTIC SCALE', status: 'TRAVERSING THE ARM' },
   { to: 0.455, scale: '10¹² M · STELLAR SCALE', status: 'SYSTEM ACQUIRED' },
   { to: 0.62, scale: '10⁷ M · PLANETARY SCALE', status: 'ENTERING LOW ORBIT' },
-  { to: 0.87, scale: '10⁴ M · SURFACE SCALE', status: 'TOUCHDOWN CONFIRMED' },
+  { to: 0.889, scale: '10⁴ M · SURFACE SCALE', status: 'TOUCHDOWN CONFIRMED' },
   { to: 9, scale: '10⁰ M · YOUR DESK', status: 'DOCKED · SAY HELLO' },
 ];
 
@@ -73,8 +73,8 @@ opening secure channel....... done
 /** scroll-progress targets for nav links */
 export const GO = {
   top: 0,
-  /** "take the journey" plays through to the services chapter */
-  journey: 0.52,
+  /** "take the journey" plays the whole trip, galaxy to desk */
+  journey: 0.97,
   services: 0.52,
   work: 0.76,
   contact: 0.97,

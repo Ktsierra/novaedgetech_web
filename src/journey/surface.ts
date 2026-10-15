@@ -5,8 +5,9 @@ export interface SurfaceView {
   /**
    * descent 0..1: from high above the clouds down to cruising height, pitching up to the horizon.
    * travel 0..1: flying forward along the valley while the work is on screen.
+   * approach 0..1: turning to the lit window in the tower ahead and flying up to it until it fills the view.
    */
-  render: (now: number, descent: number, travel: number, mx: number, my: number) => void;
+  render: (now: number, descent: number, travel: number, mx: number, my: number, approach?: number) => void;
   dispose: () => void;
 }
 
@@ -206,12 +207,59 @@ export async function createSurface(canvas: HTMLCanvasElement): Promise<SurfaceV
   const MOON_DIR = new THREE.Vector3(-0.55, 0.3, -1).normalize().multiplyScalar(620);
   scene.add(moon);
 
+  // ---------- the tower at the end of the valley: the journey ends inside one of its windows ----------
+  // the target window is lit with the same gradient as the DOM hand-off panel (.j-handoff) so the swap is invisible
+  const COLS = 5, ROWS = 22, CELL = 64;
+  const winCv = (target: boolean) => {
+    const c = document.createElement('canvas');
+    c.width = COLS * CELL; c.height = ROWS * CELL;
+    const g = c.getContext('2d');
+    if (!g) return c;
+    g.fillStyle = '#04070e'; g.fillRect(0, 0, c.width, c.height);
+    for (let r = 0; r < ROWS; r++) for (let q = 0; q < COLS; q++) {
+      const x = q * CELL + 7, y = r * CELL + 7, w = CELL - 14, h = CELL - 14;
+      const isTarget = target && q === TARGET_COL && r === TARGET_ROW;
+      if (isTarget) {
+        const gr = g.createRadialGradient(x + w / 2, y + h / 2, 0, x + w / 2, y + h / 2, w * 0.75);
+        gr.addColorStop(0, '#3fa9cc'); gr.addColorStop(0.45, '#1b6a87'); gr.addColorStop(1, '#0e3a4e');
+        g.fillStyle = gr;
+      } else {
+        const k = hash(q * 7 + (target ? 1 : 3), r * 13);
+        g.fillStyle = k < 0.38 ? `rgba(255,${String(190 + Math.round(k * 80))},130,${(0.45 + k).toFixed(2)})` : k < 0.5 ? 'rgba(160,220,255,0.55)' : '#0a1220';
+      }
+      g.fillRect(x, y, w, h);
+    }
+    return c;
+  };
+  const TARGET_COL = 2, TARGET_ROW = 14;
+  const TW = 16, TH = 64, TD = 16, TZ = -135;
+  const TX = pathX(TZ), TY = heightAt(TX, TZ) - 1;
+  const frontTex = new THREE.CanvasTexture(winCv(true));
+  const sideTex = new THREE.CanvasTexture(winCv(false));
+  [frontTex, sideTex].forEach(tx => { tx.colorSpace = THREE.SRGBColorSpace; tx.anisotropy = renderer.capabilities.getMaxAnisotropy(); });
+  const towerMat = (tex: InstanceType<typeof THREE.Texture> | null) => new THREE.MeshStandardMaterial({ color: 0x05080f, roughness: 0.35, metalness: 0.6, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: tex ? 1 : 0 });
+  const towerMats = [towerMat(sideTex), towerMat(sideTex), towerMat(null), towerMat(null), towerMat(frontTex), towerMat(sideTex)];
+  const towerGeo = new THREE.BoxGeometry(TW, TH, TD);
+  const tower = new THREE.Mesh(towerGeo, towerMats);
+  tower.position.set(TX, TY + TH / 2, TZ);
+  scene.add(tower);
+  // rooftop beacon so it reads as the destination from far away
+  bp.push(TX, TY + TH + 2, TZ);
+  beaconGeo.setAttribute('position', new THREE.Float32BufferAttribute(bp, 3));
+  // centre of the target window on the front (+z) face
+  const WIN = new THREE.Vector3(
+    TX - TW / 2 + (TARGET_COL + 0.5) * (TW / COLS),
+    TY + TH - (TARGET_ROW + 0.5) * (TH / ROWS),
+    TZ + TD / 2,
+  );
+  const WIN_STAND = new THREE.Vector3(WIN.x, WIN.y, WIN.z + 1.0); // close enough that the window overfills the view
+
   // ---------- light ----------
   const sunLight = new THREE.DirectionalLight(0xffb27a, 1.5);
   sunLight.position.copy(SUN).multiplyScalar(100);
   scene.add(sunLight, new THREE.HemisphereLight(0x3d6fa8, 0x04080f, 0.55));
 
-  const look = new THREE.Vector3();
+  const look = new THREE.Vector3(), cruisePos = new THREE.Vector3();
   let t0 = -1;
   return {
     setSize: (w: number, h: number) => {
@@ -220,7 +268,7 @@ export async function createSurface(canvas: HTMLCanvasElement): Promise<SurfaceV
       cam.aspect = w / Math.max(1, h);
       cam.updateProjectionMatrix();
     },
-    render: (now: number, descent: number, travel: number, mx: number, my: number) => {
+    render: (now: number, descent: number, travel: number, mx: number, my: number, approach = 0) => {
       if (t0 < 0) t0 = now;
       const t = (now - t0) / 1000;
       const d = smooth(descent);
@@ -235,6 +283,13 @@ export async function createSurface(canvas: HTMLCanvasElement): Promise<SurfaceV
         cam.position.y + Math.sin(pitch),
         cam.position.z - Math.cos(yaw) * Math.cos(pitch),
       );
+      // approach: look round to the window first, then dolly up to it
+      if (approach > 0) {
+        const turn = smooth(approach * 1.8), dolly = smooth((approach - 0.15) / 0.85);
+        cruisePos.copy(cam.position);
+        cam.position.lerpVectors(cruisePos, WIN_STAND, dolly);
+        look.lerp(WIN, turn);
+      }
       cam.lookAt(look);
       sky.position.copy(cam.position);
       stars.position.copy(cam.position);
@@ -246,9 +301,9 @@ export async function createSurface(canvas: HTMLCanvasElement): Promise<SurfaceV
       renderer.render(scene, cam);
     },
     dispose: () => {
-      [terrGeo, starGeo, lightGeo, beaconGeo, sky.geometry, moon.geometry].forEach(g => { g.dispose(); });
-      [terrMat, gridMat, skyMat, starMat, lightMat, beaconMat, moonMat].forEach(m => { m.dispose(); });
-      dotTex.dispose(); moonTex.dispose();
+      [terrGeo, starGeo, lightGeo, beaconGeo, sky.geometry, moon.geometry, towerGeo].forEach(g => { g.dispose(); });
+      [terrMat, gridMat, skyMat, starMat, lightMat, beaconMat, moonMat, ...towerMats].forEach(m => { m.dispose(); });
+      [dotTex, moonTex, frontTex, sideTex].forEach(tx => { tx.dispose(); });
       renderer.dispose();
       renderer.forceContextLoss();
     },
