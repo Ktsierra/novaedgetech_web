@@ -546,7 +546,8 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
       const active = surfaceStage.style.display === 'block';
       // usually ready long before this scene; if not (reload mid-journey), CSS fades it in over the fallback
       if (!surfaceOn) { surfaceOn = true; surfaceStage.classList.add('is-3d'); }
-      if (active) surface.render(now, seg(p, 0.615, 0.73), seg(p, 0.70, 0.835), smx, smy, seg(p, 0.835, 0.892));
+      // aim eases onto the tower window over the last stretch of the valley flight, then the dolly takes over
+      if (active) surface.render(now, seg(p, 0.615, 0.73), seg(p, 0.70, 0.835), smx, smy, seg(p, 0.775, 0.865), seg(p, 0.835, 0.892));
     }
 
     // --- 3D Earth: swap in as soon as it's ready, render only while the planet is on screen ---

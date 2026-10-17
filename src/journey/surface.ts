@@ -5,9 +5,10 @@ export interface SurfaceView {
   /**
    * descent 0..1: from high above the clouds down to cruising height, pitching up to the horizon.
    * travel 0..1: flying forward along the valley while the work is on screen.
-   * approach 0..1: turning to the lit window in the tower ahead and flying up to it until it fills the view.
+   * aim 0..1: easing the view onto the lit window in the tower ahead (starts while still flying the valley).
+   * dolly 0..1: flying up to that window until it fills the view.
    */
-  render: (now: number, descent: number, travel: number, mx: number, my: number, approach?: number) => void;
+  render: (now: number, descent: number, travel: number, mx: number, my: number, aim?: number, dolly?: number) => void;
   dispose: () => void;
 }
 
@@ -259,7 +260,7 @@ export async function createSurface(canvas: HTMLCanvasElement): Promise<SurfaceV
   sunLight.position.copy(SUN).multiplyScalar(100);
   scene.add(sunLight, new THREE.HemisphereLight(0x3d6fa8, 0x04080f, 0.55));
 
-  const look = new THREE.Vector3(), cruisePos = new THREE.Vector3();
+  const look = new THREE.Vector3(), cruisePos = new THREE.Vector3(), cruiseDir = new THREE.Vector3(), winDir = new THREE.Vector3();
   let t0 = -1;
   return {
     setSize: (w: number, h: number) => {
@@ -268,7 +269,7 @@ export async function createSurface(canvas: HTMLCanvasElement): Promise<SurfaceV
       cam.aspect = w / Math.max(1, h);
       cam.updateProjectionMatrix();
     },
-    render: (now: number, descent: number, travel: number, mx: number, my: number, approach = 0) => {
+    render: (now: number, descent: number, travel: number, mx: number, my: number, aim = 0, dolly = 0) => {
       if (t0 < 0) t0 = now;
       const t = (now - t0) / 1000;
       const d = smooth(descent);
@@ -276,19 +277,25 @@ export async function createSurface(canvas: HTMLCanvasElement): Promise<SurfaceV
       const z = 150 - travel * 190 - d * 30;
       const y = lerp(230, 13, Math.pow(d, 0.85)) + heightAt(pathX(z), z);
       const pitch = lerp(-1.42, -0.1, smooth((descent - 0.15) / 0.85));
-      const yaw = -mx * 0.12 + Math.sin(t * 0.15) * 0.02;
-      cam.position.set(pathX(z) + mx * 4, y - my * 2, z);
+      const a = smooth(aim), dl = smooth(dolly);
+      // mouse parallax and drift fade out as the camera commits to the window
+      const free = 1 - a;
+      const yaw = (-mx * 0.12 + Math.sin(t * 0.15) * 0.02) * free;
+      cam.position.set(pathX(z) + mx * 4 * free, y - my * 2 * free, z);
       look.set(
         cam.position.x + Math.sin(yaw) * Math.cos(pitch),
         cam.position.y + Math.sin(pitch),
         cam.position.z - Math.cos(yaw) * Math.cos(pitch),
       );
-      // approach: look round to the window first, then dolly up to it
-      if (approach > 0) {
-        const turn = smooth(approach * 1.8), dolly = smooth((approach - 0.15) / 0.85);
+      // blend view DIRECTIONS (not look points: the window is ~60 units away, so lerping points
+      // swings the view almost all the way in the first few percent), then dolly up to the window
+      if (a > 0 || dl > 0) {
         cruisePos.copy(cam.position);
-        cam.position.lerpVectors(cruisePos, WIN_STAND, dolly);
-        look.lerp(WIN, turn);
+        cam.position.lerpVectors(cruisePos, WIN_STAND, dl);
+        cruiseDir.copy(look).sub(cruisePos).normalize();
+        winDir.copy(WIN).sub(cam.position).normalize();
+        cruiseDir.lerp(winDir, Math.max(a, dl)).normalize();
+        look.copy(cam.position).add(cruiseDir);
       }
       cam.lookAt(look);
       sky.position.copy(cam.position);
