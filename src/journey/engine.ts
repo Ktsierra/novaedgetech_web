@@ -112,9 +112,9 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
     scrollMax = Math.max(1, document.documentElement.scrollHeight - H);
     const mobile = W < MOBILE_BREAKPOINT;
     AX = mobile ? 0.5 : 0.63;
-    AY = mobile ? 0.27 : 0.5;
+    AY = mobile ? 0.22 : 0.5;
     // keep in sync with .j-pwrap sizes in Journey.css
-    Rend = mobile ? Math.min(0.27 * W, 0.14 * H) : Math.min(0.28 * Math.min(W, H), 0.21 * W);
+    Rend = mobile ? Math.min(0.23 * W, 0.11 * H) : Math.min(0.28 * Math.min(W, H), 0.21 * W);
     syncEarthSize();
     surface?.setSize(W, H);
     sun3d?.setSize(W, H);

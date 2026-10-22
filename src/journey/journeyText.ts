@@ -45,9 +45,10 @@ export const loaderStatuses = [
 ];
 
 export const services: Service[] = [
-  { num: '01', title: 'WEB APPLICATIONS', body: 'SaaS platforms, dashboards, internal tools. React, Next.js and Node, typed end to end.', at: 0.5 },
-  { num: '02', title: 'MOBILE APPLICATIONS', body: 'iOS and Android that feel native. One codebase when it\'s smart, two when it matters.', at: 0.53 },
-  { num: '03', title: 'MVP → LAUNCH', body: 'Idea to shipped in weeks. Design, build, deploy. Then iterate with real users.', at: 0.56 },
+  { num: '01', title: 'WEB APPLICATIONS', body: 'SaaS platforms, dashboards, internal tools. React, Next.js and Node, typed end to end.', at: 0.495 },
+  { num: '02', title: 'MOBILE APPLICATIONS', body: 'iOS and Android that feel native. One codebase when it\'s smart, two when it matters.', at: 0.515 },
+  { num: '03', title: 'MVP → LAUNCH', body: 'Idea to shipped in weeks. Design, build, deploy. Then iterate with real users.', at: 0.535 },
+  { num: '04', title: 'NETWORK & INFRASTRUCTURE', body: 'Wi-Fi, access control, VoIP and cameras on one stack, plus cloud identity. Designed, deployed, managed.', at: 0.555 },
 ];
 
 // client work is described without naming clients; add `image` screenshots when ready
@@ -55,7 +56,7 @@ export const work: WorkItem[] = [
   { id: 'skyvault', title: 'SKYVAULT', blurb: 'Inventory and parts traceability for aviation repair stations, from receiving to release.', tags: ['AVIATION', 'WEB + MOBILE'], status: 'IN DEVELOPMENT', kind: 'both', accent: '#00E5FF', href: 'https://getskyvault.app', cta: 'GETSKYVAULT.APP', tilt: 'rotateX(3deg) rotateY(6deg)', at: 0.70, offset: 0 },
   { id: 'portfolio', title: 'FOUNDER PORTFOLIO', blurb: 'The engineering behind NovaEdge: open-source work, experiments and the founder\'s track record.', tags: ['PORTFOLIO', 'WEB'], status: 'LIVE', kind: 'web', accent: '#A98BFF', href: 'https://ktsierra.github.io/ktsierra_portfolio/', cta: 'VISIT', tilt: 'rotateX(2deg) rotateY(2deg)', at: 0.715, offset: 36 },
   { id: 'unifi', title: 'UNIFIED SITE OPS', blurb: 'End-to-end UniFi rollout: network, door access, intercom and VoIP, environmental sensors and camera security on one console.', tags: ['IT INFRASTRUCTURE', 'ON-SITE'], status: 'DEPLOYED', kind: 'network', accent: '#5CF2B8', cta: 'DETAILS ON REQUEST', tilt: 'rotateX(2deg) rotateY(-2deg)', at: 0.73, offset: 36 },
-  { id: 'identity', title: 'CLOUD IDENTITY SYNC', blurb: 'Internal tooling that links AWS Organizations accounts to Microsoft Entra identities and groups for permission roles.', tags: ['AWS', 'MICROSOFT ENTRA'], status: 'IN PRODUCTION', kind: 'cloud', accent: '#FFB35C', cta: 'DETAILS ON REQUEST', tilt: 'rotateX(3deg) rotateY(-6deg)', at: 0.745, offset: 0 },
+  { id: 'identity', title: 'CLOUD IDENTITY SYNC', blurb: 'Internal tooling that links a client\'s AWS data to Microsoft Entra identities and groups for permission roles.', tags: ['AWS', 'MICROSOFT ENTRA'], status: 'IN PRODUCTION', kind: 'cloud', accent: '#FFB35C', cta: 'DETAILS ON REQUEST', tilt: 'rotateX(3deg) rotateY(-6deg)', at: 0.745, offset: 0 },
 ];
 
 /** the "your project" side card cycles through these */
@@ -64,9 +65,11 @@ export const ideas = [
   'the dashboard your ops team wants',
   'your MVP, shipped in weeks',
   'an inventory system that scans',
+  'Wi-Fi that reaches every corner',
   'a customer portal people like',
   'the app your field crew needs',
   'your SaaS, typed end to end',
+  'cameras and door access, one console',
   'a marketplace for your niche',
 ];
 

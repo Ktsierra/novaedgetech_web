@@ -67,7 +67,7 @@ const Journey = (props: JourneyOptions) => {
 
       {/* ---------- hero: galaxy ---------- */}
       <section data-stage="hero" className="j-hero" aria-label="Intro">
-        <div data-hero className="j-rise j-eyebrow j-hero-eyebrow">NOVAEDGE TECH CORP ✦ WEB &amp; MOBILE ENGINEERING</div>
+        <div data-hero className="j-rise j-eyebrow j-hero-eyebrow">NOVAEDGE TECH CORP ✦ WEB · MOBILE · NETWORK ENGINEERING</div>
         <h1 className="j-hero-title">
           <div data-hline><span data-hero data-scr className="j-rise j-block" style={v({ '--rise': '60px', '--dur': '.9s' })}>WE BUILD</span></div>
           <div data-hline><span data-hero data-scr className="j-rise j-block" style={v({ '--rise': '60px', '--dur': '.9s' })}>WHAT&apos;S</span></div>
@@ -183,6 +183,7 @@ const Journey = (props: JourneyOptions) => {
             <span>© {new Date().getFullYear()} NOVAEDGE TECH CORP</span>
             <span>NOVAEDGETECHNOLOGY.COM</span>
             <span>REACT ✦ THREE.JS ✦ STARDUST</span>
+            <span className="j-credits">AWS ARCHITECTURE ICONS (CC BY-ND 2.0) · MICROSOFT ENTRA ICON © MICROSOFT · EARTH IMAGERY NASA</span>
           </div>
         </div>
       </section>

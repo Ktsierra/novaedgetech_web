@@ -126,7 +126,14 @@ export async function createEarth(canvas: HTMLCanvasElement): Promise<EarthView>
     side,
     transparent: true,
     depthWrite: false,
-    blending: THREE.AdditiveBlending,
+    // additive light that leaves the canvas ALPHA untouched: plain AdditiveBlending also writes alpha,
+    // which turned the faint outer halo into an opaque black ring that cut across the moon
+    blending: THREE.CustomBlending,
+    blendEquation: THREE.AddEquation,
+    blendSrc: THREE.OneFactor,
+    blendDst: THREE.OneFactor,
+    blendSrcAlpha: THREE.ZeroFactor,
+    blendDstAlpha: THREE.OneFactor,
   });
   const rimMat = rimShader('pow(1.0 - facing, 3.0)', 1.1, THREE.FrontSide);
   const rim = new THREE.Mesh(new THREE.SphereGeometry(1.008, 96, 72), rimMat);

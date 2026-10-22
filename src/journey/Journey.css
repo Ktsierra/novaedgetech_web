@@ -326,8 +326,9 @@ body {
 /* linked cards are anchors: keep card typography, not link colours */
 .journey a.j-wcard--link, .journey a.j-wcard--link:hover { display: block; color: var(--j-ink); text-decoration: none; cursor: pointer; }
 .j-wcard-shot { position: relative; height: 168px; margin: 10px 10px 0; border-radius: 9px; overflow: hidden; }
-.j-wcard-shot img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .8s var(--j-out); }
-.j-wcard:hover .j-wcard-shot img, .j-wcard:hover .j-mock > :not(.j-mock-grid) { transform: scale(1.04); }
+/* direct child only: real screenshots, not the logos inside the drawn mocks */
+.j-wcard-shot > img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .8s var(--j-out); }
+.j-wcard:hover .j-wcard-shot > img, .j-wcard:hover .j-mock > :not(.j-mock-grid) { transform: scale(1.04); }
 .j-wcard-body { padding: 14px 16px 0; }
 .journey .j-wcard-title { margin: 0; font-family: var(--j-display); font-weight: 700; font-size: 17px; letter-spacing: 0.02em; }
 .j-wcard-blurb {
@@ -370,6 +371,25 @@ body {
 .j-mock-svg .j-node-label--dim { fill: rgba(237, 241, 255, 0.4); }
 .j-mock-svg .j-flow { stroke: var(--acc); stroke-width: 1; stroke-dasharray: 2 5; opacity: .75; animation: j-flow 1.6s linear infinite; }
 @keyframes j-flow { to { stroke-dashoffset: -14; } }
+/* isometric site plan */
+.j-mock-svg .j-plan-floor { fill: rgba(255, 255, 255, 0.025); stroke: none; }
+.j-mock-svg .j-plan-wall { fill: none; stroke: rgba(200, 220, 255, 0.35); stroke-width: 1.1; stroke-linecap: square; }
+.j-mock-svg .j-plan-cover { fill: color-mix(in srgb, var(--acc) 16%, transparent); stroke: color-mix(in srgb, var(--acc) 35%, transparent); stroke-width: 0.5; animation: j-cover 2.8s ease-in-out infinite; }
+@keyframes j-cover { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+.j-mock-svg .j-plan-cone { fill: rgba(255, 179, 92, 0.12); stroke: rgba(255, 179, 92, 0.35); stroke-width: 0.4; }
+.j-mock-svg .j-plan-ap { fill: var(--acc); }
+.j-mock-svg .j-plan-cam { fill: #FFB35C; }
+.j-mock-svg .j-plan-door { fill: #A98BFF; }
+.j-mock-svg .j-plan-sensor { fill: #9fd8ff; }
+.j-mock-svg .j-plan-legend text { font-family: var(--j-mono); font-size: 5px; letter-spacing: 0.1em; fill: rgba(237, 241, 255, 0.55); }
+/* AWS <-> Entra sync */
+.j-sync { position: absolute; inset: 0; display: flex; align-items: center; justify-content: space-around; padding: 0 6%; }
+.j-sync-side, .j-sync-mid { display: flex; flex-direction: column; align-items: center; gap: 8px; font-size: 6.5px; letter-spacing: 0.14em; color: rgba(237, 241, 255, 0.6); text-align: center; }
+.j-sync-logo { width: 52px; height: 52px; object-fit: contain; filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.5)); }
+.j-sync-loop { width: 44px; height: 44px; transform-origin: 50% 50%; animation: j-spin 6s linear infinite; }
+.j-sync-arc { fill: none; stroke: var(--acc); stroke-width: 2.4; stroke-linecap: round; }
+.j-sync-mid span { color: var(--acc); }
+@keyframes j-spin { to { transform: rotate(360deg); } }
 
 /* ---------- "your project" side card ---------- */
 .j-idea-card { display: flex; flex-direction: column; height: 100%; min-height: 100%; box-sizing: border-box;
@@ -507,6 +527,7 @@ body {
   margin-top: min(26px, 3vh); font-size: 12px; letter-spacing: 0.14em; color: var(--j-cyan);
   border-bottom: 1px solid rgba(0, 229, 255, 0.4); padding-bottom: 3px;
 }
+.j-credits { flex-basis: 100%; text-align: center; font-size: 7.5px; opacity: .7; }
 .j-footer {
   width: 100%; max-width: 1100px; margin-top: min(40px, 5vh); margin-bottom: auto; box-sizing: border-box;
   border-top: 1px solid rgba(237, 241, 255, 0.12); padding-top: 18px;
@@ -533,8 +554,8 @@ body {
   .j-hud-status { font-size: 8px; letter-spacing: 0.18em; }
   .j-hud-scale { font-size: 9px; letter-spacing: 0.16em; }
 
-  .j-planet-stage { transform-origin: 50% 27%; }
-  .j-pwrap { left: 50%; top: 27%; width: min(54vw, 28vh); height: min(54vw, 28vh); }
+  .j-planet-stage { transform-origin: 50% 22%; }
+  .j-pwrap { left: 50%; top: 22%; width: min(46vw, 22vh); height: min(46vw, 22vh); }
   .j-planet-tag > div { font-size: 8px; letter-spacing: 0.18em; }
   .j-planet-tag { right: auto; left: 50%; }
   .j-planet-tag > div { transform: translate(-50%, -140%); }
