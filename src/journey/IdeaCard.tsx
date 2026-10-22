@@ -1,14 +1,14 @@
-import { CSSProperties, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { GO, ideas } from './journeyText';
 
 const CH = '!<>-_\\/[]{}=+*^?#';
-const v = (vars: Record<string, string>) => vars as CSSProperties;
 
 /**
- * "Your project" side card: keeps cycling through possible projects, each one glitching into the next
- * (same code-scramble language as the hero's NOVA -> NEXT). Reduced motion swaps them without the effect.
+ * Reserved slot under the four projects: a slim, full-width "empty display" frame that says the visitor's
+ * project is next. The idea keeps glitching from one possibility to the next (same code-scramble as the
+ * hero's NOVA -> NEXT); reduced motion just swaps them.
  */
-const IdeaCard = ({ at }: { at: number }) => {
+const IdeaSlot = ({ at }: { at: number }) => {
   const [text, setText] = useState(ideas[0]);
   const [glitch, setGlitch] = useState(false);
   const idx = useRef(0);
@@ -42,20 +42,18 @@ const IdeaCard = ({ at }: { at: number }) => {
   }, []);
 
   return (
-    <article data-at={at} className="j-rise j-work-item j-idea" style={v({ '--rise': '46px', '--acc': '#00E5FF' })}>
-      <div className="j-wcard j-idea-card">
-        <div className="j-wcard-top"><span>05 / YOURS</span><span className="j-wcard-status">OPEN SLOT</span></div>
-        <div className="j-idea-body">
-          <div className="j-idea-label">NEXT ON THE LIST:</div>
-          <div className={'j-idea-text' + (glitch ? ' j-idea-text--glitch' : '')} aria-live="off">{text}</div>
-        </div>
-        <a href="#contact" data-go={GO.contact} data-hov className="j-btn j-btn--solid j-btn--sm j-idea-cta">START YOURS ↗</a>
-        <div className="j-scanlines" />
+    <div data-at={at} className="j-rise j-slot" style={{ ['--rise' as string]: '30px' }}>
+      <div className="j-slot-label">
+        <span className="j-slot-num">05</span>
+        <span>RESERVED FOR<br />YOUR PROJECT</span>
       </div>
-      <div className="j-beam" />
-      <div className="j-beam-glow" />
-    </article>
+      <div className="j-slot-idea">
+        <span className="j-slot-next">NEXT ON DISPLAY</span>
+        <span className={'j-slot-text' + (glitch ? ' j-slot-text--glitch' : '')}>{text}<i className="j-slot-caret" /></span>
+      </div>
+      <a href="#contact" data-go={GO.contact} data-hov className="j-btn j-btn--solid j-btn--sm j-slot-cta">START YOURS ↗</a>
+    </div>
   );
 };
 
-export default IdeaCard;
+export default IdeaSlot;
