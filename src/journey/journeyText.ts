@@ -11,9 +11,14 @@ export interface WorkItem {
   /** one line on what it is */
   blurb: string;
   tags: string[];
-  year: string;
-  /** which device mock the placeholder frame shows */
-  kind: 'web' | 'mobile' | 'both';
+  /** IN DEVELOPMENT / DEPLOYED / ... shown in the card's top row */
+  status: string;
+  /** what the placeholder frame draws until a real screenshot exists */
+  kind: 'web' | 'mobile' | 'both' | 'network' | 'cloud';
+  /** optional outbound link (opens in a new tab) */
+  href?: string;
+  /** label of the card's bottom action */
+  cta: string;
   /** per-project accent colour */
   accent: string;
   tilt: string;
@@ -45,12 +50,24 @@ export const services: Service[] = [
   { num: '03', title: 'MVP → LAUNCH', body: 'Idea to shipped in weeks. Design, build, deploy. Then iterate with real users.', at: 0.56 },
 ];
 
-// placeholder projects: swap in real ones (and `image` screenshots) when ready
+// client work is described without naming clients; add `image` screenshots when ready
 export const work: WorkItem[] = [
-  { id: 'orbit', title: 'ORBIT', blurb: 'Treasury dashboard for seed-stage teams: runway, burn and forecasts in one view.', tags: ['FINTECH', 'WEB'], year: '2026', kind: 'web', accent: '#00E5FF', tilt: 'rotateX(3deg) rotateY(6deg)', at: 0.705, offset: 0 },
-  { id: 'pulse', title: 'PULSE', blurb: 'Recovery tracking that pairs wearables with a daily care plan.', tags: ['HEALTH', 'IOS + ANDROID'], year: '2025', kind: 'mobile', accent: '#5CF2B8', tilt: 'rotateX(2deg) rotateY(2deg)', at: 0.73, offset: 36 },
-  { id: 'relay', title: 'RELAY', blurb: 'Dispatch console and driver app for last-mile delivery fleets.', tags: ['LOGISTICS', 'WEB + MOBILE'], year: '2025', kind: 'both', accent: '#FFB35C', tilt: 'rotateX(2deg) rotateY(-2deg)', at: 0.755, offset: 36 },
-  { id: 'halo', title: 'HALO', blurb: 'An AI guide that turns product docs into interactive onboarding.', tags: ['AI', 'WEB'], year: '2024', kind: 'web', accent: '#A98BFF', tilt: 'rotateX(3deg) rotateY(-6deg)', at: 0.78, offset: 0 },
+  { id: 'skyvault', title: 'SKYVAULT', blurb: 'Inventory and parts traceability for aviation repair stations, from receiving to release.', tags: ['AVIATION', 'WEB + MOBILE'], status: 'IN DEVELOPMENT', kind: 'both', accent: '#00E5FF', href: 'https://getskyvault.app', cta: 'GETSKYVAULT.APP', tilt: 'rotateX(3deg) rotateY(6deg)', at: 0.70, offset: 0 },
+  { id: 'portfolio', title: 'FOUNDER PORTFOLIO', blurb: 'The engineering behind NovaEdge: open-source work, experiments and the founder\'s track record.', tags: ['PORTFOLIO', 'WEB'], status: 'LIVE', kind: 'web', accent: '#A98BFF', href: 'https://ktsierra.github.io/ktsierra_portfolio/', cta: 'VISIT', tilt: 'rotateX(2deg) rotateY(2deg)', at: 0.715, offset: 36 },
+  { id: 'unifi', title: 'UNIFIED SITE OPS', blurb: 'End-to-end UniFi rollout: network, door access, intercom and VoIP, environmental sensors and camera security on one console.', tags: ['IT INFRASTRUCTURE', 'ON-SITE'], status: 'DEPLOYED', kind: 'network', accent: '#5CF2B8', cta: 'DETAILS ON REQUEST', tilt: 'rotateX(2deg) rotateY(-2deg)', at: 0.73, offset: 36 },
+  { id: 'identity', title: 'CLOUD IDENTITY SYNC', blurb: 'Internal tooling that links AWS Organizations accounts to Microsoft Entra identities and groups for permission roles.', tags: ['AWS', 'MICROSOFT ENTRA'], status: 'IN PRODUCTION', kind: 'cloud', accent: '#FFB35C', cta: 'DETAILS ON REQUEST', tilt: 'rotateX(3deg) rotateY(-6deg)', at: 0.745, offset: 0 },
+];
+
+/** the "your project" side card cycles through these */
+export const ideas = [
+  'a booking app for your clinic',
+  'the dashboard your ops team wants',
+  'your MVP, shipped in weeks',
+  'an inventory system that scans',
+  'a customer portal people like',
+  'the app your field crew needs',
+  'your SaaS, typed end to end',
+  'a marketplace for your niche',
 ];
 
 /** HUD chapters, keyed by journey progress */

@@ -17,7 +17,7 @@ describe('Journey', () => {
     expect(screen.getByRole('region', { name: 'Selected work' })).toBeTruthy();
     expect(screen.getByRole('region', { name: 'Contact' })).toBeTruthy();
     expect(screen.getByText('WEB APPLICATIONS')).toBeTruthy();
-    expect(screen.getAllByText('ORBIT').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('SKYVAULT').length).toBeGreaterThan(0);
   });
 
   it('requires name and email before transmitting', () => {

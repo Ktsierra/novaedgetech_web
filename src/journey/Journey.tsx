@@ -3,6 +3,7 @@ import './Journey.css';
 import { JourneyOptions, runJourney } from './engine';
 import JourneyContact from './JourneyContact';
 import WorkCard from './WorkCard';
+import IdeaCard from './IdeaCard';
 import BrandLogo from './BrandLogo';
 import { CONTACT_EMAIL, GO, services, work } from './journeyText';
 
@@ -147,6 +148,7 @@ const Journey = (props: JourneyOptions) => {
           </div>
           <div className="j-work-grid">
             {work.map((w, i) => <WorkCard key={w.id} w={w} index={i} total={work.length} />)}
+            <IdeaCard at={0.76} />
           </div>
         </div>
       </section>
