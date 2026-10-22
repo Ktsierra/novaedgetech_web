@@ -352,32 +352,29 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
   const hero = stg('hero'), hLines = qa('[data-hline]');
   const pwrap = q('[data-pwrap]');
   const earthCv = q('[data-earth]') as HTMLCanvasElement | null;
-  if (earthCv) {
-    createEarth(earthCv).then(e => {
-      if (dead) { e.dispose(); return; }
-      earth = e;
-      if (geo) earth.setTarget(geo.lat, geo.lon);
-      syncEarthSize();
-    }).catch(() => { /* no WebGL or textures failed: keep the CSS planet */ });
-  }
   let planetScale = 1;
   const surfaceStage = stg('surface'), deskStage = stg('desk');
   const sunCv = q('[data-sun3d]') as HTMLCanvasElement | null;
-  if (sunCv) {
-    createSun(sunCv).then(v => {
-      if (dead) { v.dispose(); return; }
-      sun3d = v;
-      v.setSize(W, H);
-    }).catch(() => { /* no WebGL: the canvas glow sun is the fallback */ });
-  }
   const surfCv = q('[data-surface3d]') as HTMLCanvasElement | null;
-  if (surfCv) {
-    createSurface(surfCv).then(v => {
-      if (dead) { v.dispose(); return; }
-      surface = v;
-      v.setSize(W, H);
-    }).catch(() => { /* no WebGL2: keep the CSS surface */ });
-  }
+  // 3D scenes load ONE AFTER ANOTHER behind the loader (each compiles its shaders and renders a hidden
+  // warm-up frame), in journey order, so none of that work lands mid-scroll. Failures fall back silently.
+  const ASSETS = 3;
+  let assetsDone = 0;
+  const step = async <T>(make: (() => Promise<T>) | null, adopt: (v: T) => void, dispose: (v: T) => void) => {
+    try {
+      if (make) { const v = await make(); if (dead) dispose(v); else adopt(v); }
+    } catch { /* no WebGL / textures failed: that scene keeps its CSS/canvas fallback */ }
+    assetsDone++;
+  };
+  void (async () => {
+    await step(sunCv ? () => createSun(sunCv) : null, v => { sun3d = v; v.setSize(W, H); }, v => { v.dispose(); });
+    await step(earthCv ? () => createEarth(earthCv) : null, e => {
+      earth = e;
+      if (geo) e.setTarget(geo.lat, geo.lon);
+      syncEarthSize();
+    }, e => { e.dispose(); });
+    await step(surfCv ? () => createSurface(surfCv) : null, v => { surface = v; v.setSize(W, H); }, v => { v.dispose(); });
+  })();
 
   // visitor's approximate location (Vercel IP geolocation via /api/geo): the globe turns to it before the dive
   let geo: { lat: number; lon: number } | null = null;
@@ -510,8 +507,11 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
     if ((frameC++ % 60) === 0) scrollMax = Math.max(1, document.documentElement.scrollHeight - H);
     const p = clamp(ssy / scrollMax, 0, 1);
     const form = skip ? 1 : clamp((now - t0) / 2300, 0, 1);
-    if (counter && !finished) counter.textContent = String(Math.round(form * 100)).padStart(3, '0');
-    if (form >= 1 && !finished) finish();
+    // the loader holds until the 3D scenes are warmed up (capped so a slow connection never gets stuck)
+    const assetsReady = assetsDone >= ASSETS || now - t0 > 9000;
+    const shown = Math.min(form, 0.4 + 0.6 * assetsDone / ASSETS);
+    if (counter && !finished) counter.textContent = String(Math.round(shown * 100)).padStart(3, '0');
+    if (form >= 1 && assetsReady && !finished) finish();
 
     if (ctx) drawSky(ctx, p, form, now);
 

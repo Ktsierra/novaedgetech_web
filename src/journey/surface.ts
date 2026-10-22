@@ -1,4 +1,5 @@
 import moonUrl from '../assets/earth/moon_1024.jpg';
+import { compileScene } from './warmup';
 
 export interface SurfaceView {
   setSize: (w: number, h: number) => void;
@@ -262,7 +263,7 @@ export async function createSurface(canvas: HTMLCanvasElement): Promise<SurfaceV
 
   const look = new THREE.Vector3(), cruisePos = new THREE.Vector3(), cruiseDir = new THREE.Vector3(), winDir = new THREE.Vector3();
   let t0 = -1;
-  return {
+  const view: SurfaceView = {
     setSize: (w: number, h: number) => {
       renderer.setPixelRatio(Math.min(devicePixelRatio || 1, w < 760 ? 1.25 : 1.5));
       renderer.setSize(w, h, false);
@@ -315,4 +316,10 @@ export async function createSurface(canvas: HTMLCanvasElement): Promise<SurfaceV
       renderer.forceContextLoss();
     },
   };
+  // warm-up while the loader is up (see earth.ts): mid-descent pose so terrain, grid, lights and tower are in view
+  await compileScene(renderer, scene, cam);
+  view.setSize(320, 200);
+  view.render(performance.now(), 0.8, 0.5, 0, 0);
+  t0 = -1;
+  return view;
 }

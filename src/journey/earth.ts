@@ -6,6 +6,8 @@ import moonUrl from '../assets/earth/moon_1024.jpg';
 
 const D = Math.PI / 180;
 
+import { compileScene } from './warmup';
+
 export interface EarthView {
   /** backing-store size in device pixels (the canvas CSS size is set by Journey.css) */
   setSize: (px: number) => void;
@@ -163,7 +165,7 @@ export async function createEarth(canvas: HTMLCanvasElement): Promise<EarthView>
   const smooth = (a: number, b: number, x: number) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
   let t0 = -1;
-  return {
+  const view: EarthView = {
     setSize: (px: number) => {
       const s = Math.max(2, Math.round(px));
       renderer.setPixelRatio(1);
@@ -206,4 +208,13 @@ export async function createEarth(canvas: HTMLCanvasElement): Promise<EarthView>
       renderer.forceContextLoss();
     },
   };
+  // warm-up while the loader is up: compile shaders and render one hidden frame (uploads textures),
+  // so the first on-screen frame doesn't hitch mid-scroll
+  dot.visible = true;
+  await compileScene(renderer, scene, cam);
+  view.setSize(256);
+  view.render(performance.now(), 0, 0);
+  dot.visible = false;
+  t0 = -1;
+  return view;
 }

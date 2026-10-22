@@ -1,3 +1,5 @@
+import { compileScene } from './warmup';
+
 export interface SunView {
   setSize: (w: number, h: number) => void;
   /** x, y, r in CSS pixels (disc radius); alpha 0 hides the layer */
@@ -103,7 +105,7 @@ export async function createSun(canvas: HTMLCanvasElement): Promise<SunView> {
   scene.add(corona);
 
   let H = 1, t0 = -1, hidden = true;
-  return {
+  const view: SunView = {
     setSize: (w: number, h: number) => {
       H = h;
       renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.5));
@@ -137,4 +139,12 @@ export async function createSun(canvas: HTMLCanvasElement): Promise<SunView> {
       renderer.forceContextLoss();
     },
   };
+  // warm-up while the loader is up (see earth.ts), then hide the layer again
+  await compileScene(renderer, scene, cam);
+  view.setSize(128, 128);
+  view.render(performance.now(), 64, 64, 30, 1);
+  canvas.style.opacity = '0';
+  hidden = true;
+  t0 = -1;
+  return view;
 }
