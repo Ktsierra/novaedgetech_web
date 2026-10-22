@@ -584,20 +584,21 @@ body {
   .j-service-body { font-size: 10.5px; line-height: 1.6; margin-top: 4px; }
 
   .j-moon { width: 48px; height: 48px; top: 96px; right: 10%; }
-  .j-surface-content { padding: 84px var(--j-pad) 64px; }
-  .j-surface-title { font-size: clamp(22px, 7vw, 30px); margin-top: 12px; }
+  /* sized to the SMALL viewport (browser toolbars shown) so the layout doesn't re-fit, and overflow under the
+     nav/HUD, each time mobile Safari shows or hides its toolbar while scrolling */
+  .j-surface-content { height: 100vh; height: 100svh; padding: 70px var(--j-pad) 54px; container-type: size; }
+  .j-surface-title { font-size: clamp(18px, 5.6vw, 26px); margin-top: 10px; }
   .j-surface-head { gap: 12px; }
   .j-surface-blurb { display: none; }
-  .j-work-grid { grid-template-columns: 1fr 1fr; gap: 18px 12px; margin-top: 18px; }
+  .j-work-grid { grid-template-columns: 1fr 1fr; gap: 14px 12px; margin-top: 14px; }
   /* phones: titles, status and actions only, so the cards and the reserved slot fit one screen */
   .j-work-grid .j-wcard-blurb, .j-coords { display: none; }
-  .j-wcard-shot { height: min(78px, 10vh); }
   .j-sync { padding: 0 2%; }
   .j-sync-tile { width: 34px; height: 34px; border-radius: 9px; }
   .j-sync-logo, .j-sync-loop { width: 22px; height: 22px; }
   .j-sync-link { top: 17px; }
   .j-sync-cell { gap: 5px; font-size: 5.5px; letter-spacing: 0.1em; }
-  .j-slot { grid-template-columns: 1fr auto; gap: 8px 12px; margin-top: 18px; padding: 10px 12px; }
+  .j-slot { grid-template-columns: 1fr auto; gap: 8px 12px; margin-top: 14px; padding: 10px 12px; }
   .j-slot-label { display: none; }
   .j-slot-idea { flex-direction: column; gap: 3px; border-left: 0; padding-left: 0; }
   .j-slot-text { font-size: 12.5px; white-space: normal; }
@@ -605,7 +606,7 @@ body {
   .j-work-item { margin-top: 0; }
   .j-wcard { border-radius: 11px; }
   .j-wcard-top { padding: 9px 10px 0; font-size: 7.5px; letter-spacing: 0.16em; }
-  .j-wcard-shot { height: min(92px, 12vh); margin: 7px 7px 0; border-radius: 7px; }
+  .j-wcard-shot { height: min(80px, 11svh); margin: 7px 7px 0; border-radius: 7px; }
   .j-wcard-body { padding: 9px 10px 0; }
   .journey .j-wcard-title { font-size: 12px; }
   .j-wcard-blurb { font-size: 9.5px; line-height: 1.5; -webkit-line-clamp: 2; min-height: 3em; margin-top: 4px; }
@@ -622,6 +623,11 @@ body {
   .j-form { grid-template-columns: 1fr; gap: 10px; }
   .j-form-foot { flex-direction: column-reverse; align-items: stretch; text-align: center; }
   .j-footer { justify-content: center; text-align: center; }
+}
+
+/* very short phones (e.g. SE with toolbars): drop the card previews so titles, actions and the slot still fit */
+@container (max-height: 480px) {
+  .j-wcard-shot { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -102,6 +102,13 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
     if (Math.abs(px - earthPx) > 1) { earthPx = px; earth.setSize(px); }
   };
   const planetDef = { el: planetStage, in0: 0.30, in1: 0.36, out0: 0.60, out1: 0.67, maxZ: 10, drift: 1.08, enterFrom: 1, ey: 0 };
+  // journey progress is measured against the LARGE viewport (toolbars hidden), so mobile browsers showing their
+  // toolbar on a scroll-up doesn't shift progress backwards (it read as a scene starting to exit)
+  const lvh = document.createElement('div');
+  lvh.style.cssText = 'position:fixed;top:0;left:0;width:0;height:100vh;height:100lvh;visibility:hidden;pointer-events:none';
+  root.appendChild(lvh);
+  cleanups.push(() => { lvh.remove(); });
+  const scrollRange = () => Math.max(1, document.documentElement.scrollHeight - (lvh.offsetHeight || innerHeight));
   const measure = () => {
     W = innerWidth; H = innerHeight;
     if (cv && ctx) {
@@ -109,7 +116,7 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
       cv.width = W * DPR; cv.height = H * DPR;
       ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     }
-    scrollMax = Math.max(1, document.documentElement.scrollHeight - H);
+    scrollMax = scrollRange();
     const mobile = W < MOBILE_BREAKPOINT;
     AX = mobile ? 0.5 : 0.63;
     AY = mobile ? 0.22 : 0.5;
@@ -413,7 +420,7 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
   // nearby chapters: eased scroll. Far jumps: fade to black, cut, fade back (no fast-forward strobe).
   // "Take the journey" (data-go-play): plays the journey to its target at a watchable pace.
   const veil = q('[data-veil]');
-  const maxScroll = () => Math.max(1, document.documentElement.scrollHeight - innerHeight);
+  const maxScroll = scrollRange;
   let anim = 0, warpT = 0;
   const stopAnim = () => { if (anim) { cancelAnimationFrame(anim); anim = 0; } };
   const animateTo = (top: number, ms: number) => {
@@ -504,7 +511,7 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
     lastNow = now;
     ssy += (scrollY - ssy) * (1 - Math.exp(-dt * 5.7));
     smx += (mx - smx) * 0.05; smy += (my - smy) * 0.05;
-    if ((frameC++ % 60) === 0) scrollMax = Math.max(1, document.documentElement.scrollHeight - H);
+    if ((frameC++ % 60) === 0) scrollMax = scrollRange();
     const p = clamp(ssy / scrollMax, 0, 1);
     const form = skip ? 1 : clamp((now - t0) / 2300, 0, 1);
     // the loader holds until the 3D scenes are warmed up (capped so a slow connection never gets stuck)
