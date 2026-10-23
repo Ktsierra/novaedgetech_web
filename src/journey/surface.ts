@@ -305,7 +305,7 @@ export async function createSurface(canvas: HTMLCanvasElement): Promise<SurfaceV
   const HEMI_SKY = [C(0x2c4f80), C(0x3d6fa8), C(0x9cc0e0)], HEMI_GND = [C(0x02050b), C(0x04080f), C(0x1a2128)];
   const mix3 = <T extends { copy: (v: T) => T; lerp: (v: T, k: number) => T }>(out: T, p: T[], twi: number, day: number) =>
     out.copy(p[0]).lerp(p[1], twi).lerp(p[2], day);
-  let loc: { lat: number; lon: number } | null = null, heading: number | null = null, skyAt = -1e9, day = 0, twi = 1, starK = 1, aspect = 1;
+  let loc: { lat: number; lon: number } | null = null, skyAt = -1e9, day = 0, twi = 1, starK = 1, aspect = 1;
   const keyDir = new THREE.Vector3(), nightDir = new THREE.Vector3();
   /** scene direction for an altitude / bearing (degrees) relative to the way the valley runs */
   const toScene = (alt: number, rel: number, out: InstanceType<typeof THREE.Vector3>) => {
@@ -316,16 +316,20 @@ export async function createSurface(canvas: HTMLCanvasElement): Promise<SurfaceV
     if (!loc) return;
     const sub = subPoints(Date.now());
     const sun = skyPosition(loc.lat, loc.lon, sub.sun), mo = skyPosition(loc.lat, loc.lon, sub.moon);
-    // aim the valley at whichever body owns the sky (sun from late twilight on, else the moon if it's up),
-    // keeping it inside the view: off-centre to the right for the sun, left for the moon (narrower on phones)
+    // the valley always faces the equator (south in the northern hemisphere), like looking at the sun's daily arc.
+    // Drawn positions are a compressed sky map so anything above the horizon stays in frame: the full 360° of
+    // bearing fits the view (facing south: east / morning left, midday centre, west / evening right; facing
+    // north it's the real mirror image) and 0..90° of altitude maps onto the band up to the top of the frame.
+    // Lighting and the moon's phase use the TRUE directions.
+    const face = loc.lat >= 0 ? 180 : 0;
+    const rel = (az: number) => ((az - face + 540) % 360) - 180;
     const hfov = 2 * Math.atan(Math.tan(29 * Math.PI / 180) * aspect) * 180 / Math.PI;
-    const off = Math.min(20, hfov * 0.3);
-    // chosen once per visit (or resize): the sky keeps moving live, but the view never swings mid-scene
-    heading ??= sun.alt > -6 || mo.alt < 0 ? sun.az - off : mo.az + off;
-    const shown = (alt: number) => alt <= 12 ? alt : 12 + (alt - 12) * 0.1;
-    toScene(sun.alt, sun.az - heading, SUN);
-    toScene(shown(sun.alt), sun.az - heading, SUN_SKY);
-    toScene(shown(mo.alt), mo.az - heading, MOON);
+    const k = hfov * 0.5 * 0.85 / 180;
+    // lifts low bodies clear of the valley ridges (18° -> ~10°, 60° -> ~20°), real below the horizon
+    const shownAlt = (alt: number) => alt <= 0 ? alt : 22 * Math.pow(Math.sin(alt * Math.PI / 180), 0.7);
+    toScene(sun.alt, rel(sun.az), SUN);
+    toScene(shownAlt(sun.alt), rel(sun.az) * k, SUN_SKY);
+    toScene(shownAlt(mo.alt), rel(mo.az) * k, MOON);
     twi = smooth((sun.alt + 16) / 16); // 0 below -16° (night) .. 1 at sunrise / sunset
     day = smooth((sun.alt - 2) / 14); // 0 at 2° .. 1 above 16°
     starK = 1 - smooth((sun.alt + 8) / 10);
@@ -355,9 +359,9 @@ export async function createSurface(canvas: HTMLCanvasElement): Promise<SurfaceV
       renderer.setSize(w, h, false);
       cam.aspect = aspect = w / Math.max(1, h);
       cam.updateProjectionMatrix();
-      skyAt = -1e9; heading = null; // re-frame the sun / moon for the new field of view
+      skyAt = -1e9; // re-frame the sun / moon for the new field of view
     },
-    setLocation: (lat: number, lon: number) => { loc = { lat, lon }; skyAt = -1e9; heading = null; },
+    setLocation: (lat: number, lon: number) => { loc = { lat, lon }; skyAt = -1e9; },
     daylight: () => day,
     render: (now: number, descent: number, travel: number, mx: number, my: number, aim = 0, dolly = 0) => {
       if (t0 < 0) t0 = now;
