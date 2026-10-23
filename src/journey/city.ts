@@ -43,7 +43,8 @@ export interface City {
 
 const CELL = 15, STREET = 4, BANK = 15, RIVER_W = 10.5, WATER_Y = -0.35;
 /** dense riverside city out to FLAT (m from the river); sparse hillside buildings out to HILLS */
-const FLAT = 75, HILLS = 260, ZN = 275, ZF = -250, X0 = -300, X1 = 300;
+/** past the hub (z < SPRAWL) the city thins into low-rise sprawl running down the valley to the horizon */
+const FLAT = 75, HILLS = 260, ZN = 275, ZF = -650, SPRAWL = -250, X0 = -300, X1 = 300;
 
 /** deterministic PRNG (mulberry32): the same skyline on every visit */
 const rng = (seed: number) => () => {
@@ -99,7 +100,17 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
       const cx = gx * CELL + CELL / 2, cz = gz * CELL + CELL / 2;
       const dx = Math.abs(cx - pathX(cz));
       if (dx > HILLS) continue;
+      if (cz < SPRAWL) {
+        // ---- the sprawl: low, sparse blocks under the open sky (a sea of lights at night) ----
+        const far = (SPRAWL - cz) / (SPRAWL - ZF);
+        if (dx > FLAT + 40 * far || r() > (mobile ? 0.6 : 1) * (0.5 - 0.25 * far)) continue;
+        const x = cx + (r() - 0.5) * 4, z = cz + (r() - 0.5) * 4;
+        const w = 6 + r() * 5, d = 6 + r() * 5, h = 4 + r() * (12 - 6 * far);
+        add(x, 0, z, w, h, d, r() * 0.999 + 0.001);
+        continue;
+      }
       if (dx > FLAT) {
+        if (cz < -480) continue; // the terrain mesh ends: no hillside buildings past it
         // ---- the hills: sparse, smaller buildings sitting on the slopes ----
         // denser in the foothills, thinning toward the peaks
         if (r() > (mobile ? 0.6 : 1) * (0.55 - 0.4 * smooth((dx - 90) / 120))) continue;
@@ -107,9 +118,11 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
         const w = 5 + r() * 5, d = 5 + r() * 5;
         const hs = [heightAt(x - w / 2, z - d / 2), heightAt(x + w / 2, z - d / 2), heightAt(x - w / 2, z + d / 2), heightAt(x + w / 2, z + d / 2)];
         const lo = Math.min(...hs), hi = Math.max(...hs);
-        if (hi - lo > 14 || lo > 120) continue; // stepped into the slope, but no cliff-hangers or peak tops
-        const base = lo - 0.8; // sunk a little so the downhill side never floats
-        const h = (r() < 0.06 ? 18 + r() * 14 : 4 + r() * 10) + (hi - lo);
+        if (hi - lo > 10 || hi > 120) continue; // no cliff-hangers, nothing on the peaks
+        // built ON the slope: a concrete terrace from the ground up to the high side, the building on top
+        const base = hi;
+        add(x, lo - 1.5, z, w + 2, base - lo + 1.5, d + 2, -1.5);
+        const h = r() < 0.06 ? 18 + r() * 14 : 4 + r() * 10;
         add(x, base, z, w, h, d, r() * 0.999 + 0.001);
         tops.push({ x, z, y: base + h });
         for (let k = 0, n = 3 + Math.floor(r() * 4); k < n; k++) {
@@ -211,7 +224,11 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
         float far = smoothstep(0.14, 0.45, max(aa.x, aa.y));
         float px = fwidth(u); // metres per pixel: keeps thin neon at least ~1.5px wide (no stair-stepping)
         float pv = fwidth(v);
-        if (vSeed < 0.0) {
+        if (vSeed < -1.0) {
+          // hillside terrace: plain concrete, a thin warm light line along its top edge where the building sits
+          col *= 1.25;
+          if (N.y < 0.5) em += vec3(1.0, 0.72, 0.45) * smoothstep(max(0.12, pv * 2.0), 0.0, abs(v - (h - 0.25))) * 0.6 * glow;
+        } else if (vSeed < 0.0) {
           // bridge deck: a cyan light strip along each side
           if (abs(N.z) > 0.5) em += vec3(0.0, 0.85, 1.0) * smoothstep(max(0.14, pv * 2.5), 0.0, abs(vL.y)) * 0.7 * glow;
         } else if (N.y < 0.5 && far > 0.98) {
