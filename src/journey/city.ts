@@ -72,7 +72,7 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
     ${o.pathGlsl}
     float fogK(vec3 w) { return smoothstep(uFogNear, uFogFar, distance(w, uCam)); }
     // colours are tuned as display values; the bloom / output passes work in linear light
-    vec3 toLin(vec3 c) { return pow(max(c, 0.0), vec3(2.2)); }
+    vec3 toLin(vec3 c) { return min(pow(max(c, 0.0), vec3(2.2)), vec3(12.0)); } // capped: no half-float overflow
     vec3 neon(float k) {
       return k < 0.62 ? vec3(0.0, 0.9, 1.0) : k < 0.82 ? vec3(1.0, 0.16, 0.62) : k < 0.92 ? vec3(0.55, 0.42, 1.0) : vec3(1.0, 0.6, 0.15);
     }`;
@@ -180,7 +180,7 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
         float pv = fwidth(v);
         if (vSeed < 0.0) {
           // bridge deck: a cyan light strip along each side
-          if (abs(N.z) > 0.5) em += vec3(0.0, 0.85, 1.0) * smoothstep(max(0.12, pv * 1.5), 0.0, abs(vL.y)) * 1.1 * glow;
+          if (abs(N.z) > 0.5) em += vec3(0.0, 0.85, 1.0) * smoothstep(max(0.14, pv * 2.5), 0.0, abs(vL.y)) * 0.7 * glow;
         } else if (N.y < 0.5) {
           vec2 id = floor(cell), f = fract(cell);
           // anti-aliased window openings, with floor slabs and mullions between them
@@ -219,11 +219,11 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
           if (fract(s * 5.13) > 0.82 && h > 14.0 && N.x * sign(side) > 0.5) {
             float sw = min(1.7, fw * 0.22), sh = min(16.0, h * 0.45), y0 = h * 0.3;
             float inSign = step(abs(u), sw) * step(y0, v) * step(v, y0 + sh);
-            float stripes = 0.45 + 0.4 * smoothstep(0.35, 0.5, abs(fract(v * 0.6 - uTime * (0.5 + fract(s * 3.0))) - 0.5) * 2.0);
+            float stripes = 0.62 + 0.18 * smoothstep(0.2, 0.8, abs(fract(v * 0.6 - uTime * (0.5 + fract(s * 3.0))) - 0.5) * 2.0);
             float flick = 0.85 + 0.15 * sin(uTime * 2.0 + s * 30.0);
             float bw = max(0.16, px * 1.5);
             float frame = max(step(sw - bw, abs(u)), max(step(v, y0 + bw), step(y0 + sh - bw, v)));
-            em += neon(fract(s * 9.7)) * inSign * mix(stripes, 1.3, frame) * flick * 0.85 * glow;
+            em += neon(fract(s * 9.7)) * inSign * mix(stripes, 1.15, frame) * flick * 0.6 * glow;
           }
         } else {
           // roofs: neon rim on styled buildings (it's what you see on the way down)
@@ -277,19 +277,19 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
           float n1 = sin(q.x * 0.8 + uTime * 1.1) + 0.7 * sin(q.y * 0.45 - uTime * 1.6) + 0.35 * sin((q.x - q.y) * 1.9 + uTime * 2.3);
           float n2 = sin(q.y * 0.7 + uTime * 1.3) + 0.5 * sin((q.x + q.y) * 1.3 - uTime * 1.9);
           vec4 p = vUv;
-          p.xy += vec2(n1, n2) * 0.0022 * p.w;
+          p.xy += vec2(n1, n2) * 0.0012 * p.w;
           // smear along the reflection's vertical so neon stretches into streaks
           vec3 refl = vec3(0.0);
-          for (int i = -2; i <= 2; i++) {
+          for (int i = -3; i <= 3; i++) {
             vec4 pi = p;
-            pi.y += float(i) * 0.007 * p.w;
-            refl += texture2DProj(tDiffuse, pi).rgb * (1.0 - abs(float(i)) * 0.25);
+            pi.y += float(i) * 0.0035 * p.w;
+            refl += texture2DProj(tDiffuse, pi).rgb * (1.0 - abs(float(i)) * 0.2);
           }
-          refl /= 3.5;
+          refl /= 4.6;
           float graze = 1.0 - abs(normalize(uCam - vW).y);
           // the reflection is already linear light; the tuned (display-value) tints are converted to match
           vec3 tint = vec3(0.012, 0.05, 0.07) + uSkyRefl * 0.12 * (1.0 - uNight);
-          vec3 c = pow(tint, vec3(2.2)) + refl * (0.6 + 0.35 * graze);
+          vec3 c = pow(tint, vec3(2.2)) + refl * (0.5 + 0.35 * graze) * (1.0 - 0.15 * uNight);
           c = mix(c, pow(uFogCol, vec3(2.2)), smoothstep(uFogNear, uFogFar, distance(vW, uCam)) * 0.9);
           gl_FragColor = vec4(c, 1.0);
         }`,
@@ -476,11 +476,13 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
       varying vec2 vUv; varying vec3 vN; varying vec3 vW; varying vec3 vInfo;
       void main() {
         vec3 tint = vInfo.z > 0.5 ? vec3(1.0, 0.2, 0.66) : vec3(0.0, 0.9, 1.0);
-        float rim = pow(1.0 - abs(dot(normalize(vN), normalize(uCam - vW))), 2.0);
+        // (no pow() on values that can go negative: GPUs return NaN there, and bloom smears NaN into giant flares)
+        float rim = 1.0 - min(1.0, abs(dot(normalize(vN), normalize(uCam - vW)))); rim *= rim;
         // a packet every ~45 m, sliding along the pipe: white at its core, the pipe's colour at its edges
         float q = fract(vUv.x * vInfo.x / 45.0 - uTime * 0.45 + vInfo.y);
-        float pkt = exp(-pow((q - 0.5) * 26.0, 2.0));
-        float halo = exp(-pow((q - 0.5) * 9.0, 2.0));
+        float dq = q - 0.5;
+        float pkt = exp(-dq * dq * 676.0);
+        float halo = exp(-dq * dq * 81.0);
         // the tube itself: the same colour, dim (a faint sheen at the edges), lit around the passing packet
         vec3 tube = tint * (0.22 + 0.18 * rim + 0.5 * halo) * (0.6 + 0.4 * uNight);
         vec3 c = mix(tube, vec3(1.0) * 1.35, smoothstep(0.35, 0.9, pkt));
@@ -521,7 +523,7 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
     },
     setSize: (w, h) => {
       // low-res reflections: plenty under the ripples, and keeps the second pass cheap
-      const k = mobile ? 0.25 : 0.33;
+      const k = mobile ? 0.3 : 0.42;
       water.getRenderTarget().setSize(Math.max(64, Math.round(w * k)), Math.max(64, Math.round(h * k)));
       U.uScale.value = h / (2 * Math.tan(29 * Math.PI / 180));
     },

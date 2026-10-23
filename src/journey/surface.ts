@@ -386,7 +386,7 @@ export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warm
     renderer.setSize(vw, vh, false);
     composer.setPixelRatio(dpr);
     composer.setSize(vw, vh);
-    bloom.setSize(Math.round(vw * dpr * 0.5), Math.round(vh * dpr * 0.5)); // bloom at quarter the pixels
+    // (bloom keeps its own half-res chain: feeding it a smaller copy made thin neon pop in and out = strobing)
     city.setSize(vw * dpr, vh * dpr);
   };
   const adapt = (now: number) => {
