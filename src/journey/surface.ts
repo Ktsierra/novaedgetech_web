@@ -1,5 +1,6 @@
 import moonUrl from '../assets/earth/moon_1024.jpg';
 import { compileScene } from './warmup';
+import { subPoints, skyPosition } from './astro';
 
 export interface SurfaceView {
   setSize: (w: number, h: number) => void;
@@ -10,6 +11,10 @@ export interface SurfaceView {
    * dolly 0..1: flying up to that window until it fills the view.
    */
   render: (now: number, descent: number, travel: number, mx: number, my: number, aim?: number, dolly?: number) => void;
+  /** where the visitor is: the sky (sun, moon, day/twilight/night) follows their real local time */
+  setLocation: (lat: number, lon: number) => void;
+  /** 0 at night / twilight .. 1 in full daylight (the page uses it to keep copy legible over a bright sky) */
+  daylight: () => number;
   dispose: () => void;
 }
 
@@ -54,8 +59,10 @@ const hasWebGL = (canvas: HTMLCanvasElement) => {
 };
 
 /**
- * Dusk surface of the Earth the journey dived into: procedural terrain with a neon survey grid,
- * city lights along the valley, a sky dome with a low sun, and stars. three is loaded lazily.
+ * The surface of the Earth the journey dived into: procedural terrain with a neon survey grid, city lights
+ * along the valley, a sky dome, stars and the moon. The sky follows the visitor's real local time: sun and moon
+ * at their true altitude and bearing, blending night -> twilight -> a hazy, high-altitude day by the sun's height.
+ * three is loaded lazily.
  */
 export async function createSurface(canvas: HTMLCanvasElement): Promise<SurfaceView> {
   if (!hasWebGL(canvas)) throw new Error('WebGL2 unavailable');
@@ -64,32 +71,40 @@ export async function createSurface(canvas: HTMLCanvasElement): Promise<SurfaceV
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
   renderer.outputColorSpace = THREE.SRGBColorSpace;
 
-  const HORIZON = new THREE.Color(0x0b3a52);
+  const fog = new THREE.Fog(0x0b3a52, 70, 360);
   const scene = new THREE.Scene();
-  scene.fog = new THREE.Fog(HORIZON, 70, 360);
+  scene.fog = fog;
   const cam = new THREE.PerspectiveCamera(58, 1, 0.5, 1400);
 
+  // sun / moon directions in the scene (updated from the visitor's sky); start with the classic dusk framing
+  // SUN is the true direction (lighting, moon phase); SUN_SKY / MOON are where they're drawn: high bodies are
+  // eased down into the top of the frame, since the camera looks at the horizon and would never show them
   const SUN = new THREE.Vector3(0.38, 0.05, -1).normalize();
+  const SUN_SKY = SUN.clone();
+  const MOON = new THREE.Vector3(-0.55, 0.3, -1).normalize();
+  const skyHor = new THREE.Vector3(), skyMid = new THREE.Vector3(), skyZen = new THREE.Vector3();
 
   // ---------- sky ----------
   const skyMat = new THREE.ShaderMaterial({
     side: THREE.BackSide,
     depthWrite: false,
     fog: false,
-    uniforms: { uSun: { value: SUN }, uHorizon: { value: HORIZON } },
+    uniforms: { uSun: { value: SUN_SKY }, uHorizon: { value: skyHor }, uMid: { value: skyMid }, uZenith: { value: skyZen }, uGlow: { value: 1 }, uDay: { value: 0 } },
     vertexShader: 'varying vec3 vDir; void main(){ vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-    fragmentShader: `uniform vec3 uSun; uniform vec3 uHorizon; varying vec3 vDir;
+    fragmentShader: `uniform vec3 uSun; uniform vec3 uHorizon; uniform vec3 uMid; uniform vec3 uZenith; uniform float uGlow; uniform float uDay; varying vec3 vDir;
       void main(){
         vec3 d = normalize(vDir);
-        vec3 zenith = vec3(0.012, 0.02, 0.05);
-        vec3 mid = vec3(0.02, 0.08, 0.15);
         float h = d.y;
-        vec3 c = mix(uHorizon, mid, smoothstep(0.0, 0.18, h));
-        c = mix(c, zenith, smoothstep(0.15, 0.6, h));
+        vec3 c = mix(uHorizon, uMid, smoothstep(0.0, 0.18, h));
+        c = mix(c, uZenith, smoothstep(0.15, 0.6, h));
         float s = max(dot(d, uSun), 0.0);
-        c += vec3(1.0, 0.55, 0.32) * pow(s, 6.0) * 0.35 * (1.0 - smoothstep(0.0, 0.4, h));
-        c += vec3(1.0, 0.8, 0.6) * pow(s, 90.0) * 0.8;
-        c += vec3(1.0, 0.95, 0.85) * smoothstep(0.9993, 0.9997, s);
+        // warm horizon glow toward the sun (twilight), halo + disc whenever it's up
+        c += vec3(1.0, 0.55, 0.32) * pow(s, 6.0) * 0.35 * uGlow * (1.0 - smoothstep(0.0, 0.4, h));
+        float up = smoothstep(-0.03, 0.01, uSun.y);
+        c += vec3(1.0, 0.8, 0.6) * pow(s, 90.0) * 0.8 * up;
+        c += vec3(1.0, 0.95, 0.85) * smoothstep(0.9993, 0.9997, s) * up;
+        // daytime: a white-hot disc with a wide glare
+        c += vec3(1.0, 0.96, 0.88) * (pow(s, 24.0) * 0.45 + pow(s, 400.0) * 0.9) * uDay * up;
         c = mix(c, uHorizon * 0.55, smoothstep(0.0, -0.08, h));
         gl_FragColor = vec4(c, 1.0);
       }`,
@@ -204,9 +219,22 @@ export async function createSurface(canvas: HTMLCanvasElement): Promise<SurfaceV
   // the same Moon that orbited the globe, hanging over the far ridges (sunlit side gives it a phase)
   const moonTex = await new THREE.TextureLoader().loadAsync(moonUrl);
   moonTex.colorSpace = THREE.SRGBColorSpace;
-  const moonMat = new THREE.MeshStandardMaterial({ map: moonTex, roughness: 1, metalness: 0, fog: false });
+  // lit by the REAL sun direction (even below the horizon), so its phase is tonight's; paler by day
+  const moonMat = new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    fog: false,
+    uniforms: { map: { value: moonTex }, uSun: { value: SUN }, uFade: { value: 1 } },
+    vertexShader: 'varying vec3 vN; varying vec2 vUv; void main(){ vUv = uv; vN = normalize(mat3(modelMatrix) * normal); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: `uniform sampler2D map; uniform vec3 uSun; uniform float uFade; varying vec3 vN; varying vec2 vUv;
+      void main(){
+        float lit = smoothstep(-0.06, 0.14, dot(normalize(vN), uSun));
+        vec3 col = texture2D(map, vUv).rgb * (0.025 + 1.15 * lit);
+        gl_FragColor = vec4(col, uFade * (0.35 + 0.65 * lit));
+        #include <colorspace_fragment>
+      }`,
+  });
   const moon = new THREE.Mesh(new THREE.SphereGeometry(16, 48, 32), moonMat);
-  const MOON_DIR = new THREE.Vector3(-0.55, 0.3, -1).normalize().multiplyScalar(620);
   scene.add(moon);
 
   // ---------- the tower at the end of the valley: the journey ends inside one of its windows ----------
@@ -259,7 +287,64 @@ export async function createSurface(canvas: HTMLCanvasElement): Promise<SurfaceV
   // ---------- light ----------
   const sunLight = new THREE.DirectionalLight(0xffb27a, 1.5);
   sunLight.position.copy(SUN).multiplyScalar(100);
-  scene.add(sunLight, new THREE.HemisphereLight(0x3d6fa8, 0x04080f, 0.55));
+  const hemi = new THREE.HemisphereLight(0x3d6fa8, 0x04080f, 0.55);
+  scene.add(sunLight, hemi);
+
+  // ---------- the visitor's sky ----------
+  // palettes: night (moonlit), twilight (the original dusk look), day (hazy, high-altitude: darker than a
+  // real noon sky so it stays in the site's palette). Sky colours are raw shader values, the rest three Colors.
+  const V = (r: number, g: number, b: number) => new THREE.Vector3(r, g, b);
+  const PAL = {
+    hor: [V(0.001, 0.012, 0.026), V(0.0033, 0.042, 0.085), V(0.45, 0.6, 0.72)],
+    mid: [V(0.008, 0.035, 0.07), V(0.02, 0.08, 0.15), V(0.2, 0.38, 0.58)],
+    zen: [V(0.005, 0.009, 0.026), V(0.012, 0.02, 0.05), V(0.07, 0.17, 0.38)],
+  };
+  const C = (hex: number) => new THREE.Color(hex);
+  const FOG = [C(0x061722), C(0x0b3a52), C(0x7399b8)];
+  const KEY = [C(0x8fa8e0), C(0xffb27a), C(0xfff0dc)];
+  const HEMI_SKY = [C(0x2c4f80), C(0x3d6fa8), C(0x9cc0e0)], HEMI_GND = [C(0x02050b), C(0x04080f), C(0x1a2128)];
+  const mix3 = <T extends { copy: (v: T) => T; lerp: (v: T, k: number) => T }>(out: T, p: T[], twi: number, day: number) =>
+    out.copy(p[0]).lerp(p[1], twi).lerp(p[2], day);
+  let loc: { lat: number; lon: number } | null = null, skyAt = -1e9, day = 0, twi = 1, starK = 1, aspect = 1;
+  const keyDir = new THREE.Vector3(), nightDir = new THREE.Vector3();
+  /** scene direction for an altitude / bearing (degrees) relative to the way the valley runs */
+  const toScene = (alt: number, rel: number, out: InstanceType<typeof THREE.Vector3>) => {
+    const e = alt * Math.PI / 180, r = rel * Math.PI / 180;
+    return out.set(Math.sin(r) * Math.cos(e), Math.sin(e), -Math.cos(r) * Math.cos(e));
+  };
+  const updateSky = () => {
+    if (!loc) return;
+    const sub = subPoints(Date.now());
+    const sun = skyPosition(loc.lat, loc.lon, sub.sun), mo = skyPosition(loc.lat, loc.lon, sub.moon);
+    // aim the valley at whichever body owns the sky (sun from late twilight on, else the moon if it's up),
+    // keeping it inside the view: off-centre to the right for the sun, left for the moon (narrower on phones)
+    const hfov = 2 * Math.atan(Math.tan(29 * Math.PI / 180) * aspect) * 180 / Math.PI;
+    const off = Math.min(20, hfov * 0.3);
+    const heading = sun.alt > -6 || mo.alt < 0 ? sun.az - off : mo.az + off;
+    const shown = (alt: number) => alt <= 12 ? alt : 12 + (alt - 12) * 0.1;
+    toScene(sun.alt, sun.az - heading, SUN);
+    toScene(shown(sun.alt), sun.az - heading, SUN_SKY);
+    toScene(shown(mo.alt), mo.az - heading, MOON);
+    twi = smooth((sun.alt + 16) / 16); // 0 below -16° (night) .. 1 at sunrise / sunset
+    day = smooth((sun.alt - 2) / 14); // 0 at 2° .. 1 above 16°
+    starK = 1 - smooth((sun.alt + 8) / 10);
+    mix3(skyHor, PAL.hor, twi, day); mix3(skyMid, PAL.mid, twi, day); mix3(skyZen, PAL.zen, twi, day);
+    mix3(fog.color, FOG, twi, day);
+    skyMat.uniforms.uGlow.value = twi * (1 - day) * 1.4 + day * 0.25;
+    // key light: the sun from twilight on, the moon at night (dimmer, bluish, scaled by how far it's up)
+    const moonUp = smooth(mo.alt / 12);
+    nightDir.copy(moonUp > 0 ? MOON : toScene(50, 0, nightDir));
+    keyDir.copy(nightDir).lerp(SUN, smooth((sun.alt + 10) / 8));
+    keyDir.y = Math.max(keyDir.y, 0.06);
+    sunLight.position.copy(keyDir.normalize()).multiplyScalar(100);
+    mix3(sunLight.color, KEY, twi, day);
+    sunLight.intensity = lerp(lerp(0.15 + 0.35 * moonUp, 1.5, twi), 2.3, day);
+    mix3(hemi.color, HEMI_SKY, twi, day); mix3(hemi.groundColor, HEMI_GND, twi, day);
+    hemi.intensity = lerp(lerp(0.42, 0.55, twi), 1.25, day);
+    skyMat.uniforms.uDay.value = day;
+    lightMat.opacity = 1 - 0.8 * day;
+    moonMat.uniforms.uFade.value = (1 - 0.55 * day) * smooth((mo.alt + 2) / 4);
+  };
 
   const look = new THREE.Vector3(), cruisePos = new THREE.Vector3(), cruiseDir = new THREE.Vector3(), winDir = new THREE.Vector3();
   let t0 = -1;
@@ -267,9 +352,12 @@ export async function createSurface(canvas: HTMLCanvasElement): Promise<SurfaceV
     setSize: (w: number, h: number) => {
       renderer.setPixelRatio(Math.min(devicePixelRatio || 1, w < 760 ? 1.25 : 1.5));
       renderer.setSize(w, h, false);
-      cam.aspect = w / Math.max(1, h);
+      cam.aspect = aspect = w / Math.max(1, h);
       cam.updateProjectionMatrix();
+      skyAt = -1e9; // re-frame the sun / moon for the new field of view
     },
+    setLocation: (lat: number, lon: number) => { loc = { lat, lon }; skyAt = -1e9; },
+    daylight: () => day,
     render: (now: number, descent: number, travel: number, mx: number, my: number, aim = 0, dolly = 0) => {
       if (t0 < 0) t0 = now;
       const t = (now - t0) / 1000;
@@ -301,8 +389,9 @@ export async function createSurface(canvas: HTMLCanvasElement): Promise<SurfaceV
       cam.lookAt(look);
       sky.position.copy(cam.position);
       stars.position.copy(cam.position);
-      moon.position.copy(cam.position).add(MOON_DIR);
-      starMat.opacity = 0.75 * smooth((descent - 0.4) / 0.6);
+      if (now - skyAt > 10000) { skyAt = now; updateSky(); } // the sky moves ~0.25°/min
+      moon.position.copy(cam.position).addScaledVector(MOON, 620);
+      starMat.opacity = 0.75 * smooth((descent - 0.4) / 0.6) * starK;
       gridCam.copy(cam.position);
       gridMat.uniforms.uTime.value = t;
       beaconMat.opacity = 0.35 + 0.65 * (Math.sin(t * 3.2) > 0.2 ? 1 : 0);

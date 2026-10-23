@@ -33,3 +33,12 @@ export function subPoints(ms: number): { sun: SubPoint; moon: SubPoint } {
   const dec = Math.asin(Math.sin(lat) * Math.cos(e) + Math.cos(lat) * Math.sin(e) * Math.sin(lon));
   return { sun, moon: below(ra / D, dec / D, d) };
 }
+
+/** where a body with this sub-point appears from (lat, lon): altitude above the horizon and azimuth
+ *  (degrees, clockwise from north) */
+export function skyPosition(lat: number, lon: number, body: SubPoint): { alt: number; az: number } {
+  const p = lat * D, dec = body.lat * D, H = (lon - body.lon) * D; // local hour angle
+  const alt = Math.asin(Math.sin(p) * Math.sin(dec) + Math.cos(p) * Math.cos(dec) * Math.cos(H));
+  const az = Math.atan2(-Math.sin(H) * Math.cos(dec), Math.cos(p) * Math.sin(dec) - Math.sin(p) * Math.cos(dec) * Math.cos(H));
+  return { alt: alt / D, az: (az / D + 360) % 360 };
+}

@@ -380,7 +380,12 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
       if (geo) e.setTarget(geo.lat, geo.lon);
       syncEarthSize();
     }, e => { e.dispose(); });
-    await step(surfCv ? () => createSurface(surfCv) : null, v => { surface = v; v.setSize(W, H); }, v => { v.dispose(); });
+    await step(surfCv ? () => createSurface(surfCv) : null, v => {
+      surface = v; v.setSize(W, H);
+      // until (or without) IP geolocation, estimate the visitor's longitude from their clock's UTC offset
+      const g = geo ?? { lat: 30, lon: -new Date().getTimezoneOffset() / 4 };
+      v.setLocation(g.lat, g.lon);
+    }, v => { v.dispose(); });
   })();
 
   // visitor's approximate location (Vercel IP geolocation via /api/geo): the globe turns to it before the dive
@@ -394,6 +399,7 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
       if (!g || typeof g.lat !== 'number' || typeof g.lon !== 'number') return;
       geo = { lat: g.lat, lon: g.lon };
       earth?.setTarget(geo.lat, geo.lon);
+      surface?.setLocation(geo.lat, geo.lon);
       if (coordsEl) {
         const fmt = (v: number) => (v < 0 ? '−' : '') + Math.abs(v).toFixed(1) + '°';
         const place = typeof g.city === 'string' && g.city ? g.city.toUpperCase() : 'YOUR ORBIT';
@@ -495,7 +501,7 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
   const handoff = q('[data-handoff]'), handoffDark = q('[data-handoff-dark]');
   const screenEl = q('.j-screen'), laptopBase = q('.j-laptop-base'), deskSurf = q('[data-desk-surface]');
   const surfContent = q('.j-surface-content');
-  let band = -1;
+  let band = -1, dayVar = '';
 
   // typed terminal
   const codeEl = q('[data-code]');
@@ -554,7 +560,12 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
       // usually ready long before this scene; if not (reload mid-journey), CSS fades it in over the fallback
       if (!surfaceOn) { surfaceOn = true; surfaceStage.classList.add('is-3d'); }
       // aim eases onto the tower window over the last stretch of the valley flight, then the dolly takes over
-      if (active) surface.render(now, seg(p, 0.615, 0.73), seg(p, 0.70, 0.835), smx, smy, seg(p, 0.775, 0.865), seg(p, 0.835, 0.892));
+      if (active) {
+        surface.render(now, seg(p, 0.615, 0.73), seg(p, 0.70, 0.835), smx, smy, seg(p, 0.775, 0.865), seg(p, 0.835, 0.892));
+        // a daytime sky deepens the copy shade (see .j-surface-shade::after)
+        const dl = surface.daylight().toFixed(2);
+        if (dl !== dayVar) { dayVar = dl; surfaceStage.style.setProperty('--j-day', dl); }
+      }
     }
 
     // --- 3D Earth: swap in as soon as it's ready, render only while the planet is on screen ---

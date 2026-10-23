@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { subPoints } from '../src/journey/astro';
+import { subPoints, skyPosition } from '../src/journey/astro';
 
 const at = (iso: string) => subPoints(Date.parse(iso));
 
@@ -27,5 +27,24 @@ describe('subPoints', () => {
     const { sun, moon } = at('2024-04-08T18:21:00Z');
     expect(Math.abs(moon.lon - sun.lon)).toBeLessThan(3);
     expect(Math.abs(moon.lat - sun.lat)).toBeLessThan(3);
+  });
+});
+
+describe('skyPosition', () => {
+  it('has the sun overhead at its own sub-point', () => {
+    const { sun } = at('2024-06-20T12:00:00Z');
+    expect(skyPosition(sun.lat, sun.lon, sun).alt).toBeCloseTo(90, 3);
+  });
+
+  it('has the morning sun in the east and the afternoon sun in the west (Madrid)', () => {
+    const morning = skyPosition(40.42, -3.7, at('2024-06-20T07:00:00Z').sun);
+    const afternoon = skyPosition(40.42, -3.7, at('2024-06-20T17:00:00Z').sun);
+    expect(morning.alt).toBeGreaterThan(0);
+    expect(morning.az).toBeGreaterThan(45); expect(morning.az).toBeLessThan(135);
+    expect(afternoon.az).toBeGreaterThan(225); expect(afternoon.az).toBeLessThan(315);
+  });
+
+  it('has the sun well below the horizon at local midnight', () => {
+    expect(skyPosition(40.42, -3.7, at('2024-06-20T00:00:00Z').sun).alt).toBeLessThan(-15);
   });
 });

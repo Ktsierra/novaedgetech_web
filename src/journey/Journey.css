@@ -293,6 +293,10 @@ body {
   position: absolute; inset: 0; pointer-events: none;
   background: linear-gradient(rgba(3, 5, 13, 0.55) 0%, rgba(3, 5, 13, 0) 34%, rgba(3, 5, 13, 0) 62%, rgba(3, 5, 13, 0.5) 100%);
 }
+.j-surface-shade::after {
+  content: ''; position: absolute; inset: 0; opacity: var(--j-day, 0);
+  background: linear-gradient(rgba(3, 5, 13, 0.42) 0%, rgba(3, 5, 13, 0.08) 38%, rgba(3, 5, 13, 0.08) 62%, rgba(3, 5, 13, 0.38) 100%);
+}
 .j-surface-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 32px; flex-wrap: wrap; }
 .j-surface-blurb { margin: 0; max-width: 300px; font-size: 12px; line-height: 1.75; color: rgba(237, 241, 255, 0.6); }
 
