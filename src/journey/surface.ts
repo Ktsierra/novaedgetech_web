@@ -374,12 +374,24 @@ export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warm
     moonMat.uniforms.uFade.value = (1 - 0.55 * day) * smooth((mo.alt + 2) / 4);
   };
 
+  // sky, stars and moon are "at infinity": centre them on whichever camera is drawing, including the river's
+  // mirrored reflection camera (centred on the main camera, the reflected sun slid around as you scrolled)
+  const atInfinity = (ob: InstanceType<typeof THREE.Object3D>, offset?: InstanceType<typeof THREE.Vector3>, dist = 0) => {
+    ob.frustumCulled = false; // culling runs before this hook, against the previous camera's position
+    ob.onBeforeRender = (_r, _s, c) => {
+      ob.position.copy(c.position);
+      if (offset) ob.position.addScaledVector(offset, dist);
+      ob.updateMatrixWorld();
+    };
+  };
+  atInfinity(sky); atInfinity(stars); atInfinity(moon, MOON, 620);
+
   const look = new THREE.Vector3(), cruisePos = new THREE.Vector3(), cruiseDir = new THREE.Vector3(), winDir = new THREE.Vector3();
   let t0 = -1;
   // ---------- adaptive resolution ----------
   // the city is GPU-heavy: if frames run long, render fewer pixels (down to ~half) rather than pinning the GPU;
   // creep back up while there's headroom. Changes are rate-limited so it never oscillates visibly.
-  let vw = warmW, vh = warmH, quality = mobile ? 0.85 : 1, ema = 16.7, lastFrame = -1, lastAdjust = 0, longRun = 0;
+  let vw = warmW, vh = warmH, quality = mobile ? 0.85 : 1, ema = 16.7, lastFrame = -1, lastAdjust = 0, longRun = 0, tier = 0;
   const applySize = () => {
     const dpr = Math.max(0.5, Math.min(devicePixelRatio || 1, mobile ? 1.5 : 1.25) * quality);
     renderer.setPixelRatio(dpr);
@@ -398,10 +410,18 @@ export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warm
     ema += (Math.min(dt, 400) - ema) * 0.08;
     if (now - lastAdjust < 1500) return;
     if (ema > 26 && quality > 0.5) { quality = Math.max(0.5, quality * (ema > 60 ? 0.7 : 0.82)); lastAdjust = now; applySize(); }
+    // still struggling at the lowest resolution (weak integrated GPUs): shed the expensive passes, for good
+    else if (ema > 30 && quality <= 0.5 && tier < 2) {
+      tier++; lastAdjust = now;
+      if (tier === 1) city.setReflectEvery(4);
+      else bloom.enabled = false;
+    }
     else if (ema < 18.5 && quality < 1) { quality = Math.min(1, quality * 1.1); lastAdjust = now + 1500; applySize(); }
   };
   const view: SurfaceView = {
     setSize: (w: number, h: number) => {
+      // resizing a canvas (even to the same size) clears it: only when something really changed
+      if (w === vw && h === vh && aspect === w / Math.max(1, h)) return;
       vw = w; vh = h;
       applySize();
       cam.aspect = aspect = w / Math.max(1, h);
@@ -440,10 +460,9 @@ export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warm
         look.copy(cam.position).add(cruiseDir);
       }
       cam.lookAt(look);
-      sky.position.copy(cam.position);
-      stars.position.copy(cam.position);
+
       if (now - skyAt > 10000) { skyAt = now; updateSky(); } // the sky moves ~0.25°/min
-      moon.position.copy(cam.position).addScaledVector(MOON, 620);
+
       starMat.opacity = 0.75 * smooth((descent - 0.4) / 0.6) * starK;
       gridCam.copy(cam.position);
       gridMat.uniforms.uTime.value = t;

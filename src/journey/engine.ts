@@ -108,6 +108,9 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
   lvh.style.cssText = 'position:fixed;top:0;left:0;width:0;height:100vh;height:100lvh;visibility:hidden;pointer-events:none';
   root.appendChild(lvh);
   cleanups.push(() => { lvh.remove(); });
+  // the city canvas is sized to the large viewport too (see .j-surface3d): mobile toolbars showing / hiding
+  // then never resize it, which used to wipe the river's reflection buffers for a frame (a flicker)
+  const surfH = () => lvh.offsetHeight || innerHeight;
   const scrollRange = () => Math.max(1, document.documentElement.scrollHeight - (lvh.offsetHeight || innerHeight));
   const measure = () => {
     W = innerWidth; H = innerHeight;
@@ -123,7 +126,7 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
     // keep in sync with .j-pwrap sizes in Journey.css
     Rend = mobile ? Math.min(0.23 * W, 0.11 * H) : Math.min(0.28 * Math.min(W, H), 0.21 * W);
     syncEarthSize();
-    surface?.setSize(W, H);
+    surface?.setSize(W, surfH());
     sun3d?.setSize(W, H);
     if (planetStage) planetStage.style.transformOrigin = `${String(AX * 100)}% ${String(AY * 100)}%`;
     const cue = q('[data-cue]');
@@ -384,8 +387,8 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
         syncEarthSize();
       }, e => { e.dispose(); }),
       // warmed up at the real viewport size, so its render targets are allocated before it's ever on screen
-      step(surfCv ? () => createSurface(surfCv, W, H) : null, v => {
-        surface = v; v.setSize(W, H);
+      step(surfCv ? () => createSurface(surfCv, W, surfH()) : null, v => {
+        surface = v; v.setSize(W, surfH());
         // until (or without) IP geolocation, estimate the visitor's longitude from their clock's UTC offset
         const g = geo ?? { lat: 30, lon: -new Date().getTimezoneOffset() / 4 };
         v.setLocation(g.lat, g.lon);

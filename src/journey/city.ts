@@ -29,6 +29,8 @@ export interface City {
    */
   setLight: (keyDir: T.Vector3, key: T.Color, sky: T.Color, ground: T.Color, night: number, skyRaw: T.Vector3) => void;
   update: (t: number, cam: T.Vector3) => void;
+  /** refresh the river's reflection every n-th frame (raised when the device struggles) */
+  setReflectEvery: (n: number) => void;
   /** drawing-buffer size in device pixels */
   setSize: (w: number, h: number) => void;
   dispose: () => void;
@@ -181,6 +183,11 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
         if (vSeed < 0.0) {
           // bridge deck: a cyan light strip along each side
           if (abs(N.z) > 0.5) em += vec3(0.0, 0.85, 1.0) * smoothstep(max(0.14, pv * 2.5), 0.0, abs(vL.y)) * 0.7 * glow;
+        } else if (N.y < 0.5 && far > 0.98) {
+          // distant facades: skip the per-window work entirely (the overview of the city is the costliest view)
+          col = mix(col, mix(vec3(0.014, 0.028, 0.042), uSkyRefl * 0.6, 1.0 - uNight), 0.3)
+            + vec3(0.62, 0.78, 0.92) * (0.22 + 0.3 * fract(s * 13.7)) * 0.38 * lightK;
+          if (style > 0.5) em += nc * smoothstep(max(0.2, pv * 1.5), 0.0, abs(v - (h - 0.9))) * 1.1 * glow;
         } else if (N.y < 0.5) {
           vec2 id = floor(cell), f = fract(cell);
           // anti-aliased window openings, with floor slabs and mullions between them
@@ -277,15 +284,17 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
           float n1 = sin(q.x * 0.8 + uTime * 1.1) + 0.7 * sin(q.y * 0.45 - uTime * 1.6) + 0.35 * sin((q.x - q.y) * 1.9 + uTime * 2.3);
           float n2 = sin(q.y * 0.7 + uTime * 1.3) + 0.5 * sin((q.x + q.y) * 1.3 - uTime * 1.9);
           vec4 p = vUv;
-          p.xy += vec2(n1, n2) * 0.0012 * p.w;
+          p.xy += vec2(n1 * 0.0014, n2 * 0.0003) * p.w; // wobble mostly sideways, barely vertical
           // smear along the reflection's vertical so neon stretches into streaks
           vec3 refl = vec3(0.0);
-          for (int i = -3; i <= 3; i++) {
+          // lights on night water stretch into long vertical streaks; by day the mirror stays crisper
+          float reach = mix(0.0025, 0.0075, uNight);
+          for (int i = -4; i <= 4; i++) {
             vec4 pi = p;
-            pi.y += float(i) * 0.0035 * p.w;
-            refl += texture2DProj(tDiffuse, pi).rgb * (1.0 - abs(float(i)) * 0.2);
+            pi.y += float(i) * reach * p.w;
+            refl += texture2DProj(tDiffuse, pi).rgb * (1.0 - abs(float(i)) * 0.18);
           }
-          refl /= 4.6;
+          refl /= 5.4;
           float graze = 1.0 - abs(normalize(uCam - vW).y);
           // the reflection is already linear light; the tuned (display-value) tints are converted to match
           vec3 tint = vec3(0.012, 0.05, 0.07) + uSkyRefl * 0.12 * (1.0 - uNight);
@@ -295,10 +304,11 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
         }`,
     },
   });
-  // the reflection re-renders the whole city: refresh it every other frame (invisible under the ripples)
+  // the reflection re-renders the whole city: refresh it every other frame (invisible under the ripples), and
+  // only every 4th while the camera is high above, where the river is a thin ribbon
   const reflect = water.onBeforeRender.bind(water);
-  let reflFrame = 0;
-  water.onBeforeRender = (...args) => { if ((reflFrame++ & 1) === 0) reflect(...args); };
+  let reflFrame = 0, reflEvery = 2, camY = 0;
+  water.onBeforeRender = (...args) => { if (reflFrame++ % (camY > 60 ? Math.max(4, reflEvery) : reflEvery) === 0) reflect(...args); };
   water.rotation.x = -Math.PI / 2;
   water.position.y = WATER_Y;
   const wU = (water.material as T.ShaderMaterial).uniforms as Record<string, { value: unknown }>;
@@ -540,7 +550,9 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
       (wU.uSkyRefl.value as T.Vector3).copy(skyRaw);
       (wU.uFogCol.value as T.Color).copy(fogRaw);
     },
+    setReflectEvery: n => { reflEvery = n; },
     update: (t, cam) => {
+      camY = cam.y;
       U.uTime.value = t;
       U.uCam.value.copy(cam);
       wU.uTime.value = t;

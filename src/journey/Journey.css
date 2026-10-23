@@ -284,7 +284,8 @@ body {
 .j-surface-title { margin-top: 18px; font-size: clamp(26px, 3.2vw, 46px); }
 .j-coords { margin-top: 14px; font-size: 9px; letter-spacing: 0.24em; color: rgba(237, 241, 255, 0.45); }
 /* 3D surface (WebGL2) replaces the CSS scene once ready */
-.j-surface3d { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; transition: opacity .9s ease; }
+/* sized to the large viewport so mobile toolbars sliding in / out never resize it (the engine matches) */
+.j-surface3d { position: absolute; left: 0; top: 0; width: 100%; height: 100vh; height: 100lvh; opacity: 0; transition: opacity .9s ease; }
 .j-surface.is-3d .j-surface3d { opacity: 1; }
 .j-surface-css { position: absolute; inset: 0; transition: opacity .9s ease; }
 .j-surface.is-3d .j-surface-css { opacity: 0; }
