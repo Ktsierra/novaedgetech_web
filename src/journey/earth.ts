@@ -189,10 +189,15 @@ export async function createEarth(canvas: HTMLCanvasElement): Promise<EarthView>
   };
   const freeSun = sunDir.clone();
   const realSun = new THREE.Vector3(), realMoon = new THREE.Vector3(), swing = new THREE.Quaternion();
-  const swingF = new THREE.Quaternion();
+  const swingF = new THREE.Quaternion(), lockM = new THREE.Matrix4(), lockY = new THREE.Matrix4();
   let astroAt = -1e9, sub = subPoints(Date.now());
-  const wrapPi = (a: number) => a - TAU * Math.round(a / TAU);
+  /** 0..2π: how far to keep turning FORWARD to reach `to` (never the short way back) */
+  const ahead = (to: number, from: number) => ((to - from) % TAU + TAU) % TAU;
   const smooth = (a: number, b: number, x: number) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+  // free-running spin/orbit phases (advance only while unlocked, so leaving a lock resumes without a jump)
+  let spinPhase = 0, orbitPhase = 0, lastT = -1;
+  // spin + orbit angles when the lock began; the lock then turns onward from here
+  let latch: { y: number; ma: number } | null = null;
 
   let t0 = -1;
   const view: EarthView = {
@@ -208,10 +213,42 @@ export async function createEarth(canvas: HTMLCanvasElement): Promise<EarthView>
     render: (now: number, focus = 0, scroll = 0) => {
       if (t0 < 0) t0 = now;
       const t = (now - t0) / 1000;
+      const dt = lastT < 0 ? 0 : Math.min(0.1, (now - lastT) / 1000);
+      lastT = now;
       const f = target ? Math.min(1, Math.max(0, focus)) : 0;
-      // free spin, blended along the shortest arc toward the target longitude
-      const spin = faceY + t * 0.018 + scroll * 9;
-      const y = target ? spin + wrapPi(-(target.lon + 90) * D - spin) * f : spin;
+      if (f <= 0) {
+        // leaving a lock: carry on from exactly where it let go, wherever the lock was entered
+        if (latch) { spinPhase = latch.y - faceY - scroll * 9; orbitPhase = latch.ma - scroll * 14 - 2.1; latch = null; }
+        spinPhase += dt * 0.018; orbitPhase += dt * 0.11;
+      }
+      // free motion: slow drift plus scroll, both in the real senses (Earth spins and the Moon orbits
+      // counter-clockwise seen from the north)
+      const ySpin = faceY + spinPhase + scroll * 9;
+      const maOrbit = orbitPhase + scroll * 14 + 2.1;
+      if (f > 0 && !latch) latch = { y: ySpin, ma: maOrbit };
+
+      // real sun / moon for this instant (refreshed every few seconds; they move ~0.25°/min), placed for the
+      // LOCKED pose (target latitude pitched to the centre, its longitude facing the camera)
+      if (now - astroAt > 5000) { astroAt = now; sub = subPoints(Date.now()); }
+      let y = ySpin, ma = maOrbit;
+      if (target && latch) {
+        const yLock = -(target.lon + 90) * D;
+        lockM.makeRotationX(target.lat * D).multiply(lockY.makeRotationY(yLock));
+        geoDir(sub.sun.lat, sub.sun.lon, realSun).transformDirection(lockM);
+        geoDir(sub.moon.lat, sub.moon.lon, realMoon).transformDirection(lockM);
+        // moon's true bearing on its ring (ring point = cos(ma)·x̂ − sin(ma)·(0, −sin i, cos i))
+        const maTrue = Math.atan2(realMoon.y * Math.sin(MOON_INCL) - realMoon.z * Math.cos(MOON_INCL), realMoon.x);
+        // keep turning forward from where the lock began, however far that is (up to a full turn), so the
+        // globe never reverses and the moon never jumps; the turn is faster the further it has to go
+        y = latch.y + ahead(yLock, latch.y) * f;
+        ma = latch.ma + ahead(maTrue, latch.ma) * f;
+        // the light swings from the free-spin angle to the real sun: by the dive the visitor's side is
+        // genuinely in daylight or night (with city lights)
+        swing.setFromUnitVectors(freeSun, realSun);
+        sunDir.copy(freeSun).applyQuaternion(swingF.identity().slerp(swing, f));
+      } else sunDir.copy(freeSun);
+      sun.position.copy(sunDir);
+
       surface.rotation.y = y;
       cloudMesh.rotation.y = y + t * 0.006;
       // straighten the axial tilt and pitch the target latitude to the centre
@@ -222,23 +259,9 @@ export async function createEarth(canvas: HTMLCanvasElement): Promise<EarthView>
         dot.visible = dotMat.opacity > 0.01;
         dot.scale.setScalar(0.05 * (1 + 0.25 * Math.sin(t * 4)));
       }
-      // real sun / moon for this instant (refreshed every few seconds; they move ~0.25°/min)
-      if (now - astroAt > 5000) { astroAt = now; sub = subPoints(Date.now()); }
-      earth.updateMatrixWorld();
-      geoDir(sub.sun.lat, sub.sun.lon, realSun).transformDirection(surface.matrixWorld);
-      geoDir(sub.moon.lat, sub.moon.lon, realMoon).transformDirection(surface.matrixWorld);
-      // the light swings from the free-spin position to the true one as the globe locks on: by the dive,
-      // the visitor's side is genuinely in daylight or night (with city lights)
-      swing.setFromUnitVectors(freeSun, realSun);
-      sunDir.copy(freeSun).applyQuaternion(swingF.identity().slerp(swing, f));
-      sun.position.copy(sunDir);
-      // moon keeps to its ring, but glides to the true moon's bearing (so its phase matches tonight's)
-      const maTrue = Math.atan2(realMoon.y * -Math.sin(MOON_INCL) + realMoon.z * Math.cos(MOON_INCL), realMoon.x);
-      const maFree = t * 0.11 + scroll * 14 + 2.1;
-      const ma = maFree + wrapPi(maTrue - maFree) * f;
-      const mz = Math.sin(ma) * MOON_ORBIT;
+      const mz = -Math.sin(ma) * MOON_ORBIT;
       moon.position.set(Math.cos(ma) * MOON_ORBIT, -mz * Math.sin(MOON_INCL), mz * Math.cos(MOON_INCL));
-      moon.rotation.y = -ma + Math.PI; // tidally locked
+      moon.rotation.y = ma + Math.PI; // tidally locked: same face toward Earth
       renderer.render(scene, cam);
     },
     dispose: () => {
@@ -256,6 +279,6 @@ export async function createEarth(canvas: HTMLCanvasElement): Promise<EarthView>
   view.setSize(256);
   view.render(performance.now(), 0, 0);
   dot.visible = false;
-  t0 = -1;
+  t0 = -1; lastT = -1; spinPhase = orbitPhase = 0;
   return view;
 }
