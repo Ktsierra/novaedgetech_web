@@ -63,7 +63,7 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
     uKeyDir: { value: new THREE.Vector3(0, 1, 0) }, uKey: { value: new THREE.Color() },
     uSky: { value: new THREE.Color() }, uGnd: { value: new THREE.Color() }, uSkyRefl: { value: new THREE.Vector3() },
     uFogCol: { value: fogRaw }, uFogNear: { value: o.fog.near }, uFogFar: { value: o.fog.far },
-    uTower: { value: new THREE.Vector3(tower.x, 0, tower.z) }, uScale: { value: 400 },
+    uTower: { value: new THREE.Vector3(tower.x, 0, tower.z) }, uScale: { value: 400 }, uLamp: { value: 1 },
   };
   const COMMON = `
     uniform float uTime; uniform float uNight; uniform vec3 uCam;
@@ -340,8 +340,28 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
   }
   const lampGeo = new THREE.BufferGeometry();
   lampGeo.setAttribute('position', new THREE.Float32BufferAttribute(lp, 3));
-  lampGeo.setAttribute('color', new THREE.Float32BufferAttribute(lc, 3));
-  const lampMat = new THREE.PointsMaterial({ size: 0.85, map: dotTex, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
+  lampGeo.setAttribute('aCol', new THREE.Float32BufferAttribute(lc, 3));
+  // same energy-conserving points as the traffic (see carMat)
+  const lampMat = new THREE.ShaderMaterial({
+    uniforms: U, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+    vertexShader: `
+      attribute vec3 aCol; uniform float uScale; uniform float uLamp;
+      varying vec3 vCol; varying float vA; varying vec3 vW;
+      void main() {
+        vec4 mv = viewMatrix * vec4(position, 1.0);
+        float px = uScale * 0.85 / max(1.0, -mv.z);
+        vW = position; vCol = aCol; vA = uLamp * min(1.0, px * px / 2.25);
+        gl_PointSize = clamp(px, 1.5, 14.0);
+        gl_Position = projectionMatrix * mv;
+      }`,
+    fragmentShader: `
+      ${COMMON}
+      varying vec3 vCol; varying float vA; varying vec3 vW;
+      void main() {
+        float a = smoothstep(0.5, 0.0, length(gl_PointCoord - 0.5));
+        gl_FragColor = vec4(toLin(vCol) * a * a * vA * (1.0 - 0.8 * fogK(vW)), 1.0);
+      }`,
+  });
   const lamps = new THREE.Points(lampGeo, lampMat);
 
   // ---------- traffic: street cars (head / tail lights) + airborne lanes over the river ----------
@@ -395,7 +415,12 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
         vec4 mv = viewMatrix * vec4(p, 1.0);
         // flying cars are lights you notice at night; by day they all but vanish
         vA *= aMot.w > 1.5 ? 0.06 + 0.94 * uNight : 0.3 + 0.7 * uNight;
-        gl_PointSize = vA > 0.0 ? min(18.0, uScale * (aMot.w > 1.5 ? 1.0 : 0.55) / max(1.0, -mv.z)) : 0.0;
+        // a light smaller than a pixel still rasterises at full brightness, so hundreds of distant ones lined
+        // up along a street (or down the river) add up into a blinding blob under bloom: give each only its
+        // true share of a pixel's light
+        float px = uScale * (aMot.w > 1.5 ? 1.0 : 0.55) / max(1.0, -mv.z);
+        vA *= min(1.0, px * px / 2.25);
+        gl_PointSize = vA > 0.0 ? clamp(px, 1.5, 18.0) : 0.0;
         gl_Position = projectionMatrix * mv;
       }`,
     fragmentShader: `
@@ -509,7 +534,7 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
       U.uNight.value = night;
       U.uSkyRefl.value.copy(skyRaw);
       fogRaw.copy(fogLin).convertLinearToSRGB();
-      lampMat.opacity = 0.25 + 0.75 * night;
+      U.uLamp.value = 0.25 + 0.75 * night;
       nodeMat.emissiveIntensity = 0.15 + 0.35 * night;
       wU.uNight.value = night;
       (wU.uSkyRefl.value as T.Vector3).copy(skyRaw);
