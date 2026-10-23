@@ -89,7 +89,9 @@ export async function createSun(canvas: HTMLCanvasElement): Promise<SunView> {
         float t = uTime * 0.05;
         vec3 q = vec3(cos(a) * 1.6, sin(a) * 1.6, r * 0.9 - t);
         float streak = fbm(q * 1.8 + vec3(0.0, 0.0, t * 0.5));
-        float rays = pow(fbm(vec3(cos(a) * 5.0, sin(a) * 5.0, t * 0.6)), 2.0);
+        // (not pow(): fbm goes negative, where GPUs return NaN - a dead dark patch around the sun in Chrome / Safari)
+        float ray = max(fbm(vec3(cos(a) * 5.0, sin(a) * 5.0, t * 0.6)), 0.0);
+        float rays = ray * ray;
         float e = r - 1.0;
         float inner = exp(-e * 7.0);                      // tight bright rim
         float glow = exp(-e * 1.9) * (0.45 + 0.9 * streak) + rays * exp(-e * 1.1) * 0.6;

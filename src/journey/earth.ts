@@ -135,19 +135,23 @@ export async function createEarth(canvas: HTMLCanvasElement): Promise<EarthView>
         float k = ${shape};
         // day side brighter; a sun behind the globe still backlights the whole limb
         float lit = max(smoothstep(-0.45, 0.75, dot(n, uSun)), 0.55 * max(0.0, -uSun.z));
-        gl_FragColor = vec4(uColor * k * lit * ${strength.toFixed(2)}, 1.0);
+        vec3 glow = min(uColor * k * lit * ${strength.toFixed(2)}, vec3(1.0));
+        // premultiplied: the glow's own brightness is its coverage, so over the transparent canvas it is a valid
+        // faint light (Chrome / Safari drop colour written with zero alpha), never an opaque dark ring
+        gl_FragColor = vec4(glow, max(glow.r, max(glow.g, glow.b)));
       }`,
     side,
     transparent: true,
     depthWrite: false,
-    // additive light that leaves the canvas ALPHA untouched: plain AdditiveBlending also writes alpha,
-    // which turned the faint outer halo into an opaque black ring that cut across the moon
+    // additive light, with alpha composited "over" (premultiplied canvas): plain AdditiveBlending wrote full alpha
+    // and made the faint outer halo an opaque black ring across the moon; writing no alpha at all made Chrome /
+    // Safari drop the halo entirely
     blending: THREE.CustomBlending,
     blendEquation: THREE.AddEquation,
     blendSrc: THREE.OneFactor,
     blendDst: THREE.OneFactor,
-    blendSrcAlpha: THREE.ZeroFactor,
-    blendDstAlpha: THREE.OneFactor,
+    blendSrcAlpha: THREE.OneFactor,
+    blendDstAlpha: THREE.OneMinusSrcAlphaFactor,
   });
   const rimMat = rimShader('pow(max(1.0 - facing, 0.0), 3.0)', 1.1, THREE.FrontSide);
   const rim = new THREE.Mesh(new THREE.SphereGeometry(1.008, 96, 72), rimMat);

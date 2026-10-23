@@ -560,6 +560,12 @@ body {
 .j-main { position: relative; z-index: 1; }
 .j-track { height: 1100vh; }
 
+/* Firefox (seen on macOS) rasterises text inside 3D-tilted cards from stale tiles: garbled glyphs until hover.
+   The cards sit flat there; every other browser keeps the billboard tilt. */
+@supports (-moz-appearance: none) {
+  .j-wcard { transform: none; }
+}
+
 /* ---------- short desktop / laptop windows: fit the work between the nav and the HUD ---------- */
 @media (min-width: 760px) and (max-height: 880px) {
   .j-surface-content { padding-top: 84px; padding-bottom: 64px; }
