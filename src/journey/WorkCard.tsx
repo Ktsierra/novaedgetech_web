@@ -51,12 +51,12 @@ const Phone = ({ seed, className = '' }: { seed: number; className?: string }) =
   </div>
 );
 
-/** a client's AWS data <-> Microsoft Entra ID: identical tiles on an even grid, joined through a role-sync hub */
+/** a client's AWS data <-> Microsoft Entra ID: identical tiles on an even grid, joined through a governance hub */
 const IdentitySync = () => (
   <div className="j-sync" aria-hidden="true">
     <div className="j-sync-cell">
       <div className="j-sync-tile"><img src={awsIcon} alt="" className="j-sync-logo" /></div>
-      <span>CLIENT AWS</span>
+      <span>AWS DATA</span>
     </div>
     <div className="j-sync-cell j-sync-cell--hub">
       <div className="j-sync-link" />
@@ -68,7 +68,7 @@ const IdentitySync = () => (
           <path d="M14 38 l1 6 M14 38 l6 -1" className="j-sync-arc" />
         </svg>
       </div>
-      <span>ROLE SYNC</span>
+      <span>GOVERNANCE</span>
     </div>
     <div className="j-sync-cell">
       <div className="j-sync-tile"><img src={entraIcon} alt="" className="j-sync-logo" /></div>
