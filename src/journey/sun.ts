@@ -35,8 +35,11 @@ export async function createSun(canvas: HTMLCanvasElement): Promise<SunView> {
   if (!hasWebGL(canvas)) throw new Error('WebGL unavailable');
   const THREE = await import('three');
 
-  const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, premultipliedAlpha: false });
-  renderer.setClearColor(0x000000, 0);
+  // an OPAQUE black canvas: the layer is screen-blended over the galaxy (black = no change), so the corona is pure
+  // added light. A transparent canvas left its soft alpha to each browser's compositor, and Chrome / Safari drew
+  // it as a hard-edged sticker
+  const renderer = new THREE.WebGLRenderer({ canvas, alpha: false, antialias: true });
+  renderer.setClearColor(0x000000, 1);
   const scene = new THREE.Scene();
   const cam = new THREE.OrthographicCamera(0, 1, 1, 0, -2000, 2000);
 

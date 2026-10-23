@@ -284,31 +284,29 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
           float n1 = sin(q.x * 0.8 + uTime * 1.1) + 0.7 * sin(q.y * 0.45 - uTime * 1.6) + 0.35 * sin((q.x - q.y) * 1.9 + uTime * 2.3);
           float n2 = sin(q.y * 0.7 + uTime * 1.3) + 0.5 * sin((q.x + q.y) * 1.3 - uTime * 1.9);
           vec4 p = vUv;
-          p.xy += vec2(n1 * 0.0014, n2 * 0.0003) * p.w; // wobble mostly sideways, barely vertical
+          p.xy += vec2(n1 * 0.0007, n2 * 0.00015) * p.w; // a gentle wobble: the mirror stays readable, day and night
           // smear along the reflection's vertical so neon stretches into streaks
           vec3 refl = vec3(0.0);
-          // lights on night water stretch into long vertical streaks; by day the mirror stays crisper
-          float reach = mix(0.0025, 0.0075, uNight);
-          for (int i = -4; i <= 4; i++) {
+          // a slight vertical softening only: a clear mirror, as crisp at night as by day
+          for (int i = -1; i <= 1; i++) {
             vec4 pi = p;
-            pi.y += float(i) * reach * p.w;
-            refl += texture2DProj(tDiffuse, pi).rgb * (1.0 - abs(float(i)) * 0.18);
+            pi.y += float(i) * 0.0012 * p.w;
+            refl += texture2DProj(tDiffuse, pi).rgb * (i == 0 ? 0.5 : 0.25);
           }
-          refl /= 5.4;
           float graze = 1.0 - abs(normalize(uCam - vW).y);
           // the reflection is already linear light; the tuned (display-value) tints are converted to match
           vec3 tint = vec3(0.012, 0.05, 0.07) + uSkyRefl * 0.12 * (1.0 - uNight);
-          vec3 c = pow(tint, vec3(2.2)) + refl * (0.5 + 0.35 * graze) * (1.0 - 0.15 * uNight);
+          vec3 c = pow(tint, vec3(2.2)) + refl * (0.55 + 0.35 * graze);
           c = mix(c, pow(uFogCol, vec3(2.2)), smoothstep(uFogNear, uFogFar, distance(vW, uCam)) * 0.9);
           gl_FragColor = vec4(c, 1.0);
         }`,
     },
   });
-  // the reflection re-renders the whole city: refresh it every other frame (invisible under the ripples), and
-  // only every 4th while the camera is high above, where the river is a thin ribbon
+  // the reflection refreshes every frame (skipped frames show the previous camera's view, then snap); only a
+  // struggling device (see surface.ts adaptive tiers) refreshes it less often
   const reflect = water.onBeforeRender.bind(water);
-  let reflFrame = 0, reflEvery = 2, camY = 0;
-  water.onBeforeRender = (...args) => { if (reflFrame++ % (camY > 60 ? Math.max(4, reflEvery) : reflEvery) === 0) reflect(...args); };
+  let reflFrame = 0, reflEvery = 1;
+  water.onBeforeRender = (...args) => { if (reflFrame++ % reflEvery === 0) reflect(...args); };
   water.rotation.x = -Math.PI / 2;
   water.position.y = WATER_Y;
   const wU = (water.material as T.ShaderMaterial).uniforms as Record<string, { value: unknown }>;
@@ -552,7 +550,6 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
     },
     setReflectEvery: n => { reflEvery = n; },
     update: (t, cam) => {
-      camY = cam.y;
       U.uTime.value = t;
       U.uCam.value.copy(cam);
       wU.uTime.value = t;
@@ -560,7 +557,7 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
     },
     setSize: (w, h) => {
       // low-res reflections: plenty under the ripples, and keeps the second pass cheap
-      const k = mobile ? 0.3 : 0.42;
+      const k = mobile ? 0.4 : 0.5;
       water.getRenderTarget().setSize(Math.max(64, Math.round(w * k)), Math.max(64, Math.round(h * k)));
       U.uScale.value = h / (2 * Math.tan(29 * Math.PI / 180));
     },

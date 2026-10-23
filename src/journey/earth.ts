@@ -143,15 +143,16 @@ export async function createEarth(canvas: HTMLCanvasElement): Promise<EarthView>
     side,
     transparent: true,
     depthWrite: false,
-    // additive light, with alpha composited "over" (premultiplied canvas): plain AdditiveBlending wrote full alpha
-    // and made the faint outer halo an opaque black ring across the moon; writing no alpha at all made Chrome /
-    // Safari drop the halo entirely
+    // premultiplied additive light: colour AND coverage both add, so a pixel is never brighter than its own alpha
+    // (where the rim and halo overlap, alpha composited "over" fell short of the summed colour and Chrome drew
+    // garbage). Plain AdditiveBlending wrote full alpha (an opaque black ring across the moon); no alpha at all
+    // made Chrome / Safari drop the halo
     blending: THREE.CustomBlending,
     blendEquation: THREE.AddEquation,
     blendSrc: THREE.OneFactor,
     blendDst: THREE.OneFactor,
     blendSrcAlpha: THREE.OneFactor,
-    blendDstAlpha: THREE.OneMinusSrcAlphaFactor,
+    blendDstAlpha: THREE.OneFactor,
   });
   const rimMat = rimShader('pow(max(1.0 - facing, 0.0), 3.0)', 1.1, THREE.FrontSide);
   const rim = new THREE.Mesh(new THREE.SphereGeometry(1.008, 96, 72), rimMat);
