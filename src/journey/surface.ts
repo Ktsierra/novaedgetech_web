@@ -1,6 +1,7 @@
 import moonUrl from '../assets/earth/moon_1024.jpg';
 import { compileScene } from './warmup';
 import { subPoints, skyPosition } from './astro';
+import { buildCity } from './city';
 
 export interface SurfaceView {
   setSize: (w: number, h: number) => void;
@@ -38,16 +39,20 @@ const fbm = (x: number, y: number, oct = 5) => {
   return s;
 };
 
-/** the valley the camera flies along meanders gently */
+/** the river the camera flies down meanders gently (keep PATH_GLSL in sync) */
 const pathX = (z: number) => Math.sin(z * 0.009) * 22 + Math.sin(z * 0.023 + 1.3) * 6;
-/** 0 on the valley floor, 1 out on the mountain flanks */
-const valleyMask = (x: number, z: number) => smooth((Math.abs(x - pathX(z)) - 12) / 70);
+const PATH_GLSL = 'float pathX(float z) { return sin(z * 0.009) * 22.0 + sin(z * 0.023 + 1.3) * 6.0; }';
+/** the river ends in a basin in front of the tower */
+const RIVER_END = -108;
+/** flat city floor with the river cut into it, mountains rising past the edges of the city and behind it */
 const heightAt = (x: number, z: number) => {
+  const dx = Math.abs(x - pathX(z));
   const ridge = 1 - Math.abs(fbm(x * 0.011 + 7.1, z * 0.011 - 3.4) * 2 - 1);
   const base = fbm(x * 0.006, z * 0.006, 4);
-  const mountains = Math.pow(ridge * 0.75 + base * 0.6, 2.2) * 62;
-  const hills = fbm(x * 0.03 + 11, z * 0.03, 3) * 4;
-  return mountains * valleyMask(x, z) + hills - 2;
+  const mountains = Math.pow(ridge * 0.75 + base * 0.6, 2.2) * 80;
+  const mask = Math.max(smooth((dx - 185) / 90), smooth((-z - 400) / 60));
+  const river = z > RIVER_END ? 2.4 * (1 - smooth((dx - 8.5) / 1.6)) * smooth((z - RIVER_END) / 5) : 0;
+  return mountains * mask - river;
 };
 
 const hasWebGL = (canvas: HTMLCanvasElement) => {
@@ -59,8 +64,8 @@ const hasWebGL = (canvas: HTMLCanvasElement) => {
 };
 
 /**
- * The surface of the Earth the journey dived into: procedural terrain with a neon survey grid, city lights
- * along the valley, a sky dome, stars and the moon. The sky follows the visitor's real local time: sun and moon
+ * The surface of the Earth the journey dived into: a cyan neon night city along a river (see city.ts), a
+ * neon survey grid on the ground, mountains around it, a sky dome, stars and the moon. The sky follows the visitor's real local time: sun and moon
  * at their true altitude and bearing, blending night -> twilight -> a hazy, high-altitude day by the sun's height.
  * three is loaded lazily.
  */
@@ -71,7 +76,7 @@ export async function createSurface(canvas: HTMLCanvasElement): Promise<SurfaceV
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
   renderer.outputColorSpace = THREE.SRGBColorSpace;
 
-  const fog = new THREE.Fog(0x0b3a52, 70, 360);
+  const fog = new THREE.Fog(0x0b3a52, 60, 470);
   const scene = new THREE.Scene();
   scene.fog = fog;
   const cam = new THREE.PerspectiveCamera(58, 1, 0.5, 1400);
@@ -89,9 +94,9 @@ export async function createSurface(canvas: HTMLCanvasElement): Promise<SurfaceV
     side: THREE.BackSide,
     depthWrite: false,
     fog: false,
-    uniforms: { uSun: { value: SUN_SKY }, uHorizon: { value: skyHor }, uMid: { value: skyMid }, uZenith: { value: skyZen }, uGlow: { value: 1 }, uDay: { value: 0 } },
+    uniforms: { uSun: { value: SUN_SKY }, uHorizon: { value: skyHor }, uMid: { value: skyMid }, uZenith: { value: skyZen }, uGlow: { value: 1 }, uDay: { value: 0 }, uCity: { value: 1 } },
     vertexShader: 'varying vec3 vDir; void main(){ vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-    fragmentShader: `uniform vec3 uSun; uniform vec3 uHorizon; uniform vec3 uMid; uniform vec3 uZenith; uniform float uGlow; uniform float uDay; varying vec3 vDir;
+    fragmentShader: `uniform vec3 uSun; uniform vec3 uHorizon; uniform vec3 uMid; uniform vec3 uZenith; uniform float uGlow; uniform float uDay; uniform float uCity; varying vec3 vDir;
       void main(){
         vec3 d = normalize(vDir);
         float h = d.y;
@@ -103,6 +108,8 @@ export async function createSurface(canvas: HTMLCanvasElement): Promise<SurfaceV
         float up = smoothstep(-0.03, 0.01, uSun.y);
         c += vec3(1.0, 0.8, 0.6) * pow(s, 90.0) * 0.8 * up;
         c += vec3(1.0, 0.95, 0.85) * smoothstep(0.9993, 0.9997, s) * up;
+        // the city's cyan glow on the low sky at night
+        c += vec3(0.0, 0.075, 0.1) * uCity * (1.0 - smoothstep(0.0, 0.25, h)) * smoothstep(-0.05, 0.0, h);
         // daytime: a white-hot disc with a wide glare
         c += vec3(1.0, 0.96, 0.88) * (pow(s, 24.0) * 0.45 + pow(s, 400.0) * 0.9) * uDay * up;
         c = mix(c, uHorizon * 0.55, smoothstep(0.0, -0.08, h));
@@ -126,14 +133,15 @@ export async function createSurface(canvas: HTMLCanvasElement): Promise<SurfaceV
   scene.add(stars);
 
   // ---------- terrain ----------
-  const SIZE = 640, SEG = innerWidth < 760 ? 150 : 220; // lighter mesh on phones
+  const mobile = innerWidth < 760;
+  const SIZE = 800, SEG = mobile ? 170 : 240; // lighter mesh on phones
   const terrGeo = new THREE.PlaneGeometry(SIZE, SIZE, SEG, SEG);
   terrGeo.rotateX(-Math.PI / 2);
   const pos = terrGeo.attributes.position as InstanceType<typeof THREE.BufferAttribute>;
   const cols = new Float32Array(pos.count * 3);
-  const low = new THREE.Color(0x0a1a2a), high = new THREE.Color(0x24405e), snow = new THREE.Color(0x6f8aa6), tmp = new THREE.Color();
+  const low = new THREE.Color(0x070e18), high = new THREE.Color(0x24405e), snow = new THREE.Color(0x6f8aa6), tmp = new THREE.Color();
   for (let i = 0; i < pos.count; i++) {
-    const x = pos.getX(i), z = pos.getZ(i) - 120; // terrain extends mostly ahead of the start
+    const x = pos.getX(i), z = pos.getZ(i) - 100; // terrain extends mostly ahead of the start
     const h = heightAt(x, z);
     pos.setXYZ(i, x, h, z);
     tmp.copy(low).lerp(high, smooth(h / 36));
@@ -166,13 +174,12 @@ export async function createSurface(canvas: HTMLCanvasElement): Promise<SurfaceV
         float fade = 1.0 - smoothstep(30.0, 240.0, dist);
         float floorMask = 1.0 - smoothstep(4.0, 26.0, vW.y);
         float pulse = 0.75 + 0.25 * sin(vW.z * 0.08 + uTime * 1.6);
-        gl_FragColor = vec4(vec3(0.0, 0.9, 1.0) * line * fade * (0.05 + 0.55 * floorMask) * pulse, 1.0);
+        gl_FragColor = vec4(vec3(0.0, 0.9, 1.0) * line * fade * (0.05 + 0.3 * floorMask) * pulse, 1.0);
       }`,
   });
   const grid = new THREE.Mesh(terrGeo, gridMat);
   scene.add(grid);
 
-  // ---------- city lights along the valley ----------
   const dotCv = document.createElement('canvas');
   dotCv.width = dotCv.height = 32;
   const dg = dotCv.getContext('2d');
@@ -182,31 +189,11 @@ export async function createSurface(canvas: HTMLCanvasElement): Promise<SurfaceV
     dg.fillStyle = gr; dg.fillRect(0, 0, 32, 32);
   }
   const dotTex = new THREE.CanvasTexture(dotCv);
-  const LIGHTS = 2600;
-  const lp: number[] = [], lc: number[] = [];
-  const warm = new THREE.Color(0xffc988), cyan = new THREE.Color(0x00e5ff), white = new THREE.Color(0xdfe8ff);
-  for (let tries = 0; lp.length < LIGHTS * 3 && tries < LIGHTS * 20; tries++) {
-    // clustered: pick a town centre near the path, scatter around it
-    const z = -440 + Math.random() * 600;
-    const town = Math.floor(z / 26);
-    const cx = pathX(z) + (hash(town, 3) - 0.5) * 50;
-    const x = cx + (Math.random() + Math.random() - 1) * 18;
-    if (valleyMask(x, z) > 0.35) continue;
-    lp.push(x, heightAt(x, z) + 0.5, z);
-    const c = Math.random() < 0.72 ? warm : Math.random() < 0.6 ? white : cyan;
-    lc.push(c.r, c.g, c.b);
-  }
-  const lightGeo = new THREE.BufferGeometry();
-  lightGeo.setAttribute('position', new THREE.Float32BufferAttribute(lp, 3));
-  lightGeo.setAttribute('color', new THREE.Float32BufferAttribute(lc, 3));
-  const lightMat = new THREE.PointsMaterial({ size: 1.6, map: dotTex, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: true });
-  const lights = new THREE.Points(lightGeo, lightMat);
-  scene.add(lights);
 
   // red aviation beacons on a few peaks
   const bp: number[] = [];
   for (let i = 0; i < 160 && bp.length < 14 * 3; i++) {
-    const z = -420 + Math.random() * 560, x = pathX(z) + (Math.random() < 0.5 ? -1 : 1) * (40 + Math.random() * 60);
+    const z = -420 + Math.random() * 560, x = pathX(z) + (Math.random() < 0.5 ? -1 : 1) * (190 + Math.random() * 80);
     const h = heightAt(x, z);
     if (h > 26) bp.push(x, h + 2.5, z);
   }
@@ -255,7 +242,8 @@ export async function createSurface(canvas: HTMLCanvasElement): Promise<SurfaceV
         g.fillStyle = gr;
       } else {
         const k = hash(q * 7 + (target ? 1 : 3), r * 13);
-        g.fillStyle = k < 0.38 ? `rgba(255,${String(190 + Math.round(k * 80))},130,${(0.45 + k).toFixed(2)})` : k < 0.5 ? 'rgba(160,220,255,0.55)' : '#0a1220';
+        // same mix as the city around it: cool white offices, some warm, a little cyan
+        g.fillStyle = k < 0.2 ? 'rgba(170,215,255,0.75)' : k < 0.32 ? 'rgba(255,200,140,0.65)' : k < 0.4 ? 'rgba(40,200,255,0.6)' : '#0a1220';
       }
       g.fillRect(x, y, w, h);
     }
@@ -273,8 +261,24 @@ export async function createSurface(canvas: HTMLCanvasElement): Promise<SurfaceV
   const tower = new THREE.Mesh(towerGeo, towerMats);
   tower.position.set(TX, TY + TH / 2, TZ);
   scene.add(tower);
-  // rooftop beacon so it reads as the destination from far away
-  bp.push(TX, TY + TH + 2, TZ);
+  // the hub: neon edges, a crown and an antenna with a beacon, so it reads as the destination from far away
+  const neonMat = new THREE.MeshBasicMaterial({ color: 0x00e5ff });
+  const neonGeo = new THREE.BoxGeometry(1, 1, 1);
+  const neon = (x: number, y: number, z: number, w: number, h: number, d: number) => {
+    const m = new THREE.Mesh(neonGeo, neonMat);
+    m.position.set(x, y, z); m.scale.set(w, h, d);
+    scene.add(m);
+  };
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) neon(TX + sx * TW / 2, TY + TH / 2, TZ + sz * TD / 2, 0.35, TH, 0.35);
+  for (const sz of [-1, 1]) neon(TX, TY + TH + 0.2, TZ + sz * TD / 2, TW, 0.35, 0.35);
+  for (const sx of [-1, 1]) neon(TX + sx * TW / 2, TY + TH + 0.2, TZ, 0.35, 0.35, TD);
+  neon(TX, TY + TH + 6, TZ, 0.4, 12, 0.4);
+  bp.push(TX, TY + TH + 12.5, TZ);
+
+  // ---------- the city ----------
+  const city = await buildCity(THREE, { pathX, pathGlsl: PATH_GLSL, riverEnd: RIVER_END, tower: { x: TX, z: TZ, top: TY + TH + 12 }, mobile, fog });
+  city.objects.forEach(ob => { scene.add(ob); });
+  bp.push(...city.beacons);
   beaconGeo.setAttribute('position', new THREE.Float32BufferAttribute(bp, 3));
   // centre of the target window on the front (+z) face
   const WIN = new THREE.Vector3(
@@ -300,13 +304,14 @@ export async function createSurface(canvas: HTMLCanvasElement): Promise<SurfaceV
     zen: [V(0.005, 0.009, 0.026), V(0.012, 0.02, 0.05), V(0.07, 0.17, 0.38)],
   };
   const C = (hex: number) => new THREE.Color(hex);
-  const FOG = [C(0x061722), C(0x0b3a52), C(0x7399b8)];
+  const FOG = [C(0x07202e), C(0x0b3a52), C(0x7399b8)];
   const KEY = [C(0x8fa8e0), C(0xffb27a), C(0xfff0dc)];
   const HEMI_SKY = [C(0x2c4f80), C(0x3d6fa8), C(0x9cc0e0)], HEMI_GND = [C(0x02050b), C(0x04080f), C(0x1a2128)];
   const mix3 = <T extends { copy: (v: T) => T; lerp: (v: T, k: number) => T }>(out: T, p: T[], twi: number, day: number) =>
     out.copy(p[0]).lerp(p[1], twi).lerp(p[2], day);
   let loc: { lat: number; lon: number } | null = null, skyAt = -1e9, day = 0, twi = 1, starK = 1, aspect = 1;
   const keyDir = new THREE.Vector3(), nightDir = new THREE.Vector3();
+  const keyCol = new THREE.Color(), hemiSky = new THREE.Color(), hemiGnd = new THREE.Color();
   /** scene direction for an altitude / bearing (degrees) relative to the way the valley runs */
   const toScene = (alt: number, rel: number, out: InstanceType<typeof THREE.Vector3>) => {
     const e = alt * Math.PI / 180, r = rel * Math.PI / 180;
@@ -332,7 +337,7 @@ export async function createSurface(canvas: HTMLCanvasElement): Promise<SurfaceV
     toScene(shownAlt(mo.alt), rel(mo.az) * k, MOON);
     twi = smooth((sun.alt + 16) / 16); // 0 below -16° (night) .. 1 at sunrise / sunset
     day = smooth((sun.alt - 2) / 14); // 0 at 2° .. 1 above 16°
-    starK = 1 - smooth((sun.alt + 8) / 10);
+    starK = (1 - smooth((sun.alt + 8) / 10)) * 0.55; // city light pollution
     mix3(skyHor, PAL.hor, twi, day); mix3(skyMid, PAL.mid, twi, day); mix3(skyZen, PAL.zen, twi, day);
     mix3(fog.color, FOG, twi, day);
     skyMat.uniforms.uGlow.value = twi * (1 - day) * 1.4 + day * 0.25;
@@ -347,7 +352,10 @@ export async function createSurface(canvas: HTMLCanvasElement): Promise<SurfaceV
     mix3(hemi.color, HEMI_SKY, twi, day); mix3(hemi.groundColor, HEMI_GND, twi, day);
     hemi.intensity = lerp(lerp(0.42, 0.55, twi), 1.25, day);
     skyMat.uniforms.uDay.value = day;
-    lightMat.opacity = 1 - 0.8 * day;
+    skyMat.uniforms.uCity.value = 1 - day;
+    keyCol.copy(sunLight.color).multiplyScalar(sunLight.intensity);
+    hemiSky.copy(hemi.color).multiplyScalar(hemi.intensity); hemiGnd.copy(hemi.groundColor).multiplyScalar(hemi.intensity);
+    city.setLight(keyDir, keyCol, hemiSky, hemiGnd, 1 - day, skyMid);
     moonMat.uniforms.uFade.value = (1 - 0.55 * day) * smooth((mo.alt + 2) / 4);
   };
 
@@ -360,6 +368,8 @@ export async function createSurface(canvas: HTMLCanvasElement): Promise<SurfaceV
       cam.aspect = aspect = w / Math.max(1, h);
       cam.updateProjectionMatrix();
       skyAt = -1e9; // re-frame the sun / moon for the new field of view
+      const pr = renderer.getPixelRatio();
+      city.setSize(w * pr, h * pr);
     },
     setLocation: (lat: number, lon: number) => { loc = { lat, lon }; skyAt = -1e9; },
     daylight: () => day,
@@ -399,12 +409,14 @@ export async function createSurface(canvas: HTMLCanvasElement): Promise<SurfaceV
       starMat.opacity = 0.75 * smooth((descent - 0.4) / 0.6) * starK;
       gridCam.copy(cam.position);
       gridMat.uniforms.uTime.value = t;
+      city.update(t, cam.position);
       beaconMat.opacity = 0.35 + 0.65 * (Math.sin(t * 3.2) > 0.2 ? 1 : 0);
       renderer.render(scene, cam);
     },
     dispose: () => {
-      [terrGeo, starGeo, lightGeo, beaconGeo, sky.geometry, moon.geometry, towerGeo].forEach(g => { g.dispose(); });
-      [terrMat, gridMat, skyMat, starMat, lightMat, beaconMat, moonMat, ...towerMats].forEach(m => { m.dispose(); });
+      [terrGeo, starGeo, beaconGeo, sky.geometry, moon.geometry, towerGeo, neonGeo].forEach(g => { g.dispose(); });
+      [terrMat, gridMat, skyMat, starMat, beaconMat, moonMat, neonMat, ...towerMats].forEach(m => { m.dispose(); });
+      city.dispose();
       [dotTex, moonTex, frontTex, sideTex].forEach(tx => { tx.dispose(); });
       renderer.dispose();
       renderer.forceContextLoss();
