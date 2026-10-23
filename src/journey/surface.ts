@@ -393,13 +393,14 @@ export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warm
   // creep back up while there's headroom. Changes are rate-limited so it never oscillates visibly.
   let vw = warmW, vh = warmH, quality = mobile ? 0.85 : 1, ema = 16.7, lastFrame = -1, lastAdjust = 0, longRun = 0, tier = 0;
   const applySize = () => {
-    const dpr = Math.max(0.5, Math.min(devicePixelRatio || 1, mobile ? 1.5 : 1.25) * quality);
+    const full = Math.min(devicePixelRatio || 1, mobile ? 1.5 : 1.25);
+    const dpr = Math.max(0.5, full * quality);
     renderer.setPixelRatio(dpr);
     renderer.setSize(vw, vh, false);
     composer.setPixelRatio(dpr);
     composer.setSize(vw, vh);
     // (bloom keeps its own half-res chain: feeding it a smaller copy made thin neon pop in and out = strobing)
-    city.setSize(vw * dpr, vh * dpr);
+    city.setSize(vw * dpr, vh * dpr, vw * full, vh * full);
   };
   const adapt = (now: number) => {
     const dt = lastFrame < 0 ? 16.7 : now - lastFrame;
@@ -413,10 +414,11 @@ export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warm
     // still struggling at the lowest resolution (weak integrated GPUs): shed the expensive passes, for good
     else if (ema > 30 && quality <= 0.5 && tier < 2) {
       tier++; lastAdjust = now;
-      if (tier === 1) city.setReflectEvery(4);
+      if (tier === 1) city.setReflectScale(0.6);
       else bloom.enabled = false;
     }
-    else if (ema < 18.5 && quality < 1) { quality = Math.min(1, quality * 1.1); lastAdjust = now + 1500; applySize(); }
+    // stepping back up waits longer, so the resolution can't bounce up and down
+    else if (ema < 18.5 && quality < 1) { quality = Math.min(1, quality * 1.1); lastAdjust = now + 6000; applySize(); }
   };
   const view: SurfaceView = {
     setSize: (w: number, h: number) => {

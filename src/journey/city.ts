@@ -29,10 +29,13 @@ export interface City {
    */
   setLight: (keyDir: T.Vector3, key: T.Color, sky: T.Color, ground: T.Color, night: number, skyRaw: T.Vector3) => void;
   update: (t: number, cam: T.Vector3) => void;
-  /** refresh the river's reflection every n-th frame (raised when the device struggles) */
-  setReflectEvery: (n: number) => void;
-  /** drawing-buffer size in device pixels */
-  setSize: (w: number, h: number) => void;
+  /** scale the river reflection's resolution (lowered when the device struggles; it still refreshes every frame) */
+  setReflectScale: (k: number) => void;
+  /**
+   * drawing-buffer size in device pixels, plus the full-quality size the reflection is sized from (so adaptive
+   * resolution steps never resize, and so blank, the reflection buffer)
+   */
+  setSize: (w: number, h: number, baseW: number, baseH: number) => void;
   dispose: () => void;
 }
 
@@ -302,11 +305,15 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
         }`,
     },
   });
-  // the reflection refreshes every frame (skipped frames show the previous camera's view, then snap); only a
-  // struggling device (see surface.ts adaptive tiers) refreshes it less often
-  const reflect = water.onBeforeRender.bind(water);
-  let reflFrame = 0, reflEvery = 1;
-  water.onBeforeRender = (...args) => { if (reflFrame++ % reflEvery === 0) reflect(...args); };
+  // (the reflection always refreshes every frame: skipping frames showed the previous camera's view, then snapped)
+  let reflScale = 1, reflW = 0, reflH = 0, baseRW = 2, baseRH = 2;
+  const sizeReflection = () => {
+    const k = (mobile ? 0.4 : 0.5) * reflScale;
+    const w = Math.max(64, Math.round(baseRW * k)), h = Math.max(64, Math.round(baseRH * k));
+    if (w === reflW && h === reflH) return;
+    reflW = w; reflH = h;
+    water.getRenderTarget().setSize(w, h);
+  };
   water.rotation.x = -Math.PI / 2;
   water.position.y = WATER_Y;
   const wU = (water.material as T.ShaderMaterial).uniforms as Record<string, { value: unknown }>;
@@ -548,17 +555,16 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
       (wU.uSkyRefl.value as T.Vector3).copy(skyRaw);
       (wU.uFogCol.value as T.Color).copy(fogRaw);
     },
-    setReflectEvery: n => { reflEvery = n; },
+    setReflectScale: k => { reflScale = k; sizeReflection(); },
     update: (t, cam) => {
       U.uTime.value = t;
       U.uCam.value.copy(cam);
       wU.uTime.value = t;
       (wU.uCam.value as T.Vector3).copy(cam);
     },
-    setSize: (w, h) => {
-      // low-res reflections: plenty under the ripples, and keeps the second pass cheap
-      const k = mobile ? 0.4 : 0.5;
-      water.getRenderTarget().setSize(Math.max(64, Math.round(w * k)), Math.max(64, Math.round(h * k)));
+    setSize: (_w, h, baseW, baseH) => {
+      baseRW = baseW; baseRH = baseH;
+      sizeReflection(); // half-res reflections (0.4 on phones): plenty under the ripples
       U.uScale.value = h / (2 * Math.tan(29 * Math.PI / 180));
     },
     dispose: () => {
