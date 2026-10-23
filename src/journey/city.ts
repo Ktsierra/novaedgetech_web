@@ -47,7 +47,10 @@ const rng = (seed: number) => () => {
 const smooth = (t: number) => { const x = Math.min(1, Math.max(0, t)); return x * x * (3 - 2 * x); };
 
 export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
-  const { Reflector } = await import('three/examples/jsm/objects/Reflector.js');
+  const [{ Reflector }, { mergeGeometries }] = await Promise.all([
+    import('three/examples/jsm/objects/Reflector.js'),
+    import('three/examples/jsm/utils/BufferGeometryUtils.js'),
+  ]);
   const { pathX, riverEnd, tower, mobile } = o;
   const r = rng(20251022);
   const onRiver = (x: number, z: number, pad: number) => z > riverEnd - 8 && Math.abs(x - pathX(z)) - pad < BANK;
@@ -68,6 +71,8 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
     float hash1(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
     ${o.pathGlsl}
     float fogK(vec3 w) { return smoothstep(uFogNear, uFogFar, distance(w, uCam)); }
+    // colours are tuned as display values; the bloom / output passes work in linear light
+    vec3 toLin(vec3 c) { return pow(max(c, 0.0), vec3(2.2)); }
     vec3 neon(float k) {
       return k < 0.62 ? vec3(0.0, 0.9, 1.0) : k < 0.82 ? vec3(1.0, 0.16, 0.62) : k < 0.92 ? vec3(0.55, 0.42, 1.0) : vec3(1.0, 0.6, 0.15);
     }`;
@@ -148,10 +153,13 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
         float h = vS.y, v = vL.y + h * 0.5, s = floor(abs(vSeed) * 4096.0 + 0.5) / 4096.0;
         float faceK = dot(floor(N + 0.5), vec3(3.0, 0.0, 7.0));
         float glow = 0.3 + 0.7 * uNight;
+        float lightK = mix(0.32, 1.0, uNight); // interiors still read through the glass by day
         vec3 amb = mix(uGnd, uSky, N.y * 0.5 + 0.5);
-        // facades: near-black at night, lighter concrete / steel by day
-        vec3 wall = mix(vec3(0.1, 0.115, 0.135), vec3(0.02, 0.026, 0.04), uNight) * (0.75 + 0.5 * fract(s * 91.7));
+        // facades: concrete / steel by day, blue-grey at night, lit from below by the street and filled by the
+        // city's own cyan glow, so they read as surfaces rather than holes
+        vec3 wall = mix(vec3(0.1, 0.115, 0.135), vec3(0.05, 0.064, 0.085), uNight) * (0.78 + 0.44 * fract(s * 91.7));
         vec3 col = wall * (amb + uKey * max(dot(N, uKeyDir), 0.0));
+        col += uNight * (wall * vec3(0.55, 0.8, 1.0) * 0.85 + vec3(0.11, 0.075, 0.05) * exp(-v / 6.0) * (1.0 - N.y));
         vec3 em = vec3(0.0);
         float style = fract(s * 7.31);
         vec3 nc = neon(fract(s * 3.17));
@@ -159,56 +167,68 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
         float u = abs(N.x) > 0.5 ? vL.z : vL.x;
         float fw = abs(N.x) > 0.5 ? vS.z : vS.x;
         vec2 cell = vec2(u / 1.5, v / 2.1);
-        float far = smoothstep(0.12, 0.42, max(fwidth(cell.x), fwidth(cell.y)));
+        vec2 aa = fwidth(cell);
+        float far = smoothstep(0.14, 0.45, max(aa.x, aa.y));
+        float px = fwidth(u); // metres per pixel: keeps thin neon at least ~1.5px wide (no stair-stepping)
+        float pv = fwidth(v);
         if (vSeed < 0.0) {
           // bridge deck: a cyan light strip along each side
-          if (abs(N.z) > 0.5) em += vec3(0.0, 0.85, 1.0) * step(abs(vL.y), 0.1) * 1.1 * glow;
+          if (abs(N.z) > 0.5) em += vec3(0.0, 0.85, 1.0) * smoothstep(max(0.12, pv * 1.5), 0.0, abs(vL.y)) * 1.1 * glow;
         } else if (N.y < 0.5) {
           vec2 id = floor(cell), f = fract(cell);
-          float win = step(0.18, f.x) * step(f.x, 0.82) * step(0.3, f.y) * step(f.y, 0.82) * step(3.6, v) * step(v, h - 1.4);
+          // anti-aliased window openings, with floor slabs and mullions between them
+          float wx = smoothstep(0.17 - aa.x, 0.17 + aa.x, f.x) - smoothstep(0.83 - aa.x, 0.83 + aa.x, f.x);
+          float wy = smoothstep(0.3 - aa.y, 0.3 + aa.y, f.y) - smoothstep(0.86 - aa.y, 0.86 + aa.y, f.y);
+          float win = wx * wy * step(3.6, v) * step(v, h - 1.4);
+          float slab = (1.0 - smoothstep(0.12 - aa.y, 0.12 + aa.y, f.y)) * step(3.6, v);
+          col *= 1.0 + 0.35 * slab;
           float rnd = hash1(id + vec2(s * 41.3, faceK));
-          float ratio = 0.2 + 0.32 * fract(s * 13.7);
+          float ratio = 0.22 + 0.3 * fract(s * 13.7);
           float lit = step(rnd, ratio);
           float r2 = hash1(id * 1.7 + s * 17.0 + faceK);
-          // mostly cool white / cyan offices, warm homes, the odd neon-pink room; brightness varies per window
-          vec3 wc = r2 < 0.46 ? vec3(0.62, 0.86, 1.0) : r2 < 0.8 ? vec3(1.0, 0.74, 0.46) : r2 < 0.965 ? vec3(0.1, 0.8, 1.0) : vec3(1.0, 0.3, 0.72);
-          wc *= 0.45 + 0.75 * hash1(id * 3.1 + s);
+          // mostly cool white / cyan offices, warm homes, the odd neon-pink room
+          vec3 wc = r2 < 0.46 ? vec3(0.6, 0.84, 1.0) : r2 < 0.8 ? vec3(1.0, 0.74, 0.48) : r2 < 0.965 ? vec3(0.15, 0.78, 1.0) : vec3(1.0, 0.32, 0.72);
+          float r3 = hash1(id * 3.1 + s + faceK);
+          // brightness varies; some rooms have the blinds half down; a soft falloff toward the ceiling
+          float blind = r3 < 0.3 ? smoothstep(0.32 + 0.45 * r3 / 0.3 + aa.y, 0.32 + 0.45 * r3 / 0.3 - aa.y, f.y) : 1.0;
+          vec3 room = wc * (0.45 + 0.6 * hash1(id * 5.7 + s)) * mix(1.0, 0.72, smoothstep(0.3, 0.86, f.y)) * blind;
           if (r2 > 0.985) lit *= step(0.4, fract(uTime * 2.3 + rnd * 9.0)); // a few flicker
-          // dark glass at night; by day panes mirror the sky, each catching it a little differently
-          vec3 glass = mix(vec3(0.006, 0.01, 0.018), uSkyRefl * (0.35 + 0.55 * hash1(id * 2.3 + faceK + s)), 1.0 - uNight);
-          vec3 near = mix(col, glass, win) + wc * lit * win * 1.15 * uNight;
+          // unlit glass: the city's glow at night; by day panes mirror the sky, each catching it differently
+          vec3 glass = mix(vec3(0.014, 0.028, 0.042) * (0.7 + 0.6 * r3), uSkyRefl * (0.35 + 0.55 * r3), 1.0 - uNight);
+          vec3 near = mix(col, mix(glass, room, lit * lightK), win);
           // distant facades: average the window pattern instead of letting it shimmer
-          vec3 avg = mix(col, glass, 0.3) + vec3(0.6, 0.8, 0.95) * ratio * 0.3 * uNight;
+          vec3 avg = mix(col, glass, 0.3) + vec3(0.62, 0.78, 0.92) * ratio * 0.38 * lightK;
           col = mix(near, avg, far);
           // storefronts: warm shop glow with a thin neon sign strip above each unit
           float unit = floor(u / 4.0), shop = step(0.35, fract(s * 11.9 + unit * 0.61));
           float inUnit = step(0.35, fract(u / 4.0)) * step(fract(u / 4.0), 0.92);
-          em += vec3(1.0, 0.7, 0.42) * step(0.4, v) * step(v, 2.3) * inUnit * shop * 0.22 * glow;
-          em += neon(fract(s * 5.3 + unit * 0.37)) * smoothstep(0.2, 0.0, abs(v - 2.75)) * inUnit * shop * 1.1 * glow;
+          em += vec3(1.0, 0.7, 0.42) * step(0.4, v) * step(v, 2.3) * inUnit * shop * 0.2 * glow;
+          em += neon(fract(s * 5.3 + unit * 0.37)) * smoothstep(max(0.16, pv * 1.5), 0.0, abs(v - 2.75)) * inUnit * shop * 0.9 * glow;
           // neon crown band + edge lines on styled buildings
-          if (style > 0.5) em += nc * smoothstep(0.22, 0.0, abs(v - (h - 0.9))) * 1.25 * glow;
-          if (style > 0.8) em += nc * step(fw * 0.5 - 0.2, abs(u)) * glow;
+          if (style > 0.5) em += nc * smoothstep(max(0.2, pv * 1.5), 0.0, abs(v - (h - 0.9))) * 1.1 * glow;
+          if (style > 0.8) em += nc * smoothstep(fw * 0.5 - max(0.2, px * 1.5), fw * 0.5, abs(u)) * 0.9 * glow;
           // vertical signs on river-facing walls, scrolling and flickering
           float side = pathX(vW.z) - vW.x;
           if (fract(s * 5.13) > 0.82 && h > 14.0 && N.x * sign(side) > 0.5) {
-            float sw = min(1.7, fw * 0.22);
-            float y0 = h * 0.3, inSign = step(abs(u), sw) * step(y0, v) * step(v, y0 + min(16.0, h * 0.45));
-            float stripes = 0.55 + 0.45 * step(0.5, fract(v * 0.6 - uTime * (0.5 + fract(s * 3.0))));
+            float sw = min(1.7, fw * 0.22), sh = min(16.0, h * 0.45), y0 = h * 0.3;
+            float inSign = step(abs(u), sw) * step(y0, v) * step(v, y0 + sh);
+            float stripes = 0.45 + 0.4 * smoothstep(0.35, 0.5, abs(fract(v * 0.6 - uTime * (0.5 + fract(s * 3.0))) - 0.5) * 2.0);
             float flick = step(0.06, fract(sin(floor(uTime * 8.0) + s * 99.0) * 43758.5));
-            float frame = step(sw - 0.18, abs(u)) + step(v, y0 + 0.18) + step(y0 + min(16.0, h * 0.45) - 0.18, v);
-            em += neon(fract(s * 9.7)) * inSign * (frame > 0.5 ? 1.6 : stripes) * flick * 1.5 * glow;
+            float bw = max(0.16, px * 1.5);
+            float frame = max(step(sw - bw, abs(u)), max(step(v, y0 + bw), step(y0 + sh - bw, v)));
+            em += neon(fract(s * 9.7)) * inSign * mix(stripes, 1.3, frame) * flick * 0.85 * glow;
           }
         } else {
           // roofs: neon rim on styled buildings (it's what you see on the way down)
-          vec2 q = abs(vL.xz) - vS.xz * 0.5 + 0.3;
-          if (style > 0.5) em += nc * step(0.0, max(q.x, q.y)) * 0.9 * glow;
+          vec2 q = abs(vL.xz) - vS.xz * 0.5 + max(0.3, px * 1.5);
+          if (style > 0.5) em += nc * step(0.0, max(q.x, q.y)) * 0.8 * glow;
         }
         col += em;
         // low cyan haze (light pollution) hugging the streets at night
-        col += vec3(0.0, 0.045, 0.065) * exp(-min(v, h) / 9.0) * uNight;
+        col += vec3(0.0, 0.04, 0.06) * exp(-min(v, h) / 9.0) * uNight;
         float lumen = step(0.02, max(em.r, max(em.g, em.b)));
         col = mix(col, uFogCol, fogK(vW) * (1.0 - 0.4 * lumen));
-        gl_FragColor = vec4(col, 1.0);
+        gl_FragColor = vec4(toLin(col), 1.0);
       }`,
   });
   const buildings = new THREE.Mesh(bGeo, bMat);
@@ -260,8 +280,10 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
           }
           refl /= 3.5;
           float graze = 1.0 - abs(normalize(uCam - vW).y);
-          vec3 c = vec3(0.003, 0.016, 0.024) + uSkyRefl * 0.12 * (1.0 - uNight) + refl * (0.6 + 0.35 * graze);
-          c = mix(c, uFogCol, smoothstep(uFogNear, uFogFar, distance(vW, uCam)) * 0.9);
+          // the reflection is already linear light; the tuned (display-value) tints are converted to match
+          vec3 tint = vec3(0.012, 0.05, 0.07) + uSkyRefl * 0.12 * (1.0 - uNight);
+          vec3 c = pow(tint, vec3(2.2)) + refl * (0.6 + 0.35 * graze);
+          c = mix(c, pow(uFogCol, vec3(2.2)), smoothstep(uFogNear, uFogFar, distance(vW, uCam)) * 0.9);
           gl_FragColor = vec4(c, 1.0);
         }`,
     },
@@ -308,7 +330,7 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
   const lampGeo = new THREE.BufferGeometry();
   lampGeo.setAttribute('position', new THREE.Float32BufferAttribute(lp, 3));
   lampGeo.setAttribute('color', new THREE.Float32BufferAttribute(lc, 3));
-  const lampMat = new THREE.PointsMaterial({ size: 1.5, map: dotTex, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
+  const lampMat = new THREE.PointsMaterial({ size: 0.85, map: dotTex, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
   const lamps = new THREE.Points(lampGeo, lampMat);
 
   // ---------- traffic: street cars (head / tail lights) + airborne lanes over the river ----------
@@ -318,7 +340,7 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
   for (let i = 0; i < CARS; i++) {
     const dir = r() < 0.5 ? 1 : -1;
     let col: number[], axis: number, fixed: number, lo: number, hi: number, y: number, kind: number, speed: number;
-    if (r() < 0.78) {
+    if (r() < 0.9) {
       if (r() < 0.5) {
         const z = (Math.floor(ZF / CELL) + Math.floor(r() * ((ZN - ZF) / CELL))) * CELL;
         axis = 0; fixed = z + dir * 0.9; lo = X0; hi = X1; kind = bridgeZ.includes(z) ? 1 : 0;
@@ -360,7 +382,9 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
         float hide = (aMot.w < 0.5 && riv < ${BANK.toFixed(1)} && p.z > ${(riverEnd - 8).toFixed(1)}) || (aMot.w < 1.5 && distance(p.xz, uTower.xz) < 26.0) ? 1.0 : 0.0;
         vW = p; vCol = aCol; vA = 1.0 - hide;
         vec4 mv = viewMatrix * vec4(p, 1.0);
-        gl_PointSize = vA * min(26.0, uScale * (aMot.w > 1.5 ? 1.6 : 0.9) / max(1.0, -mv.z));
+        // flying cars are lights you notice at night; by day they all but vanish
+        vA *= aMot.w > 1.5 ? 0.06 + 0.94 * uNight : 0.3 + 0.7 * uNight;
+        gl_PointSize = vA > 0.0 ? min(18.0, uScale * (aMot.w > 1.5 ? 1.0 : 0.55) / max(1.0, -mv.z)) : 0.0;
         gl_Position = projectionMatrix * mv;
       }`,
     fragmentShader: `
@@ -368,7 +392,7 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
       varying vec3 vCol; varying float vA; varying vec3 vW;
       void main() {
         float a = smoothstep(0.5, 0.0, length(gl_PointCoord - 0.5));
-        gl_FragColor = vec4(vCol * a * a * vA * (0.35 + 0.65 * uNight) * (1.0 - 0.8 * fogK(vW)), 1.0);
+        gl_FragColor = vec4(toLin(vCol) * a * a * vA * (1.0 - 0.8 * fogK(vW)), 1.0);
       }`,
   });
   const cars = new THREE.Points(carGeo, carMat);
@@ -379,7 +403,7 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
   const links: [typeof hub, typeof hub][] = [];
   const cands = tops.filter(t => { const d = Math.hypot(t.x - hub.x, t.z - hub.z); return d > 45 && d < 330; });
   // hub spokes spread around the compass, then short hops between neighbours
-  const SPOKES = mobile ? 12 : 18;
+  const SPOKES = mobile ? 8 : 12;
   for (let k = 0; k < SPOKES; k++) {
     const want = (k / SPOKES) * Math.PI * 2;
     let best: typeof hub | null = null, bestScore = Infinity;
@@ -400,48 +424,64 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
     }
     if (best) links.push([a, best]);
   }
-  const SEG = 28;
-  const np: number[] = [], nt: number[] = [], nph: number[] = [];
+  // pipes along each link: a dim tube in its own colour (mostly cyan, a few magenta) with a white-hot packet
+  // of light travelling inside; the bloom pass turns the packet into a neon glow of the pipe's colour
+  const tubes: T.BufferGeometry[] = [];
+  const junctions: T.BufferGeometry[] = [];
   for (const [a, b] of links) {
+    const ay = a.y + 0.9, by = b.y + 0.9, d = Math.hypot(b.x - a.x, b.z - a.z);
+    const curve = new THREE.QuadraticBezierCurve3(
+      new THREE.Vector3(a.x, ay, a.z),
+      new THREE.Vector3((a.x + b.x) / 2, Math.max(ay, by) + d * 0.2 + 6, (a.z + b.z) / 2),
+      new THREE.Vector3(b.x, by, b.z),
+    );
+    const len = curve.getLength();
+    const g = new THREE.TubeGeometry(curve, Math.max(16, Math.round(len / 4)), a === hub ? 0.32 : 0.24, 6, false);
+    const cnt = g.getAttribute('position').count;
+    const pink = r() < 0.15;
     const ph = r();
-    const ay = a.y + 1.5, by = b.y + 1.5, d = Math.hypot(b.x - a.x, b.z - a.z);
-    const mxp = (a.x + b.x) / 2, mz = (a.z + b.z) / 2, my = Math.max(ay, by) + d * 0.22 + 6;
-    const at = (t: number) => {
-      const u = 1 - t;
-      return [u * u * a.x + 2 * u * t * mxp + t * t * b.x, u * u * ay + 2 * u * t * my + t * t * by, u * u * a.z + 2 * u * t * mz + t * t * b.z];
-    };
-    for (let i = 0; i < SEG; i++) {
-      const t1 = i / SEG, t2 = (i + 1) / SEG;
-      np.push(...at(t1), ...at(t2)); nt.push(t1, t2); nph.push(ph, ph);
+    g.setAttribute('aInfo', new THREE.Float32BufferAttribute(new Float32Array(cnt * 3).map((_, i) => [len, ph, pink ? 1 : 0][i % 3]), 3));
+    tubes.push(g);
+    // junction box where the pipe meets each rooftop
+    for (const e of [a, b]) {
+      if (e === hub) continue;
+      const jb = new THREE.BoxGeometry(1.4, 0.9, 1.4);
+      jb.translate(e.x, e.y + 0.45, e.z);
+      junctions.push(jb);
     }
   }
-  const netGeo = new THREE.BufferGeometry();
-  netGeo.setAttribute('position', new THREE.Float32BufferAttribute(np, 3));
-  netGeo.setAttribute('aT', new THREE.Float32BufferAttribute(nt, 1));
-  netGeo.setAttribute('aPh', new THREE.Float32BufferAttribute(nph, 1));
-  const netMat = new THREE.ShaderMaterial({
-    uniforms: U, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  const pipeGeo = tubes.length ? mergeGeometries(tubes) : new THREE.BufferGeometry();
+  tubes.forEach(g => { g.dispose(); });
+  const pipeMat = new THREE.ShaderMaterial({
+    uniforms: U, transparent: true, depthWrite: false,
     vertexShader: `
-      attribute float aT; attribute float aPh; varying float vT; varying float vPh; varying vec3 vW;
-      void main() { vT = aT; vPh = aPh; vW = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+      attribute vec3 aInfo; varying vec2 vUv; varying vec3 vN; varying vec3 vW; varying vec3 vInfo;
+      void main() {
+        vUv = uv; vInfo = aInfo; vN = normalize(normal); vW = position;
+        gl_Position = projectionMatrix * viewMatrix * vec4(position, 1.0);
+      }`,
     fragmentShader: `
       ${COMMON}
-      varying float vT; varying float vPh; varying vec3 vW;
+      varying vec2 vUv; varying vec3 vN; varying vec3 vW; varying vec3 vInfo;
       void main() {
-        float head = fract(uTime * 0.22 + vPh);
-        float pulse = exp(-pow((vT - head) * 12.0, 2.0));
-        vec3 c = vec3(0.0, 0.9, 1.0) * (0.1 + 1.5 * pulse) * (0.35 + 0.65 * uNight);
-        gl_FragColor = vec4(c * (1.0 - 0.85 * fogK(vW)), 1.0);
+        vec3 tint = vInfo.z > 0.5 ? vec3(1.0, 0.2, 0.66) : vec3(0.0, 0.9, 1.0);
+        float rim = pow(1.0 - abs(dot(normalize(vN), normalize(uCam - vW))), 2.0);
+        // a packet every ~45 m, sliding along the pipe: white at its core, the pipe's colour at its edges
+        float q = fract(vUv.x * vInfo.x / 45.0 - uTime * 0.45 + vInfo.y);
+        float pkt = exp(-pow((q - 0.5) * 26.0, 2.0));
+        float halo = exp(-pow((q - 0.5) * 9.0, 2.0));
+        // the tube itself: the same colour, dim (a faint sheen at the edges), lit around the passing packet
+        vec3 tube = tint * (0.22 + 0.18 * rim + 0.5 * halo) * (0.6 + 0.4 * uNight);
+        vec3 c = mix(tube, vec3(1.0) * 1.35, smoothstep(0.35, 0.9, pkt));
+        float alpha = clamp(0.8 + pkt, 0.0, 1.0) * (1.0 - 0.85 * fogK(vW));
+        gl_FragColor = vec4(toLin(c), alpha);
       }`,
   });
-  const net = new THREE.LineSegments(netGeo, netMat);
-  // node markers on every linked rooftop
-  const nodeP: number[] = [];
-  for (const [a, b] of links) for (const e of [a, b]) if (e !== hub) nodeP.push(e.x, e.y + 1.5, e.z);
-  const nodeGeo = new THREE.BufferGeometry();
-  nodeGeo.setAttribute('position', new THREE.Float32BufferAttribute(nodeP, 3));
-  const nodeMat = new THREE.PointsMaterial({ size: 3.2, map: dotTex, color: 0x00e5ff, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
-  const nodes = new THREE.Points(nodeGeo, nodeMat);
+  const net = new THREE.Mesh(pipeGeo, pipeMat);
+  const nodeGeo = junctions.length ? mergeGeometries(junctions) : new THREE.BufferGeometry();
+  junctions.forEach(g => { g.dispose(); });
+  const nodeMat = new THREE.MeshStandardMaterial({ color: 0x0b1620, roughness: 0.5, metalness: 0.6, emissive: 0x00e5ff, emissiveIntensity: 0.35 });
+  const nodes = new THREE.Mesh(nodeGeo, nodeMat);
 
   const beacons: number[] = [];
   for (const t of tops) if (t.y > 60) beacons.push(t.x, t.y + 1, t.z);
@@ -456,8 +496,8 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
       U.uNight.value = night;
       U.uSkyRefl.value.copy(skyRaw);
       fogRaw.copy(fogLin).convertLinearToSRGB();
-      lampMat.opacity = 0.3 + 0.7 * night;
-      nodeMat.opacity = 0.45 + 0.55 * night;
+      lampMat.opacity = 0.25 + 0.75 * night;
+      nodeMat.emissiveIntensity = 0.15 + 0.35 * night;
       wU.uNight.value = night;
       (wU.uSkyRefl.value as T.Vector3).copy(skyRaw);
       (wU.uFogCol.value as T.Color).copy(fogRaw);
@@ -475,8 +515,8 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
       U.uScale.value = h / (2 * Math.tan(29 * Math.PI / 180));
     },
     dispose: () => {
-      [box, bGeo, rGeo, lampGeo, carGeo, netGeo, nodeGeo].forEach(g => { g.dispose(); });
-      [bMat, lampMat, carMat, netMat, nodeMat].forEach(m => { m.dispose(); });
+      [box, bGeo, rGeo, lampGeo, carGeo, pipeGeo, nodeGeo].forEach(g => { g.dispose(); });
+      [bMat, lampMat, carMat, pipeMat, nodeMat].forEach(m => { m.dispose(); });
       dotTex.dispose();
       water.dispose();
     },

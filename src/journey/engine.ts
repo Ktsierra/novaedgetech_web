@@ -363,8 +363,10 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
   const surfaceStage = stg('surface'), deskStage = stg('desk');
   const sunCv = q('[data-sun3d]') as HTMLCanvasElement | null;
   const surfCv = q('[data-surface3d]') as HTMLCanvasElement | null;
-  // 3D scenes load ONE AFTER ANOTHER behind the loader (each compiles its shaders and renders a hidden
-  // warm-up frame), in journey order, so none of that work lands mid-scroll. Failures fall back silently.
+  // 3D scenes load behind the loader (each compiles its shaders and renders a hidden warm-up frame), so none
+  // of that work lands mid-scroll. The sun goes first (it's on screen soonest); then the Earth and the city
+  // build side by side, so the city's CPU / shader work overlaps the Earth's texture downloads instead of
+  // waiting for them. Failures fall back silently.
   const ASSETS = 3;
   let assetsDone = 0;
   const step = async <T>(make: (() => Promise<T>) | null, adopt: (v: T) => void, dispose: (v: T) => void) => {
@@ -375,17 +377,20 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
   };
   void (async () => {
     await step(sunCv ? () => createSun(sunCv) : null, v => { sun3d = v; v.setSize(W, H); }, v => { v.dispose(); });
-    await step(earthCv ? () => createEarth(earthCv) : null, e => {
-      earth = e;
-      if (geo) e.setTarget(geo.lat, geo.lon);
-      syncEarthSize();
-    }, e => { e.dispose(); });
-    await step(surfCv ? () => createSurface(surfCv) : null, v => {
-      surface = v; v.setSize(W, H);
-      // until (or without) IP geolocation, estimate the visitor's longitude from their clock's UTC offset
-      const g = geo ?? { lat: 30, lon: -new Date().getTimezoneOffset() / 4 };
-      v.setLocation(g.lat, g.lon);
-    }, v => { v.dispose(); });
+    await Promise.all([
+      step(earthCv ? () => createEarth(earthCv) : null, e => {
+        earth = e;
+        if (geo) e.setTarget(geo.lat, geo.lon);
+        syncEarthSize();
+      }, e => { e.dispose(); }),
+      // warmed up at the real viewport size, so its render targets are allocated before it's ever on screen
+      step(surfCv ? () => createSurface(surfCv, W, H) : null, v => {
+        surface = v; v.setSize(W, H);
+        // until (or without) IP geolocation, estimate the visitor's longitude from their clock's UTC offset
+        const g = geo ?? { lat: 30, lon: -new Date().getTimezoneOffset() / 4 };
+        v.setLocation(g.lat, g.lon);
+      }, v => { v.dispose(); }),
+    ]);
   })();
 
   // visitor's approximate location (Vercel IP geolocation via /api/geo): the globe turns to it before the dive

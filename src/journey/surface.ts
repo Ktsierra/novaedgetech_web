@@ -69,12 +69,18 @@ const hasWebGL = (canvas: HTMLCanvasElement) => {
  * at their true altitude and bearing, blending night -> twilight -> a hazy, high-altitude day by the sun's height.
  * three is loaded lazily.
  */
-export async function createSurface(canvas: HTMLCanvasElement): Promise<SurfaceView> {
+export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warmH = 200): Promise<SurfaceView> {
   if (!hasWebGL(canvas)) throw new Error('WebGL2 unavailable');
   const THREE = await import('three');
 
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false }); // MSAA lives in the composer
   renderer.outputColorSpace = THREE.SRGBColorSpace;
+  const [{ EffectComposer }, { RenderPass }, { UnrealBloomPass }, { OutputPass }] = await Promise.all([
+    import('three/examples/jsm/postprocessing/EffectComposer.js'),
+    import('three/examples/jsm/postprocessing/RenderPass.js'),
+    import('three/examples/jsm/postprocessing/UnrealBloomPass.js'),
+    import('three/examples/jsm/postprocessing/OutputPass.js'),
+  ]);
 
   const fog = new THREE.Fog(0x0b3a52, 60, 470);
   const scene = new THREE.Scene();
@@ -104,7 +110,7 @@ export async function createSurface(canvas: HTMLCanvasElement): Promise<SurfaceV
         c = mix(c, uZenith, smoothstep(0.15, 0.6, h));
         float s = max(dot(d, uSun), 0.0);
         // warm horizon glow toward the sun (twilight), halo + disc whenever it's up
-        c += vec3(1.0, 0.55, 0.32) * pow(s, 6.0) * 0.35 * uGlow * (1.0 - smoothstep(0.0, 0.4, h));
+        c += vec3(1.0, 0.5, 0.3) * pow(s, 3.0) * 0.4 * uGlow * (1.0 - smoothstep(0.0, 0.45, h));
         float up = smoothstep(-0.03, 0.01, uSun.y);
         c += vec3(1.0, 0.8, 0.6) * pow(s, 90.0) * 0.8 * up;
         c += vec3(1.0, 0.95, 0.85) * smoothstep(0.9993, 0.9997, s) * up;
@@ -113,7 +119,7 @@ export async function createSurface(canvas: HTMLCanvasElement): Promise<SurfaceV
         // daytime: a white-hot disc with a wide glare
         c += vec3(1.0, 0.96, 0.88) * (pow(s, 24.0) * 0.45 + pow(s, 400.0) * 0.9) * uDay * up;
         c = mix(c, uHorizon * 0.55, smoothstep(0.0, -0.08, h));
-        gl_FragColor = vec4(c, 1.0);
+        gl_FragColor = vec4(pow(max(c, 0.0), vec3(2.2)), 1.0); // tuned as display values; the passes work in linear
       }`,
   });
   const sky = new THREE.Mesh(new THREE.SphereGeometry(1000, 48, 24), skyMat);
@@ -174,7 +180,7 @@ export async function createSurface(canvas: HTMLCanvasElement): Promise<SurfaceV
         float fade = 1.0 - smoothstep(30.0, 240.0, dist);
         float floorMask = 1.0 - smoothstep(4.0, 26.0, vW.y);
         float pulse = 0.75 + 0.25 * sin(vW.z * 0.08 + uTime * 1.6);
-        gl_FragColor = vec4(vec3(0.0, 0.9, 1.0) * line * fade * (0.05 + 0.3 * floorMask) * pulse, 1.0);
+        gl_FragColor = vec4(pow(vec3(0.0, 0.9, 1.0) * line * fade * (0.05 + 0.3 * floorMask) * pulse, vec3(2.2)), 1.0);
       }`,
   });
   const grid = new THREE.Mesh(terrGeo, gridMat);
@@ -216,7 +222,7 @@ export async function createSurface(canvas: HTMLCanvasElement): Promise<SurfaceV
     fragmentShader: `uniform sampler2D map; uniform vec3 uSun; uniform float uFade; varying vec3 vN; varying vec2 vUv;
       void main(){
         float lit = smoothstep(-0.06, 0.14, dot(normalize(vN), uSun));
-        vec3 col = texture2D(map, vUv).rgb * (0.025 + 1.15 * lit);
+        vec3 col = texture2D(map, vUv).rgb * (0.02 + 0.72 * lit); // kept under the bloom threshold: a halo, not a flare
         gl_FragColor = vec4(col, uFade * (0.35 + 0.65 * lit));
         #include <colorspace_fragment>
       }`,
@@ -255,7 +261,7 @@ export async function createSurface(canvas: HTMLCanvasElement): Promise<SurfaceV
   const frontTex = new THREE.CanvasTexture(winCv(true));
   const sideTex = new THREE.CanvasTexture(winCv(false));
   [frontTex, sideTex].forEach(tx => { tx.colorSpace = THREE.SRGBColorSpace; tx.anisotropy = renderer.capabilities.getMaxAnisotropy(); });
-  const towerMat = (tex: InstanceType<typeof THREE.Texture> | null) => new THREE.MeshStandardMaterial({ color: 0x05080f, roughness: 0.35, metalness: 0.6, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: tex ? 1 : 0 });
+  const towerMat = (tex: InstanceType<typeof THREE.Texture> | null) => new THREE.MeshStandardMaterial({ color: 0x05080f, roughness: 0.7, metalness: 0.25, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: tex ? 1 : 0 });
   const towerMats = [towerMat(sideTex), towerMat(sideTex), towerMat(null), towerMat(null), towerMat(frontTex), towerMat(sideTex)];
   const towerGeo = new THREE.BoxGeometry(TW, TH, TD);
   const tower = new THREE.Mesh(towerGeo, towerMats);
@@ -276,8 +282,16 @@ export async function createSurface(canvas: HTMLCanvasElement): Promise<SurfaceV
   bp.push(TX, TY + TH + 12.5, TZ);
 
   // ---------- the city ----------
-  const city = await buildCity(THREE, { pathX, pathGlsl: PATH_GLSL, riverEnd: RIVER_END, tower: { x: TX, z: TZ, top: TY + TH + 12 }, mobile, fog });
+  const city = await buildCity(THREE, { pathX, pathGlsl: PATH_GLSL, riverEnd: RIVER_END, tower: { x: TX, z: TZ, top: TY + TH + 0.4 }, mobile, fog });
   city.objects.forEach(ob => { scene.add(ob); });
+
+  // post: multisampled render (smooth edges) -> bloom (neon actually glows) -> sRGB output
+  const rt = new THREE.WebGLRenderTarget(2, 2, { type: THREE.HalfFloatType, samples: mobile ? 2 : 4 });
+  const composer = new EffectComposer(renderer, rt);
+  composer.addPass(new RenderPass(scene, cam));
+  const bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.75, 0.5, 0.78);
+  composer.addPass(bloom);
+  composer.addPass(new OutputPass());
   bp.push(...city.beacons);
   beaconGeo.setAttribute('position', new THREE.Float32BufferAttribute(bp, 3));
   // centre of the target window on the front (+z) face
@@ -295,16 +309,16 @@ export async function createSurface(canvas: HTMLCanvasElement): Promise<SurfaceV
   scene.add(sunLight, hemi);
 
   // ---------- the visitor's sky ----------
-  // palettes: night (moonlit), twilight (the original dusk look), day (hazy, high-altitude: darker than a
+  // palettes: night (moonlit), twilight (blue hour: deep blue overhead, a magenta / amber band at the horizon), day (hazy, high-altitude: darker than a
   // real noon sky so it stays in the site's palette). Sky colours are raw shader values, the rest three Colors.
   const V = (r: number, g: number, b: number) => new THREE.Vector3(r, g, b);
   const PAL = {
-    hor: [V(0.001, 0.012, 0.026), V(0.0033, 0.042, 0.085), V(0.45, 0.6, 0.72)],
-    mid: [V(0.008, 0.035, 0.07), V(0.02, 0.08, 0.15), V(0.2, 0.38, 0.58)],
-    zen: [V(0.005, 0.009, 0.026), V(0.012, 0.02, 0.05), V(0.07, 0.17, 0.38)],
+    hor: [V(0.001, 0.012, 0.026), V(0.3, 0.16, 0.26), V(0.45, 0.6, 0.72)],
+    mid: [V(0.008, 0.035, 0.07), V(0.08, 0.12, 0.3), V(0.2, 0.38, 0.58)],
+    zen: [V(0.005, 0.009, 0.026), V(0.025, 0.04, 0.13), V(0.07, 0.17, 0.38)],
   };
   const C = (hex: number) => new THREE.Color(hex);
-  const FOG = [C(0x07202e), C(0x0b3a52), C(0x7399b8)];
+  const FOG = [C(0x07202e), C(0x2b3356), C(0x7399b8)];
   const KEY = [C(0x8fa8e0), C(0xffb27a), C(0xfff0dc)];
   const HEMI_SKY = [C(0x2c4f80), C(0x3d6fa8), C(0x9cc0e0)], HEMI_GND = [C(0x02050b), C(0x04080f), C(0x1a2128)];
   const mix3 = <T extends { copy: (v: T) => T; lerp: (v: T, k: number) => T }>(out: T, p: T[], twi: number, day: number) =>
@@ -352,6 +366,7 @@ export async function createSurface(canvas: HTMLCanvasElement): Promise<SurfaceV
     mix3(hemi.color, HEMI_SKY, twi, day); mix3(hemi.groundColor, HEMI_GND, twi, day);
     hemi.intensity = lerp(lerp(0.42, 0.55, twi), 1.25, day);
     skyMat.uniforms.uDay.value = day;
+    bloom.strength = lerp(0.75, 0.3, day);
     skyMat.uniforms.uCity.value = 1 - day;
     keyCol.copy(sunLight.color).multiplyScalar(sunLight.intensity);
     hemiSky.copy(hemi.color).multiplyScalar(hemi.intensity); hemiGnd.copy(hemi.groundColor).multiplyScalar(hemi.intensity);
@@ -363,8 +378,11 @@ export async function createSurface(canvas: HTMLCanvasElement): Promise<SurfaceV
   let t0 = -1;
   const view: SurfaceView = {
     setSize: (w: number, h: number) => {
-      renderer.setPixelRatio(Math.min(devicePixelRatio || 1, w < 760 ? 1.25 : 1.5));
+      const dpr = Math.min(devicePixelRatio || 1, w < 760 ? 1.5 : 1.5);
+      renderer.setPixelRatio(dpr);
       renderer.setSize(w, h, false);
+      composer.setPixelRatio(dpr);
+      composer.setSize(w, h);
       cam.aspect = aspect = w / Math.max(1, h);
       cam.updateProjectionMatrix();
       skyAt = -1e9; // re-frame the sun / moon for the new field of view
@@ -411,20 +429,21 @@ export async function createSurface(canvas: HTMLCanvasElement): Promise<SurfaceV
       gridMat.uniforms.uTime.value = t;
       city.update(t, cam.position);
       beaconMat.opacity = 0.35 + 0.65 * (Math.sin(t * 3.2) > 0.2 ? 1 : 0);
-      renderer.render(scene, cam);
+      composer.render();
     },
     dispose: () => {
       [terrGeo, starGeo, beaconGeo, sky.geometry, moon.geometry, towerGeo, neonGeo].forEach(g => { g.dispose(); });
       [terrMat, gridMat, skyMat, starMat, beaconMat, moonMat, neonMat, ...towerMats].forEach(m => { m.dispose(); });
       city.dispose();
       [dotTex, moonTex, frontTex, sideTex].forEach(tx => { tx.dispose(); });
+      composer.dispose(); rt.dispose();
       renderer.dispose();
       renderer.forceContextLoss();
     },
   };
   // warm-up while the loader is up (see earth.ts): mid-descent pose so terrain, grid, lights and tower are in view
   await compileScene(renderer, scene, cam);
-  view.setSize(320, 200);
+  view.setSize(warmW, warmH);
   view.render(performance.now(), 0.8, 0.5, 0, 0);
   t0 = -1;
   return view;

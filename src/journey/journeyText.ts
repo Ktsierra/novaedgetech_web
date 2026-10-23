@@ -95,7 +95,8 @@ export const GO = {
   top: 0,
   /** "take the journey" plays the whole trip, galaxy to desk */
   journey: 0.97,
-  services: 0.52,
+  /** just past the last service reveal (04 at 0.555), so the anchor lands with all four on screen */
+  services: 0.565,
   work: 0.76,
   contact: 0.97,
 };
