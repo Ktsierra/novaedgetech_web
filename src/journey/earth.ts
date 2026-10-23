@@ -3,6 +3,8 @@ import normalUrl from '../assets/earth/earth_normal_2048.jpg';
 import specUrl from '../assets/earth/earth_specular_2048.jpg';
 import cloudsUrl from '../assets/earth/earth_clouds_1024.png';
 import moonUrl from '../assets/earth/moon_1024.jpg';
+import lightsUrl from '../assets/earth/earth_lights_2048.jpg';
+import { subPoints } from './astro';
 
 const D = Math.PI / 180;
 
@@ -31,7 +33,8 @@ const TILT = 23.44 * D;
 const FACE_LON = -80; // the Americas face the camera
 const TAU = Math.PI * 2;
 const POLAR = 6.3567523142 / 6.378137; // WGS84 flattening
-// sun sits upper-left of the planet, matching the sun drawn on the galaxy canvas
+// while the globe spins freely the sun sits upper-left, matching the sun drawn on the galaxy canvas;
+// as it locks onto the visitor the light swings to where the real sun is right now
 const SUN_DIR: [number, number, number] = [-0.72, 0.5, 0.48];
 
 const hasWebGL = (canvas: HTMLCanvasElement) => {
@@ -62,7 +65,7 @@ export async function createEarth(canvas: HTMLCanvasElement): Promise<EarthView>
     t.anisotropy = maxAniso;
     return t;
   };
-  const [day, normal, spec, clouds, moonTex] = await Promise.all([load(dayUrl, true), load(normalUrl), load(specUrl), load(cloudsUrl, true), load(moonUrl, true)]);
+  const [day, normal, spec, clouds, moonTex, lights] = await Promise.all([load(dayUrl, true), load(normalUrl), load(specUrl), load(cloudsUrl, true), load(moonUrl, true), load(lightsUrl, true)]);
 
   // specular map (white = water) -> roughness map: glossy oceans, matte land
   const toRoughness = (tex: InstanceType<typeof THREE.Texture>) => {
@@ -97,7 +100,18 @@ export async function createEarth(canvas: HTMLCanvasElement): Promise<EarthView>
   const faceY = -(FACE_LON + 90) * D;
   const surfGeo = new THREE.SphereGeometry(1, 128, 96);
   surfGeo.scale(1, POLAR, 1);
-  const surfMat = new THREE.MeshStandardMaterial({ map: day, normalMap: normal, normalScale: new THREE.Vector2(0.7, 0.7), roughnessMap: rough, roughness: 1, metalness: 0 });
+  const surfMat = new THREE.MeshStandardMaterial({
+    map: day, normalMap: normal, normalScale: new THREE.Vector2(0.7, 0.7), roughnessMap: rough, roughness: 1, metalness: 0,
+    emissiveMap: lights, emissive: new THREE.Color(0xffc27a), emissiveIntensity: 1.5,
+  });
+  // city lights (NASA Black Marble) only on the night side, fading in across the terminator
+  // (the camera is axis-aligned, so world and view directions coincide)
+  const sunDir = new THREE.Vector3(...SUN_DIR).normalize();
+  surfMat.onBeforeCompile = sh => {
+    sh.uniforms.uSunView = { value: sunDir };
+    sh.fragmentShader = 'uniform vec3 uSunView;\n' + sh.fragmentShader.replace('#include <emissivemap_fragment>',
+      '#include <emissivemap_fragment>\n  totalEmissiveRadiance *= smoothstep(0.1, -0.2, dot(normalize(vNormal), uSunView));');
+  };
   const surface = new THREE.Mesh(surfGeo, surfMat);
   surface.rotation.y = faceY;
   earth.add(surface);
@@ -110,17 +124,17 @@ export async function createEarth(canvas: HTMLCanvasElement): Promise<EarthView>
   earth.add(cloudMesh);
 
   // atmosphere: thin fresnel rim on the globe + a soft halo just outside it, both brighter on the day side
-  const sunView = new THREE.Vector3(...SUN_DIR).normalize();
   // `shape` maps facing (|n.z|: 0 at the silhouette, 1 dead-centre) to intensity
   const rimShader = (shape: string, strength: number, side: InstanceType<typeof THREE.Material>['side']) => new THREE.ShaderMaterial({
-    uniforms: { uSun: { value: sunView }, uColor: { value: new THREE.Color(0x58b8ff) } },
+    uniforms: { uSun: { value: sunDir }, uColor: { value: new THREE.Color(0x58b8ff) } },
     vertexShader: 'varying vec3 vN; void main(){ vN = normalize(normalMatrix * normal); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
     fragmentShader: `uniform vec3 uSun; uniform vec3 uColor; varying vec3 vN;
       void main(){
         vec3 n = normalize(vN);
         float facing = abs(n.z);
         float k = ${shape};
-        float lit = smoothstep(-0.45, 0.75, dot(normalize(n.xy + 1e-5), normalize(uSun.xy)));
+        // day side brighter; a sun behind the globe still backlights the whole limb
+        float lit = max(smoothstep(-0.45, 0.75, dot(n, uSun)), 0.55 * max(0.0, -uSun.z));
         gl_FragColor = vec4(uColor * k * lit * ${strength.toFixed(2)}, 1.0);
       }`,
     side,
@@ -168,6 +182,15 @@ export async function createEarth(canvas: HTMLCanvasElement): Promise<EarthView>
   surface.add(dot);
 
   let target: { lat: number; lon: number } | null = null;
+  // geographic point -> direction in the textured surface's own frame (inverse of its y-rotation per longitude)
+  const geoDir = (lat: number, lon: number, out: InstanceType<typeof THREE.Vector3>) => {
+    const a = (lon + 90) * D, p = lat * D;
+    return out.set(Math.cos(p) * Math.sin(a), Math.sin(p), Math.cos(p) * Math.cos(a));
+  };
+  const freeSun = sunDir.clone();
+  const realSun = new THREE.Vector3(), realMoon = new THREE.Vector3(), swing = new THREE.Quaternion();
+  const swingF = new THREE.Quaternion();
+  let astroAt = -1e9, sub = subPoints(Date.now());
   const wrapPi = (a: number) => a - TAU * Math.round(a / TAU);
   const smooth = (a: number, b: number, x: number) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
@@ -180,9 +203,7 @@ export async function createEarth(canvas: HTMLCanvasElement): Promise<EarthView>
     },
     setTarget: (lat: number, lon: number) => {
       target = { lat, lon };
-      const a = (lon + 90) * D, p = lat * D, rr = 1.014;
-      // inverse of the surface's y-rotation for this longitude, so the dot lands on the location
-      dot.position.set(rr * Math.cos(p) * Math.sin(a), rr * POLAR * Math.sin(p), rr * Math.cos(p) * Math.cos(a));
+      geoDir(lat, lon, dot.position).multiply(new THREE.Vector3(1.014, 1.014 * POLAR, 1.014));
     },
     render: (now: number, focus = 0, scroll = 0) => {
       if (t0 < 0) t0 = now;
@@ -201,14 +222,27 @@ export async function createEarth(canvas: HTMLCanvasElement): Promise<EarthView>
         dot.visible = dotMat.opacity > 0.01;
         dot.scale.setScalar(0.05 * (1 + 0.25 * Math.sin(t * 4)));
       }
-      const ma = t * 0.11 + scroll * 14 + 2.1;
+      // real sun / moon for this instant (refreshed every few seconds; they move ~0.25°/min)
+      if (now - astroAt > 5000) { astroAt = now; sub = subPoints(Date.now()); }
+      earth.updateMatrixWorld();
+      geoDir(sub.sun.lat, sub.sun.lon, realSun).transformDirection(surface.matrixWorld);
+      geoDir(sub.moon.lat, sub.moon.lon, realMoon).transformDirection(surface.matrixWorld);
+      // the light swings from the free-spin position to the true one as the globe locks on: by the dive,
+      // the visitor's side is genuinely in daylight or night (with city lights)
+      swing.setFromUnitVectors(freeSun, realSun);
+      sunDir.copy(freeSun).applyQuaternion(swingF.identity().slerp(swing, f));
+      sun.position.copy(sunDir);
+      // moon keeps to its ring, but glides to the true moon's bearing (so its phase matches tonight's)
+      const maTrue = Math.atan2(realMoon.y * -Math.sin(MOON_INCL) + realMoon.z * Math.cos(MOON_INCL), realMoon.x);
+      const maFree = t * 0.11 + scroll * 14 + 2.1;
+      const ma = maFree + wrapPi(maTrue - maFree) * f;
       const mz = Math.sin(ma) * MOON_ORBIT;
       moon.position.set(Math.cos(ma) * MOON_ORBIT, -mz * Math.sin(MOON_INCL), mz * Math.cos(MOON_INCL));
       moon.rotation.y = -ma + Math.PI; // tidally locked
       renderer.render(scene, cam);
     },
     dispose: () => {
-      [day, normal, spec, clouds, moonTex, rough, dotTex].forEach(tx => tx?.dispose());
+      [day, normal, spec, clouds, moonTex, lights, rough, dotTex].forEach(tx => tx?.dispose());
       [surfGeo, cloudGeo, rim.geometry, halo.geometry, moonGeo].forEach(g => { g.dispose(); });
       [surfMat, cloudMat, rimMat, haloMat, moonMat, dotMat].forEach(m => { m.dispose(); });
       renderer.dispose();
