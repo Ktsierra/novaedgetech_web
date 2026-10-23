@@ -559,6 +559,28 @@ body {
 .j-main { position: relative; z-index: 1; }
 .j-track { height: 1100vh; }
 
+/* ---------- short desktop / laptop windows: fit the work between the nav and the HUD ---------- */
+@media (min-width: 760px) and (max-height: 880px) {
+  .j-surface-content { padding-top: 84px; padding-bottom: 64px; }
+  .j-surface-title { margin-top: 10px; }
+  .j-coords { margin-top: 10px; }
+  .j-work-grid { margin-top: 24px; }
+  .j-work-item { margin-top: 0; } /* no staggered billboards */
+  .j-wcard-shot { height: clamp(92px, calc(100vh - 620px), 150px); }
+  .j-slot { margin-top: 34px; padding-top: 10px; padding-bottom: 10px; }
+}
+@media (min-width: 760px) and (max-height: 820px) {
+  .j-wcard-blurb { -webkit-line-clamp: 2; }
+}
+@media (min-width: 760px) and (max-height: 760px) {
+  .j-wcard-tags { display: none; }
+  .j-wcard-body { padding-top: 10px; }
+}
+@media (min-width: 760px) and (max-height: 660px) {
+  .j-coords { display: none; }
+  .j-wcard-shot { height: 64px; }
+}
+
 /* ---------- small screens: stacked layouts (engine mirrors the planet anchor at MOBILE_BREAKPOINT) ---------- */
 @media (max-width: 759px) {
   :root { --j-gutter: 18px; --j-pad: 22px; }

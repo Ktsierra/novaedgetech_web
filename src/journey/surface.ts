@@ -305,7 +305,7 @@ export async function createSurface(canvas: HTMLCanvasElement): Promise<SurfaceV
   const HEMI_SKY = [C(0x2c4f80), C(0x3d6fa8), C(0x9cc0e0)], HEMI_GND = [C(0x02050b), C(0x04080f), C(0x1a2128)];
   const mix3 = <T extends { copy: (v: T) => T; lerp: (v: T, k: number) => T }>(out: T, p: T[], twi: number, day: number) =>
     out.copy(p[0]).lerp(p[1], twi).lerp(p[2], day);
-  let loc: { lat: number; lon: number } | null = null, skyAt = -1e9, day = 0, twi = 1, starK = 1, aspect = 1;
+  let loc: { lat: number; lon: number } | null = null, heading: number | null = null, skyAt = -1e9, day = 0, twi = 1, starK = 1, aspect = 1;
   const keyDir = new THREE.Vector3(), nightDir = new THREE.Vector3();
   /** scene direction for an altitude / bearing (degrees) relative to the way the valley runs */
   const toScene = (alt: number, rel: number, out: InstanceType<typeof THREE.Vector3>) => {
@@ -320,7 +320,8 @@ export async function createSurface(canvas: HTMLCanvasElement): Promise<SurfaceV
     // keeping it inside the view: off-centre to the right for the sun, left for the moon (narrower on phones)
     const hfov = 2 * Math.atan(Math.tan(29 * Math.PI / 180) * aspect) * 180 / Math.PI;
     const off = Math.min(20, hfov * 0.3);
-    const heading = sun.alt > -6 || mo.alt < 0 ? sun.az - off : mo.az + off;
+    // chosen once per visit (or resize): the sky keeps moving live, but the view never swings mid-scene
+    heading ??= sun.alt > -6 || mo.alt < 0 ? sun.az - off : mo.az + off;
     const shown = (alt: number) => alt <= 12 ? alt : 12 + (alt - 12) * 0.1;
     toScene(sun.alt, sun.az - heading, SUN);
     toScene(shown(sun.alt), sun.az - heading, SUN_SKY);
@@ -354,9 +355,9 @@ export async function createSurface(canvas: HTMLCanvasElement): Promise<SurfaceV
       renderer.setSize(w, h, false);
       cam.aspect = aspect = w / Math.max(1, h);
       cam.updateProjectionMatrix();
-      skyAt = -1e9; // re-frame the sun / moon for the new field of view
+      skyAt = -1e9; heading = null; // re-frame the sun / moon for the new field of view
     },
-    setLocation: (lat: number, lon: number) => { loc = { lat, lon }; skyAt = -1e9; },
+    setLocation: (lat: number, lon: number) => { loc = { lat, lon }; skyAt = -1e9; heading = null; },
     daylight: () => day,
     render: (now: number, descent: number, travel: number, mx: number, my: number, aim = 0, dolly = 0) => {
       if (t0 < 0) t0 = now;
