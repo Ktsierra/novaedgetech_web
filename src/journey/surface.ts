@@ -286,10 +286,10 @@ export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warm
   city.objects.forEach(ob => { scene.add(ob); });
 
   // post: multisampled render (smooth edges) -> bloom (neon actually glows) -> sRGB output
-  const rt = new THREE.WebGLRenderTarget(2, 2, { type: THREE.HalfFloatType, samples: mobile ? 2 : 4 });
+  const rt = new THREE.WebGLRenderTarget(2, 2, { type: THREE.HalfFloatType, samples: mobile ? 0 : 2 });
   const composer = new EffectComposer(renderer, rt);
   composer.addPass(new RenderPass(scene, cam));
-  const bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.75, 0.5, 0.78);
+  const bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.75, 0.5, 0.82);
   composer.addPass(bloom);
   composer.addPass(new OutputPass());
   bp.push(...city.beacons);
@@ -376,23 +376,43 @@ export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warm
 
   const look = new THREE.Vector3(), cruisePos = new THREE.Vector3(), cruiseDir = new THREE.Vector3(), winDir = new THREE.Vector3();
   let t0 = -1;
+  // ---------- adaptive resolution ----------
+  // the city is GPU-heavy: if frames run long, render fewer pixels (down to ~half) rather than pinning the GPU;
+  // creep back up while there's headroom. Changes are rate-limited so it never oscillates visibly.
+  let vw = warmW, vh = warmH, quality = mobile ? 0.85 : 1, ema = 16.7, lastFrame = -1, lastAdjust = 0, longRun = 0;
+  const applySize = () => {
+    const dpr = Math.max(0.5, Math.min(devicePixelRatio || 1, mobile ? 1.5 : 1.25) * quality);
+    renderer.setPixelRatio(dpr);
+    renderer.setSize(vw, vh, false);
+    composer.setPixelRatio(dpr);
+    composer.setSize(vw, vh);
+    bloom.setSize(Math.round(vw * dpr * 0.5), Math.round(vh * dpr * 0.5)); // bloom at quarter the pixels
+    city.setSize(vw * dpr, vh * dpr);
+  };
+  const adapt = (now: number) => {
+    const dt = lastFrame < 0 ? 16.7 : now - lastFrame;
+    lastFrame = now;
+    // one long gap is the scene coming back on screen (or a hidden tab); a run of them is a struggling GPU
+    if (dt > 250 && ++longRun < 3) return;
+    if (dt <= 250) longRun = 0;
+    ema += (Math.min(dt, 400) - ema) * 0.08;
+    if (now - lastAdjust < 1500) return;
+    if (ema > 26 && quality > 0.5) { quality = Math.max(0.5, quality * (ema > 60 ? 0.7 : 0.82)); lastAdjust = now; applySize(); }
+    else if (ema < 18.5 && quality < 1) { quality = Math.min(1, quality * 1.1); lastAdjust = now + 1500; applySize(); }
+  };
   const view: SurfaceView = {
     setSize: (w: number, h: number) => {
-      const dpr = Math.min(devicePixelRatio || 1, w < 760 ? 1.5 : 1.5);
-      renderer.setPixelRatio(dpr);
-      renderer.setSize(w, h, false);
-      composer.setPixelRatio(dpr);
-      composer.setSize(w, h);
+      vw = w; vh = h;
+      applySize();
       cam.aspect = aspect = w / Math.max(1, h);
       cam.updateProjectionMatrix();
       skyAt = -1e9; // re-frame the sun / moon for the new field of view
-      const pr = renderer.getPixelRatio();
-      city.setSize(w * pr, h * pr);
     },
     setLocation: (lat: number, lon: number) => { loc = { lat, lon }; skyAt = -1e9; },
     daylight: () => day,
     render: (now: number, descent: number, travel: number, mx: number, my: number, aim = 0, dolly = 0) => {
       if (t0 < 0) t0 = now;
+      adapt(now);
       const t = (now - t0) / 1000;
       const d = smooth(descent);
       // drop from high above the clouds to cruising height, pitching from straight down to the horizon
@@ -428,7 +448,7 @@ export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warm
       gridCam.copy(cam.position);
       gridMat.uniforms.uTime.value = t;
       city.update(t, cam.position);
-      beaconMat.opacity = 0.35 + 0.65 * (Math.sin(t * 3.2) > 0.2 ? 1 : 0);
+      beaconMat.opacity = 0.3 + 0.7 * Math.pow(0.5 + 0.5 * Math.sin(t * 3.2), 3); // a soft pulse (hard blinks flash under bloom)
       composer.render();
     },
     dispose: () => {

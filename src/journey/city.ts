@@ -123,6 +123,13 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
     bridgeZ.push(z);
     add(pathX(z), 1.4, z, 2 * BANK + 8, 0.8, 3.4, -0.5);
   }
+  // draw nearest-first (the camera looks down the river toward -z), so the depth test skips hidden facades
+  // instead of shading them: the city overlaps itself a lot
+  const order = bSeed.map((_, i) => i).sort((i, j) => bPos[j * 3 + 2] - bPos[i * 3 + 2]);
+  const pick = (a: number[], k: number) => order.flatMap(i => a.slice(i * k, i * k + k));
+  bPos.splice(0, bPos.length, ...pick(bPos, 3));
+  bSize.splice(0, bSize.length, ...pick(bSize, 3));
+  bSeed.splice(0, bSeed.length, ...pick(bSeed, 1));
   const nB = bSeed.length;
   const box = new THREE.BoxGeometry(1, 1, 1);
   const bGeo = new THREE.InstancedBufferGeometry();
@@ -192,7 +199,7 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
           // brightness varies; some rooms have the blinds half down; a soft falloff toward the ceiling
           float blind = r3 < 0.3 ? smoothstep(0.32 + 0.45 * r3 / 0.3 + aa.y, 0.32 + 0.45 * r3 / 0.3 - aa.y, f.y) : 1.0;
           vec3 room = wc * (0.45 + 0.6 * hash1(id * 5.7 + s)) * mix(1.0, 0.72, smoothstep(0.3, 0.86, f.y)) * blind;
-          if (r2 > 0.985) lit *= step(0.4, fract(uTime * 2.3 + rnd * 9.0)); // a few flicker
+          if (r2 > 0.985) lit *= 0.65 + 0.35 * sin(uTime * 1.3 + rnd * 20.0); // a few breathe (hard flicker flashes under bloom)
           // unlit glass: the city's glow at night; by day panes mirror the sky, each catching it differently
           vec3 glass = mix(vec3(0.014, 0.028, 0.042) * (0.7 + 0.6 * r3), uSkyRefl * (0.35 + 0.55 * r3), 1.0 - uNight);
           vec3 near = mix(col, mix(glass, room, lit * lightK), win);
@@ -213,7 +220,7 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
             float sw = min(1.7, fw * 0.22), sh = min(16.0, h * 0.45), y0 = h * 0.3;
             float inSign = step(abs(u), sw) * step(y0, v) * step(v, y0 + sh);
             float stripes = 0.45 + 0.4 * smoothstep(0.35, 0.5, abs(fract(v * 0.6 - uTime * (0.5 + fract(s * 3.0))) - 0.5) * 2.0);
-            float flick = step(0.06, fract(sin(floor(uTime * 8.0) + s * 99.0) * 43758.5));
+            float flick = 0.85 + 0.15 * sin(uTime * 2.0 + s * 30.0);
             float bw = max(0.16, px * 1.5);
             float frame = max(step(sw - bw, abs(u)), max(step(v, y0 + bw), step(y0 + sh - bw, v)));
             em += neon(fract(s * 9.7)) * inSign * mix(stripes, 1.3, frame) * flick * 0.85 * glow;
@@ -288,6 +295,10 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
         }`,
     },
   });
+  // the reflection re-renders the whole city: refresh it every other frame (invisible under the ripples)
+  const reflect = water.onBeforeRender.bind(water);
+  let reflFrame = 0;
+  water.onBeforeRender = (...args) => { if ((reflFrame++ & 1) === 0) reflect(...args); };
   water.rotation.x = -Math.PI / 2;
   water.position.y = WATER_Y;
   const wU = (water.material as T.ShaderMaterial).uniforms as Record<string, { value: unknown }>;
@@ -509,8 +520,8 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
       (wU.uCam.value as T.Vector3).copy(cam);
     },
     setSize: (w, h) => {
-      // half-res reflections (a third on phones): plenty under the ripples, and keeps the second pass cheap
-      const k = mobile ? 0.33 : 0.5;
+      // low-res reflections: plenty under the ripples, and keeps the second pass cheap
+      const k = mobile ? 0.25 : 0.33;
       water.getRenderTarget().setSize(Math.max(64, Math.round(w * k)), Math.max(64, Math.round(h * k)));
       U.uScale.value = h / (2 * Math.tan(29 * Math.PI / 180));
     },
