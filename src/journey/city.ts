@@ -10,6 +10,8 @@ type Three = typeof import('three');
  */
 export interface CityOpts {
   pathX: (z: number) => number;
+  /** terrain height (the city floor is flat; hills / mountains rise past FLAT from the river) */
+  heightAt: (x: number, z: number) => number;
   /** the same centreline as pathX, in GLSL (`float pathX(float z)`) */
   pathGlsl: string;
   /** z where the river ends in the tower basin */
@@ -40,7 +42,8 @@ export interface City {
 }
 
 const CELL = 15, STREET = 4, BANK = 15, RIVER_W = 10.5, WATER_Y = -0.35;
-const CITY = 175, ZN = 275, ZF = -390, X0 = -195, X1 = 195;
+/** dense riverside city out to FLAT (m from the river); sparse hillside buildings out to HILLS */
+const FLAT = 75, HILLS = 260, ZN = 275, ZF = -250, X0 = -300, X1 = 300;
 
 /** deterministic PRNG (mulberry32): the same skyline on every visit */
 const rng = (seed: number) => () => {
@@ -56,7 +59,7 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
     import('three/examples/jsm/objects/Reflector.js'),
     import('three/examples/jsm/utils/BufferGeometryUtils.js'),
   ]);
-  const { pathX, riverEnd, tower, mobile } = o;
+  const { pathX, heightAt, riverEnd, tower, mobile } = o;
   const r = rng(20251022);
   const onRiver = (x: number, z: number, pad: number) => z > riverEnd - 8 && Math.abs(x - pathX(z)) - pad < BANK;
   const nearTower = (x: number, z: number, pad: number) => Math.hypot(x - tower.x, z - tower.z) - pad < 26;
@@ -89,12 +92,34 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
     bPos.push(x, y, z); bSize.push(w, h, d); bSeed.push(seed);
   };
   const density = mobile ? 0.6 : 1;
+  // warm lights scattered around the hillside buildings (porches, terraces, a lit road up to the door)
+  const hillLamps: number[] = [];
   for (let gz = Math.floor(ZF / CELL); gz < Math.ceil(ZN / CELL); gz++) {
     for (let gx = Math.floor(X0 / CELL); gx < Math.ceil(X1 / CELL); gx++) {
       const cx = gx * CELL + CELL / 2, cz = gz * CELL + CELL / 2;
       const dx = Math.abs(cx - pathX(cz));
-      // thins out toward the edges; everything past CITY is open ground before the mountains
-      if (dx > CITY || r() > density * (1 - smooth((dx - 115) / 60) * 0.75)) continue;
+      if (dx > HILLS) continue;
+      if (dx > FLAT) {
+        // ---- the hills: sparse, smaller buildings sitting on the slopes ----
+        // denser in the foothills, thinning toward the peaks
+        if (r() > (mobile ? 0.6 : 1) * (0.55 - 0.4 * smooth((dx - 90) / 120))) continue;
+        const x = cx + (r() - 0.5) * 5, z = cz + (r() - 0.5) * 5;
+        const w = 5 + r() * 5, d = 5 + r() * 5;
+        const hs = [heightAt(x - w / 2, z - d / 2), heightAt(x + w / 2, z - d / 2), heightAt(x - w / 2, z + d / 2), heightAt(x + w / 2, z + d / 2)];
+        const lo = Math.min(...hs), hi = Math.max(...hs);
+        if (hi - lo > 14 || lo > 120) continue; // stepped into the slope, but no cliff-hangers or peak tops
+        const base = lo - 0.8; // sunk a little so the downhill side never floats
+        const h = (r() < 0.06 ? 18 + r() * 14 : 4 + r() * 10) + (hi - lo);
+        add(x, base, z, w, h, d, r() * 0.999 + 0.001);
+        tops.push({ x, z, y: base + h });
+        for (let k = 0, n = 3 + Math.floor(r() * 4); k < n; k++) {
+          const lx = x + (r() - 0.5) * (w + 6), lz = z + (r() - 0.5) * (d + 6);
+          hillLamps.push(lx, heightAt(lx, lz) + 0.6, lz);
+        }
+        continue;
+      }
+      // ---- the riverside city: dense, tallest along the banks ----
+      if (r() > density * (1 - smooth((dx - 55) / 30) * 0.45)) continue;
       const L = CELL - STREET;
       const q = r();
       const lots: [number, number, number, number][] = q < 0.45 ? [[0, 0, L, L]]
@@ -105,9 +130,12 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
         const w = (lw - 0.8) * (0.82 + 0.18 * r()), d = (ld - 0.8) * (0.82 + 0.18 * r());
         if (onRiver(x, z, Math.max(w, d) / 2) || nearTower(x, z, Math.max(w, d) / 2)) continue;
         const dT = Math.hypot(x - tower.x, z - tower.z), bdx = Math.abs(x - pathX(z));
-        let h = 6 + Math.pow(r(), 2) * 26 + 44 * Math.exp(-dT / 120) * r() + (bdx < 45 ? 9 : 0);
+        // skyscrapers crowd the banks and step down toward the foothills
+        let h = 7 + Math.pow(r(), 2) * 20 + 40 * Math.exp(-dT / 120) * r() + 28 * Math.exp(-Math.max(0, bdx - 16) / 28) * (0.5 + 0.5 * r());
         // a few megatowers for the skyline, kept clear of the river canyon and shorter than the hub nearby
-        if (r() < 0.04 && bdx > 30) h = 70 + r() * 85;
+        if (r() < 0.05 && bdx > 28 && bdx < 55) h = 60 + r() * 35;
+        // the outer blocks stay low, so the step from towers to hills reads from the air
+        if (bdx > 55) h = Math.min(h, 10 + r() * 10);
         if (dT < 90) h = Math.min(h, 52);
         const seed = r() * 0.999 + 0.001;
         if (lots.length === 1 && r() < 0.3 && h > 20) {
@@ -335,7 +363,7 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
   for (let gz = Math.floor(ZF / CELL); gz < Math.ceil(ZN / CELL); gz++) {
     const z = gz * CELL, bridge = bridgeZ.includes(z);
     for (let x = X0; x < X1; x += step) {
-      if (Math.abs(x - pathX(z)) > CITY || nearTower(x, z, 0)) continue;
+      if (Math.abs(x - pathX(z)) > FLAT || nearTower(x, z, 0)) continue;
       if (onRiver(x, z, 0)) { if (bridge) lamp(x, 2.4, z + 1.9, CYAN); continue; }
       lamp(x, 0.9, z + 2.2, r() < 0.7 ? SODIUM : WHITE);
     }
@@ -343,7 +371,7 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
   for (let gx = Math.floor(X0 / CELL); gx < Math.ceil(X1 / CELL); gx++) {
     const x = gx * CELL;
     for (let z = ZF; z < ZN; z += step) {
-      if (Math.abs(x - pathX(z)) > CITY || onRiver(x, z, 0) || nearTower(x, z, 0)) continue;
+      if (Math.abs(x - pathX(z)) > FLAT || onRiver(x, z, 0) || nearTower(x, z, 0)) continue;
       lamp(x + 2.2, 0.9, z, r() < 0.7 ? SODIUM : WHITE);
     }
   }
@@ -353,6 +381,7 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
     lamp(c - RIVER_W - 0.6, 0.4, z, k % 7 === 0 ? PINK : CYAN);
     lamp(c + RIVER_W + 0.6, 0.4, z, k % 9 === 0 ? PINK : CYAN);
   }
+  for (let i = 0; i < hillLamps.length; i += 3) lamp(hillLamps[i], hillLamps[i + 1], hillLamps[i + 2], r() < 0.8 ? SODIUM : WHITE);
   const lampGeo = new THREE.BufferGeometry();
   lampGeo.setAttribute('position', new THREE.Float32BufferAttribute(lp, 3));
   lampGeo.setAttribute('aCol', new THREE.Float32BufferAttribute(lc, 3));
@@ -425,7 +454,8 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
         float riv = abs(p.x - pathX(p.z));
         if (aMot.w > 1.5) p.x = pathX(p.z) + aLine.y;
         else if (aMot.w > 0.5 && riv < ${(BANK + 3).toFixed(1)}) p.y = 2.3; // over the bridge
-        float hide = (aMot.w < 0.5 && riv < ${BANK.toFixed(1)} && p.z > ${(riverEnd - 8).toFixed(1)}) || (aMot.w < 1.5 && distance(p.xz, uTower.xz) < 26.0) ? 1.0 : 0.0;
+        float hide = (aMot.w < 0.5 && riv < ${BANK.toFixed(1)} && p.z > ${(riverEnd - 8).toFixed(1)}) || (aMot.w < 1.5 && distance(p.xz, uTower.xz) < 26.0)
+          || (aMot.w < 1.5 && riv > ${FLAT.toFixed(1)}) ? 1.0 : 0.0; // streets stop where the hills begin
         vW = p; vCol = aCol; vA = 1.0 - hide;
         vec4 mv = viewMatrix * vec4(p, 1.0);
         // flying cars are lights you notice at night; by day they all but vanish

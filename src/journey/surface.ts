@@ -44,15 +44,19 @@ const pathX = (z: number) => Math.sin(z * 0.009) * 22 + Math.sin(z * 0.023 + 1.3
 const PATH_GLSL = 'float pathX(float z) { return sin(z * 0.009) * 22.0 + sin(z * 0.023 + 1.3) * 6.0; }';
 /** the river ends in a basin in front of the tower */
 const RIVER_END = -108;
-/** flat city floor with the river cut into it, mountains rising past the edges of the city and behind it */
+/** flat city floor with the river cut into it; foothills rise into mountains past ~75 m from the river and behind */
 const heightAt = (x: number, z: number) => {
   const dx = Math.abs(x - pathX(z));
   const ridge = 1 - Math.abs(fbm(x * 0.011 + 7.1, z * 0.011 - 3.4) * 2 - 1);
   const base = fbm(x * 0.006, z * 0.006, 4);
-  const mountains = Math.pow(ridge * 0.75 + base * 0.6, 2.2) * 80;
-  const mask = Math.max(smooth((dx - 185) / 90), smooth((-z - 400) / 60));
+  const mountains = Math.pow(ridge * 0.75 + base * 0.6, 2.2) * 120;
+  // side slopes rise from ~75 m off the river
+  const behind = smooth((-z - 250) / 90);
+  const mask = smooth((dx - 75) / 120) * 1.3;
+  // a real mountain wall closing the valley behind the hub tower: a broad massif with ridged peaks on top
+  const wall = behind * (110 + 90 * ridge + 40 * fbm(x * 0.02 + 3.3, z * 0.02, 3));
   const river = z > RIVER_END ? 2.4 * (1 - smooth((dx - 8.5) / 1.6)) * smooth((z - RIVER_END) / 5) : 0;
-  return mountains * mask - river;
+  return Math.max(mountains * mask, wall) - river;
 };
 
 const hasWebGL = (canvas: HTMLCanvasElement) => {
@@ -82,7 +86,7 @@ export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warm
     import('three/examples/jsm/postprocessing/OutputPass.js'),
   ]);
 
-  const fog = new THREE.Fog(0x0b3a52, 60, 470);
+  const fog = new THREE.Fog(0x0b3a52, 90, 680); // reaches far enough for the mountains to stay readable
   const scene = new THREE.Scene();
   scene.fog = fog;
   const cam = new THREE.PerspectiveCamera(58, 1, 0.5, 1400);
@@ -115,7 +119,7 @@ export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warm
         c += vec3(1.0, 0.8, 0.6) * pow(s, 90.0) * 0.8 * up;
         c += vec3(1.0, 0.95, 0.85) * smoothstep(0.9993, 0.9997, s) * up;
         // the city's cyan glow on the low sky at night
-        c += vec3(0.0, 0.075, 0.1) * uCity * (1.0 - smoothstep(0.0, 0.25, h)) * smoothstep(-0.05, 0.0, h);
+        c += vec3(0.0, 0.13, 0.17) * uCity * (1.0 - smoothstep(0.0, 0.3, h)) * smoothstep(-0.05, 0.0, h);
         // daytime: a white-hot disc with a wide glare
         c += vec3(1.0, 0.96, 0.88) * (pow(s, 24.0) * 0.45 + pow(s, 400.0) * 0.9) * uDay * up;
         c = mix(c, uHorizon * 0.55, smoothstep(0.0, -0.08, h));
@@ -145,18 +149,24 @@ export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warm
   terrGeo.rotateX(-Math.PI / 2);
   const pos = terrGeo.attributes.position as InstanceType<typeof THREE.BufferAttribute>;
   const cols = new Float32Array(pos.count * 3);
-  const low = new THREE.Color(0x070e18), high = new THREE.Color(0x24405e), snow = new THREE.Color(0x6f8aa6), tmp = new THREE.Color();
+  const low = new THREE.Color(0x070e18), high = new THREE.Color(0x2b4a6b), snow = new THREE.Color(0x8aa4c0), tmp = new THREE.Color();
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i), z = pos.getZ(i) - 100; // terrain extends mostly ahead of the start
     const h = heightAt(x, z);
     pos.setXYZ(i, x, h, z);
-    tmp.copy(low).lerp(high, smooth(h / 36));
-    tmp.lerp(snow, smooth((h - 40) / 18) * 0.7);
+    tmp.copy(low).lerp(high, smooth(h / 40));
+    tmp.lerp(snow, smooth((h - 70) / 30) * 0.75); // snowy peaks catch the moon
     cols[i * 3] = tmp.r; cols[i * 3 + 1] = tmp.g; cols[i * 3 + 2] = tmp.b;
   }
   terrGeo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
   terrGeo.computeVertexNormals();
   const terrMat = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.92, metalness: 0 });
+  // the night glow (set in updateSky) climbs with altitude: none on the city floor, strongest up the slopes
+  terrMat.onBeforeCompile = sh => {
+    sh.vertexShader = 'varying float vTerrY;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  vTerrY = position.y;');
+    sh.fragmentShader = 'varying float vTerrY;\n' + sh.fragmentShader.replace('#include <emissivemap_fragment>',
+      '#include <emissivemap_fragment>\n  totalEmissiveRadiance *= smoothstep(4.0, 70.0, vTerrY);');
+  };
   const terrain = new THREE.Mesh(terrGeo, terrMat);
   scene.add(terrain);
 
@@ -282,7 +292,7 @@ export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warm
   bp.push(TX, TY + TH + 12.5, TZ);
 
   // ---------- the city ----------
-  const city = await buildCity(THREE, { pathX, pathGlsl: PATH_GLSL, riverEnd: RIVER_END, tower: { x: TX, z: TZ, top: TY + TH + 0.4 }, mobile, fog });
+  const city = await buildCity(THREE, { pathX, heightAt, pathGlsl: PATH_GLSL, riverEnd: RIVER_END, tower: { x: TX, z: TZ, top: TY + TH + 0.4 }, mobile, fog });
   city.objects.forEach(ob => { scene.add(ob); });
 
   // post: multisampled render (smooth edges) -> bloom (neon actually glows) -> sRGB output
@@ -365,6 +375,8 @@ export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warm
     sunLight.intensity = lerp(lerp(0.15 + 0.35 * moonUp, 1.5, twi), 2.3, day);
     mix3(hemi.color, HEMI_SKY, twi, day); mix3(hemi.groundColor, HEMI_GND, twi, day);
     hemi.intensity = lerp(lerp(0.42, 0.55, twi), 1.25, day);
+    // a trace of the city's glow up the slopes; the ridgelines read mostly as silhouettes against the lit sky
+    terrMat.emissive.setRGB(0.003, 0.01, 0.015).multiplyScalar(1 - day);
     skyMat.uniforms.uDay.value = day;
     bloom.strength = lerp(0.75, 0.3, day);
     skyMat.uniforms.uCity.value = 1 - day;
@@ -440,7 +452,9 @@ export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warm
       // drop from high above the clouds to cruising height, pitching from straight down to the horizon
       const z = 150 - travel * 190 - d * 30;
       const y = lerp(230, 13, Math.pow(d, 0.85)) + heightAt(pathX(z), z);
-      const pitch = lerp(-1.42, -0.1, smooth((descent - 0.15) / 0.85));
+      // levels out while still ~70 m up: an establishing look across the city to the mountains, then on down
+      // into the river canyon
+      const pitch = lerp(-1.42, -0.1, smooth((descent - 0.1) / 0.55));
       const a = smooth(aim), dl = smooth(dolly);
       // mouse parallax and drift fade out as the camera commits to the window
       const free = 1 - a;
