@@ -39,7 +39,7 @@ export interface City {
   dispose: () => void;
 }
 
-const CELL = 15, STREET = 4, BANK = 15, RIVER_W = 10.5, WATER_Y = -0.35;
+const CELL = 15, STREET = 4, BANK = 15, RIVER_W = 10.5, WATER_Y = 0.08, QUAY_W = 1.6, QUAY_TOP = 0.5;
 /** the city fills the valley out to FLAT (m from the river); the mountains only rise beyond it */
 /** past the hub (z < SPRAWL) the city thins into low-rise sprawl running down the valley to the horizon */
 const FLAT = 140, ZN = 275, ZF = -650, SPRAWL = -250, X0 = -300, X1 = 300;
@@ -330,6 +330,34 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
     reflW = w; reflH = h;
     water.getRenderTarget().setSize(w, h);
   };
+  // quay walls along both banks, on exactly the water's curve (the water's edge IS the wall's inner face):
+  // a top walk, the wall dropping into the water, and the outer face down to the street
+  const qp: number[] = [], qn: number[] = [];
+  const quad = (a: number[], b: number[], c: number[], d: number[], n: number[]) => {
+    qp.push(...a, ...b, ...c, ...a, ...c, ...d);
+    for (let i = 0; i < 6; i++) qn.push(...n);
+  };
+  for (const side of [-1, 1]) {
+    for (let z = ZN; z > riverEnd - 3; z -= 3) {
+      const z2 = Math.max(riverEnd - 3, z - 3);
+      const c1 = pathX(z), c2 = pathX(z2);
+      const i1 = c1 + side * RIVER_W, i2 = c2 + side * RIVER_W;
+      const o1 = c1 + side * (RIVER_W + QUAY_W), o2 = c2 + side * (RIVER_W + QUAY_W);
+      quad([i1, QUAY_TOP, z], [o1, QUAY_TOP, z], [o2, QUAY_TOP, z2], [i2, QUAY_TOP, z2], [0, 1, 0]);
+      quad([i1, WATER_Y - 0.2, z], [i1, QUAY_TOP, z], [i2, QUAY_TOP, z2], [i2, WATER_Y - 0.2, z2], [-side, 0, 0]);
+      quad([o1, QUAY_TOP, z], [o1, 0, z], [o2, 0, z2], [o2, QUAY_TOP, z2], [side, 0, 0]);
+    }
+  }
+  // the basin's end wall in front of the tower
+  const ce = pathX(riverEnd - 3), ze = riverEnd - 3, we = RIVER_W + QUAY_W;
+  quad([ce - we, QUAY_TOP, ze], [ce + we, QUAY_TOP, ze], [ce + we, QUAY_TOP, ze - QUAY_W], [ce - we, QUAY_TOP, ze - QUAY_W], [0, 1, 0]);
+  quad([ce - we, WATER_Y - 0.2, ze], [ce + we, WATER_Y - 0.2, ze], [ce + we, QUAY_TOP, ze], [ce - we, QUAY_TOP, ze], [0, 0, 1]);
+  const quayGeo = new THREE.BufferGeometry();
+  quayGeo.setAttribute('position', new THREE.Float32BufferAttribute(qp, 3));
+  quayGeo.setAttribute('normal', new THREE.Float32BufferAttribute(qn, 3));
+  const quayMat = new THREE.MeshStandardMaterial({ color: 0x1b2330, roughness: 0.85, metalness: 0.1, side: THREE.DoubleSide });
+  const quay = new THREE.Mesh(quayGeo, quayMat);
+
   water.rotation.x = -Math.PI / 2;
   water.position.y = WATER_Y;
   const wU = (water.material as T.ShaderMaterial).uniforms as Record<string, { value: unknown }>;
@@ -366,8 +394,8 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
   // embankments: a neon line of lights down both banks (doubles in the water)
   for (let z = riverEnd; z < ZN; z += mobile ? 3.5 : 2.4) {
     const c = pathX(z), k = Math.floor(z / 2.4);
-    lamp(c - RIVER_W - 0.6, 0.4, z, k % 7 === 0 ? PINK : CYAN);
-    lamp(c + RIVER_W + 0.6, 0.4, z, k % 9 === 0 ? PINK : CYAN);
+    lamp(c - RIVER_W - 0.6, QUAY_TOP + 0.3, z, k % 7 === 0 ? PINK : CYAN);
+    lamp(c + RIVER_W + 0.6, QUAY_TOP + 0.3, z, k % 9 === 0 ? PINK : CYAN);
   }
   const lampGeo = new THREE.BufferGeometry();
   lampGeo.setAttribute('position', new THREE.Float32BufferAttribute(lp, 3));
@@ -558,7 +586,7 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
 
   const fogLin = o.fog.color;
   const city: City = {
-    objects: [buildings, water, lamps, cars, net, nodes],
+    objects: [buildings, water, quay, lamps, cars, net, nodes],
     beacons,
     setLight: (keyDir, key, sky, ground, night, skyRaw) => {
       U.uKeyDir.value.copy(keyDir).normalize();
@@ -585,8 +613,8 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
       U.uScale.value = h / (2 * Math.tan(29 * Math.PI / 180));
     },
     dispose: () => {
-      [box, bGeo, rGeo, lampGeo, carGeo, pipeGeo, nodeGeo].forEach(g => { g.dispose(); });
-      [bMat, lampMat, carMat, pipeMat, nodeMat].forEach(m => { m.dispose(); });
+      [box, bGeo, rGeo, quayGeo, lampGeo, carGeo, pipeGeo, nodeGeo].forEach(g => { g.dispose(); });
+      [bMat, quayMat, lampMat, carMat, pipeMat, nodeMat].forEach(m => { m.dispose(); });
       dotTex.dispose();
       water.dispose();
     },

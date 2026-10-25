@@ -53,8 +53,9 @@ const heightAt = (x: number, z: number) => {
   // mountains on the SIDES only, rising just past the city limits (~150 m off the river) and lower toward the
   // back, so the valley stays open ahead to clear sky for the sun, moon and twilight
   const mask = smooth((dx - 150) / 110) * (1 - 0.5 * smooth((-z - 60) / 260));
-  const river = z > RIVER_END ? 2.4 * (1 - smooth((dx - 8.5) / 1.6)) * smooth((z - RIVER_END) / 5) : 0;
-  return mountains * mask - river;
+  // (the river is NOT cut into this coarse mesh: its triangles never matched the water's curve. The water and
+  // its quay walls sit on the flat floor, built along the same curve - see city.ts)
+  return mountains * mask;
 };
 
 const hasWebGL = (canvas: HTMLCanvasElement) => {
