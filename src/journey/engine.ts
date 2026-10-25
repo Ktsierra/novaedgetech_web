@@ -20,6 +20,8 @@ const ease = (t: number) => 1 - Math.pow(1 - t, 3);
 const easeIO = (t: number) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 // gentler tails than easeIO: keeps responding to scroll near the start and end of a move
 const sstep = (t: number) => t * t * (3 - 2 * t);
+/** quadratic ease-in over the first k of a leg, then linear (speed and position both continuous at k) */
+const easeInLin = (t: number, k = 0.2) => t < k ? (t * t) / (2 * k) / (1 - k / 2) : (t - k / 2) / (1 - k / 2);
 const bell = (p: number, c: number, w: number) => Math.exp(-((p - c) / w) * ((p - c) / w));
 const rnd = Math.random;
 type V3 = [number, number, number];
@@ -569,7 +571,8 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
       if (!surfaceOn) { surfaceOn = true; surfaceStage.classList.add('is-3d'); }
       // aim eases onto the tower window over the last stretch of the valley flight, then the dolly takes over
       if (active) {
-        surface.render(now, seg(p, 0.615, 0.73), seg(p, 0.70, 0.835), smx, smy, seg(p, 0.775, 0.865), seg(p, 0.835, 0.892));
+        // travel eases in: started linearly, the forward speed jumped ~5x in one frame at p = 0.70 (a lurch)
+        surface.render(now, seg(p, 0.615, 0.73), easeInLin(seg(p, 0.70, 0.835)), smx, smy, seg(p, 0.775, 0.865), seg(p, 0.835, 0.892));
         // a daytime sky deepens the copy shade (see .j-surface-shade::after)
         const dl = surface.daylight().toFixed(2);
         if (dl !== dayVar) { dayVar = dl; surfaceStage.style.setProperty('--j-day', dl); }
