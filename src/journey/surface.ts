@@ -44,15 +44,15 @@ const pathX = (z: number) => Math.sin(z * 0.009) * 22 + Math.sin(z * 0.023 + 1.3
 const PATH_GLSL = 'float pathX(float z) { return sin(z * 0.009) * 22.0 + sin(z * 0.023 + 1.3) * 6.0; }';
 /** the river ends in a basin in front of the tower */
 const RIVER_END = -108;
-/** flat city floor with the river cut into it; foothills rise into mountains past ~75 m either side of the river */
+/** flat city floor with the river cut into it; mountains rise past the city limits either side of the river */
 const heightAt = (x: number, z: number) => {
   const dx = Math.abs(x - pathX(z));
   const ridge = 1 - Math.abs(fbm(x * 0.011 + 7.1, z * 0.011 - 3.4) * 2 - 1);
   const base = fbm(x * 0.006, z * 0.006, 4);
-  const mountains = Math.pow(ridge * 0.75 + base * 0.6, 2.2) * 120;
-  // side slopes rise from ~75 m off the river
-  // mountains on the SIDES only: the valley stays open ahead, to clear sky for the sun, moon and twilight
-  const mask = smooth((dx - 75) / 120) * 1.3;
+  const mountains = Math.pow(ridge * 0.75 + base * 0.6, 2.2) * 85;
+  // mountains on the SIDES only, rising just past the city limits (~150 m off the river) and lower toward the
+  // back, so the valley stays open ahead to clear sky for the sun, moon and twilight
+  const mask = smooth((dx - 150) / 110) * (1 - 0.5 * smooth((-z - 60) / 260));
   const river = z > RIVER_END ? 2.4 * (1 - smooth((dx - 8.5) / 1.6)) * smooth((z - RIVER_END) / 5) : 0;
   return mountains * mask - river;
 };
@@ -297,7 +297,7 @@ export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warm
   bp.push(TX, TY + TH + 12.5, TZ);
 
   // ---------- the city ----------
-  const city = await buildCity(THREE, { pathX, heightAt, pathGlsl: PATH_GLSL, riverEnd: RIVER_END, tower: { x: TX, z: TZ, top: TY + TH + 0.4 }, mobile, fog });
+  const city = await buildCity(THREE, { pathX, pathGlsl: PATH_GLSL, riverEnd: RIVER_END, tower: { x: TX, z: TZ, top: TY + TH + 0.4 }, mobile, fog });
   city.objects.forEach(ob => { scene.add(ob); });
 
   // post: multisampled render (smooth edges) -> bloom (neon actually glows) -> sRGB output
@@ -328,13 +328,13 @@ export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warm
   // real noon sky so it stays in the site's palette). Sky colours are raw shader values, the rest three Colors.
   const V = (r: number, g: number, b: number) => new THREE.Vector3(r, g, b);
   const PAL = {
-    hor: [V(0.001, 0.012, 0.026), V(0.3, 0.16, 0.26), V(0.45, 0.6, 0.72)],
-    mid: [V(0.008, 0.035, 0.07), V(0.08, 0.12, 0.3), V(0.2, 0.38, 0.58)],
-    zen: [V(0.005, 0.009, 0.026), V(0.025, 0.04, 0.13), V(0.07, 0.17, 0.38)],
+    hor: [V(0.001, 0.012, 0.026), V(0.3, 0.16, 0.26), V(0.5, 0.68, 0.84)],
+    mid: [V(0.008, 0.035, 0.07), V(0.08, 0.12, 0.3), V(0.24, 0.45, 0.72)],
+    zen: [V(0.005, 0.009, 0.026), V(0.025, 0.04, 0.13), V(0.1, 0.25, 0.55)],
   };
   const C = (hex: number) => new THREE.Color(hex);
-  const FOG = [C(0x07202e), C(0x2b3356), C(0x7399b8)];
-  const KEY = [C(0x8fa8e0), C(0xffb27a), C(0xfff0dc)];
+  const FOG = [C(0x07202e), C(0x2b3356), C(0x80add6)];
+  const KEY = [C(0x8fa8e0), C(0xffb27a), C(0xffe4c0)];
   const HEMI_SKY = [C(0x2c4f80), C(0x3d6fa8), C(0x9cc0e0)], HEMI_GND = [C(0x02050b), C(0x04080f), C(0x1a2128)];
   const mix3 = <T extends { copy: (v: T) => T; lerp: (v: T, k: number) => T }>(out: T, p: T[], twi: number, day: number) =>
     out.copy(p[0]).lerp(p[1], twi).lerp(p[2], day);
@@ -378,17 +378,18 @@ export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warm
     keyDir.y = Math.max(keyDir.y, 0.06);
     sunLight.position.copy(keyDir.normalize()).multiplyScalar(100);
     mix3(sunLight.color, KEY, twi, day);
-    sunLight.intensity = lerp(lerp(0.15 + 0.35 * moonUp, 1.5, twi), 2.3, day);
+    sunLight.intensity = lerp(lerp(0.15 + 0.35 * moonUp, 1.5, twi), 3.0, day); // a strong warm sun: sunlit vs shaded faces
     mix3(hemi.color, HEMI_SKY, twi, day); mix3(hemi.groundColor, HEMI_GND, twi, day);
-    hemi.intensity = lerp(lerp(0.42, 0.55, twi), 1.25, day);
+    hemi.intensity = lerp(lerp(0.42, 0.55, twi), 0.9, day);
     // a trace of the city's glow up the slopes; the ridgelines read mostly as silhouettes against the lit sky
     terrMat.emissive.setRGB(0.003, 0.01, 0.015).multiplyScalar(1 - day);
     skyMat.uniforms.uDay.value = day;
-    bloom.strength = lerp(0.75, 0.3, day);
+    bloom.strength = lerp(0.55, 0.42, day); // similar glow day and night
     skyMat.uniforms.uCity.value = 1 - day;
     keyCol.copy(sunLight.color).multiplyScalar(sunLight.intensity);
     hemiSky.copy(hemi.color).multiplyScalar(hemi.intensity); hemiGnd.copy(hemi.groundColor).multiplyScalar(hemi.intensity);
-    city.setLight(keyDir, keyCol, hemiSky, hemiGnd, 1 - day, skyMid);
+    // twilight sits between day and night instead of counting as full night
+    city.setLight(keyDir, keyCol, hemiSky, hemiGnd, (1 - day) * (1 - 0.3 * twi), skyMid);
     moonMat.uniforms.uFade.value = (1 - 0.55 * day) * smooth((mo.alt + 2) / 4);
   };
 
@@ -458,9 +459,8 @@ export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warm
       // drop from high above the clouds to cruising height, pitching from straight down to the horizon
       const z = 150 - travel * 190 - d * 30;
       const y = lerp(230, 13, Math.pow(d, 0.85)) + heightAt(pathX(z), z);
-      // levels out while still ~70 m up: an establishing look across the city to the mountains, then on down
-      // into the river canyon
-      const pitch = lerp(-1.42, -0.1, smooth((descent - 0.1) / 0.55));
+      // levels out on the way down (an establishing look across the city and sky), then on into the river canyon
+      const pitch = lerp(-1.42, -0.1, smooth((descent - 0.12) / 0.66));
       const a = smooth(aim), dl = smooth(dolly);
       // mouse parallax and drift fade out as the camera commits to the window
       const free = 1 - a;
