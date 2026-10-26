@@ -88,7 +88,8 @@ export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warm
   const fog = new THREE.Fog(0x0b3a52, 90, 680); // reaches far enough for the mountains to stay readable
   const scene = new THREE.Scene();
   scene.fog = fog;
-  const cam = new THREE.PerspectiveCamera(58, 1, 0.5, 1400);
+  // far enough that the fogged valley floor reaches the horizon (at 1400 m it stopped ~3 degrees short of it)
+  const cam = new THREE.PerspectiveCamera(58, 1, 0.5, 6000);
 
   // sun / moon directions in the scene (updated from the visitor's sky); start with the classic dusk framing
   // SUN is the true direction (lighting, moon phase); SUN_SKY / MOON are where they're drawn: high bodies are
@@ -128,11 +129,15 @@ export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warm
         float ridge = 0.016 + 0.012 * sin(az * 3.0 + 1.3) + 0.008 * sin(az * 7.0 + 0.4) + 0.004 * sin(az * 17.0 + 2.1)
                     + 0.002 * sin(az * 41.0 + 0.7);
         float hill = smoothstep(ridge + 0.003, ridge - 0.003, h);
-        c = mix(c, uFogSky * mix(0.82, 0.92, smoothstep(-0.01, ridge, h)), hill);
+        // hazy at the base (exactly the ground's colour there, so no seam), darker toward the soft crest
+        c = mix(c, uFogSky * mix(1.0, 0.84, smoothstep(0.0, ridge, h)), hill * step(0.0, h));
         gl_FragColor = vec4(pow(max(c, 0.0), vec3(2.2)), 1.0); // tuned as display values; the passes work in linear
       }`,
   });
   const sky = new THREE.Mesh(new THREE.SphereGeometry(1000, 48, 24), skyMat);
+  // the backdrop: drawn first and never depth-tested, so ground farther than the dome's radius still covers it
+  skyMat.depthTest = false;
+  sky.renderOrder = -1;
   scene.add(sky);
 
   // ---------- stars ----------
@@ -177,7 +182,7 @@ export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warm
   scene.add(terrain);
   // the valley floor carries on to the horizon (the terrain mesh ends ~500 m out; past it you saw the dark
   // underside of the sky dome): a big flat apron just under the city floor that fades into the fog
-  const apronGeo = new THREE.PlaneGeometry(6000, 6000);
+  const apronGeo = new THREE.PlaneGeometry(12000, 12000);
   apronGeo.rotateX(-Math.PI / 2);
   const apron = new THREE.Mesh(apronGeo, new THREE.MeshStandardMaterial({ color: 0x070e18, roughness: 1, metalness: 0 }));
   apron.position.y = -0.6;
