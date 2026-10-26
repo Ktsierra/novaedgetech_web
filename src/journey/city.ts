@@ -79,7 +79,10 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
     ${o.pathGlsl}
     float fogK(vec3 w) { return smoothstep(uFogNear, uFogFar, distance(w, uCam)); }
     // colours are tuned as display values; the bloom / output passes work in linear light
-    vec3 toLin(vec3 c) { return min(pow(max(c, 0.0), vec3(2.2)), vec3(12.0)); } // capped: no half-float overflow
+    // the exact sRGB curve (the output pass encodes with it; a plain 2.2 power crushed the darkest night tones and
+    // left the sky's fog a step darker than the ground's)
+    vec3 srgbToLinear(vec3 c) { c = max(c, 0.0); return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c)); }
+    vec3 toLin(vec3 c) { return min(srgbToLinear(c), vec3(12.0)); } // capped: no half-float overflow
     vec3 neon(float k) {
       return k < 0.62 ? vec3(0.0, 0.9, 1.0) : k < 0.82 ? vec3(1.0, 0.16, 0.62) : k < 0.92 ? vec3(0.55, 0.42, 1.0) : vec3(1.0, 0.6, 0.15);
     }`;
@@ -295,6 +298,7 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
           gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
         }`,
       fragmentShader: `
+        vec3 srgbToLinear(vec3 c) { c = max(c, 0.0); return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c)); }
         uniform sampler2D tDiffuse; uniform float uTime; uniform float uNight; uniform vec3 uCam; uniform vec3 uSkyRefl;
         uniform vec3 uFogCol; uniform float uFogNear; uniform float uFogFar;
         varying vec4 vUv; varying vec3 vW;
@@ -315,8 +319,8 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
           float graze = 1.0 - abs(normalize(uCam - vW).y);
           // the reflection is already linear light; the tuned (display-value) tints are converted to match
           vec3 tint = vec3(0.012, 0.05, 0.07) + uSkyRefl * 0.12 * (1.0 - uNight);
-          vec3 c = pow(tint, vec3(2.2)) + refl * (0.55 + 0.35 * graze);
-          c = mix(c, pow(uFogCol, vec3(2.2)), smoothstep(uFogNear, uFogFar, distance(vW, uCam)) * 0.9);
+          vec3 c = srgbToLinear(tint) + refl * (0.55 + 0.35 * graze);
+          c = mix(c, srgbToLinear(uFogCol), smoothstep(uFogNear, uFogFar, distance(vW, uCam)) * 0.9);
           gl_FragColor = vec4(c, 1.0);
         }`,
     },

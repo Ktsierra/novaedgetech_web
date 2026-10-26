@@ -107,6 +107,7 @@ export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warm
     uniforms: { uSun: { value: SUN_SKY }, uHorizon: { value: skyHor }, uMid: { value: skyMid }, uZenith: { value: skyZen }, uGlow: { value: 1 }, uDay: { value: 0 }, uCity: { value: 1 }, uFogSky: { value: new THREE.Color() } },
     vertexShader: 'varying vec3 vDir; void main(){ vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
     fragmentShader: `uniform vec3 uSun; uniform vec3 uHorizon; uniform vec3 uMid; uniform vec3 uZenith; uniform float uGlow; uniform float uDay; uniform float uCity; uniform vec3 uFogSky; varying vec3 vDir;
+      vec3 srgbToLinear(vec3 c) { c = max(c, 0.0); return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c)); }
       void main(){
         vec3 d = normalize(vDir);
         float h = d.y;
@@ -130,8 +131,8 @@ export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warm
                     + 0.002 * sin(az * 41.0 + 0.7);
         float hill = smoothstep(ridge + 0.003, ridge - 0.003, h);
         // hazy at the base (exactly the ground's colour there, so no seam), darker toward the soft crest
-        c = mix(c, uFogSky * mix(1.0, 0.84, smoothstep(0.0, ridge, h)), hill * step(0.0, h));
-        gl_FragColor = vec4(pow(max(c, 0.0), vec3(2.2)), 1.0); // tuned as display values; the passes work in linear
+        c = mix(c, uFogSky * mix(1.0, 0.9, smoothstep(0.0, ridge, h)), hill * step(0.0, h));
+        gl_FragColor = vec4(srgbToLinear(c), 1.0); // tuned as display values; the passes work in linear
       }`,
   });
   const sky = new THREE.Mesh(new THREE.SphereGeometry(1000, 48, 24), skyMat);
@@ -200,6 +201,7 @@ export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warm
     uniforms: { uCam: { value: gridCam }, uTime: { value: 0 } },
     vertexShader: 'varying vec3 vW; void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }',
     fragmentShader: `uniform vec3 uCam; uniform float uTime; varying vec3 vW;
+      vec3 srgbToLinear(vec3 c) { c = max(c, 0.0); return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c)); }
       void main(){
         vec2 q = vW.xz / 9.0;
         vec2 g = abs(fract(q - 0.5) - 0.5) / fwidth(q);
@@ -208,7 +210,7 @@ export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warm
         float fade = 1.0 - smoothstep(30.0, 240.0, dist);
         float floorMask = 1.0 - smoothstep(4.0, 26.0, vW.y);
         float pulse = 0.75 + 0.25 * sin(vW.z * 0.08 + uTime * 1.6);
-        gl_FragColor = vec4(pow(vec3(0.0, 0.9, 1.0) * line * fade * (0.05 + 0.3 * floorMask) * pulse, vec3(2.2)), 1.0);
+        gl_FragColor = vec4(srgbToLinear(vec3(0.0, 0.9, 1.0) * line * fade * (0.05 + 0.3 * floorMask) * pulse), 1.0);
       }`,
   });
   const grid = new THREE.Mesh(terrGeo, gridMat);
