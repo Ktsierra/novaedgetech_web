@@ -121,7 +121,14 @@ export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warm
         c += vec3(0.0, 0.13, 0.17) * uCity * (1.0 - smoothstep(0.0, 0.3, h)) * smoothstep(-0.05, 0.0, h);
         // daytime: a white-hot disc with a wide glare
         c += vec3(1.0, 0.96, 0.88) * (pow(s, 24.0) * 0.45 + pow(s, 400.0) * 0.9) * uDay * up;
-        c = mix(c, uFogSky, smoothstep(0.02, -0.03, h)); // below the horizon: exactly the fogged ground's colour
+        // softened horizon: a haze band fades the sky into the fogged ground's colour, and a far, low line of hazy
+        // hills runs all the way round, so the ground never meets the sky on a ruler-straight edge
+        c = mix(uFogSky, c, smoothstep(-0.01, 0.09, h));
+        float az = atan(d.x, d.z);
+        float ridge = 0.016 + 0.012 * sin(az * 3.0 + 1.3) + 0.008 * sin(az * 7.0 + 0.4) + 0.004 * sin(az * 17.0 + 2.1)
+                    + 0.002 * sin(az * 41.0 + 0.7);
+        float hill = smoothstep(ridge + 0.003, ridge - 0.003, h);
+        c = mix(c, uFogSky * mix(0.82, 0.92, smoothstep(-0.01, ridge, h)), hill);
         gl_FragColor = vec4(pow(max(c, 0.0), vec3(2.2)), 1.0); // tuned as display values; the passes work in linear
       }`,
   });
