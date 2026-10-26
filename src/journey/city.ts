@@ -39,8 +39,10 @@ export interface City {
   dispose: () => void;
 }
 
-const CELL = 15, STREET = 4, BANK = 15, RIVER_W = 10.5, WATER_Y = -0.35;
-const CITY = 175, ZN = 275, ZF = -390, X0 = -195, X1 = 195;
+const CELL = 15, STREET = 4, BANK = 15, RIVER_W = 10.5, WATER_Y = 0.08, QUAY_W = 1.6, QUAY_TOP = 0.5;
+/** the city fills the valley out to FLAT (m from the river); the mountains only rise beyond it */
+/** past the hub (z < SPRAWL) the city thins into low-rise sprawl running down the valley to the horizon */
+const FLAT = 140, ZN = 275, ZF = -650, SPRAWL = -250, X0 = -300, X1 = 300;
 
 /** deterministic PRNG (mulberry32): the same skyline on every visit */
 const rng = (seed: number) => () => {
@@ -93,8 +95,18 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
     for (let gx = Math.floor(X0 / CELL); gx < Math.ceil(X1 / CELL); gx++) {
       const cx = gx * CELL + CELL / 2, cz = gz * CELL + CELL / 2;
       const dx = Math.abs(cx - pathX(cz));
-      // thins out toward the edges; everything past CITY is open ground before the mountains
-      if (dx > CITY || r() > density * (1 - smooth((dx - 115) / 60) * 0.75)) continue;
+      if (cz < SPRAWL) {
+        // ---- the sprawl: low, sparse blocks under the open sky (a sea of lights at night) ----
+        const far = (SPRAWL - cz) / (SPRAWL - ZF);
+        if (dx > FLAT + 40 * far || r() > (mobile ? 0.6 : 1) * (0.5 - 0.25 * far)) continue;
+        const x = cx + (r() - 0.5) * 4, z = cz + (r() - 0.5) * 4;
+        const w = 6 + r() * 5, d = 6 + r() * 5, h = 4 + r() * (12 - 6 * far);
+        add(x, 0, z, w, h, d, r() * 0.999 + 0.001);
+        continue;
+      }
+      if (dx > FLAT) continue; // the city stops short of the mountains: they only frame it
+      // ---- the riverside city: dense, tallest along the banks ----
+      if (r() > density * (1 - smooth((dx - 100) / 40) * 0.45)) continue;
       const L = CELL - STREET;
       const q = r();
       const lots: [number, number, number, number][] = q < 0.45 ? [[0, 0, L, L]]
@@ -105,9 +117,12 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
         const w = (lw - 0.8) * (0.82 + 0.18 * r()), d = (ld - 0.8) * (0.82 + 0.18 * r());
         if (onRiver(x, z, Math.max(w, d) / 2) || nearTower(x, z, Math.max(w, d) / 2)) continue;
         const dT = Math.hypot(x - tower.x, z - tower.z), bdx = Math.abs(x - pathX(z));
-        let h = 6 + Math.pow(r(), 2) * 26 + 44 * Math.exp(-dT / 120) * r() + (bdx < 45 ? 9 : 0);
+        // skyscrapers crowd the banks and step down toward the foothills
+        let h = 7 + Math.pow(r(), 2) * 20 + 40 * Math.exp(-dT / 120) * r() + 28 * Math.exp(-Math.max(0, bdx - 16) / 28) * (0.5 + 0.5 * r());
         // a few megatowers for the skyline, kept clear of the river canyon and shorter than the hub nearby
-        if (r() < 0.04 && bdx > 30) h = 70 + r() * 85;
+        if (r() < 0.05 && bdx > 28 && bdx < 100) h = 60 + r() * 35;
+        // the outer blocks step down toward the city limits
+        if (bdx > 105) h = Math.min(h, 10 + r() * 12);
         if (dT < 90) h = Math.min(h, 52);
         const seed = r() * 0.999 + 0.001;
         if (lots.length === 1 && r() < 0.3 && h > 20) {
@@ -164,14 +179,15 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
         // the hashes below amplify any interpolation wobble into per-pixel noise: keep their inputs exact
         float h = vS.y, v = vL.y + h * 0.5, s = floor(abs(vSeed) * 4096.0 + 0.5) / 4096.0;
         float faceK = dot(floor(N + 0.5), vec3(3.0, 0.0, 7.0));
-        float glow = 0.3 + 0.7 * uNight;
-        float lightK = mix(0.32, 1.0, uNight); // interiors still read through the glass by day
+        // day and night are kept closer: neon still reads by day, and is calmer at night
+        float glow = 0.5 + 0.35 * uNight;
+        float lightK = mix(0.45, 0.9, uNight); // interiors still read through the glass by day
         vec3 amb = mix(uGnd, uSky, N.y * 0.5 + 0.5);
         // facades: concrete / steel by day, blue-grey at night, lit from below by the street and filled by the
         // city's own cyan glow, so they read as surfaces rather than holes
         vec3 wall = mix(vec3(0.1, 0.115, 0.135), vec3(0.05, 0.064, 0.085), uNight) * (0.78 + 0.44 * fract(s * 91.7));
         vec3 col = wall * (amb + uKey * max(dot(N, uKeyDir), 0.0));
-        col += uNight * (wall * vec3(0.55, 0.8, 1.0) * 0.85 + vec3(0.11, 0.075, 0.05) * exp(-v / 6.0) * (1.0 - N.y));
+        col += uNight * (wall * vec3(0.55, 0.8, 1.0) * 1.15 + vec3(0.11, 0.075, 0.05) * exp(-v / 6.0) * (1.0 - N.y));
         vec3 em = vec3(0.0);
         float style = fract(s * 7.31);
         vec3 nc = neon(fract(s * 3.17));
@@ -190,7 +206,7 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
           // distant facades: skip the per-window work entirely (the overview of the city is the costliest view)
           col = mix(col, mix(vec3(0.014, 0.028, 0.042), uSkyRefl * 0.6, 1.0 - uNight), 0.3)
             + vec3(0.62, 0.78, 0.92) * (0.22 + 0.3 * fract(s * 13.7)) * 0.38 * lightK;
-          if (style > 0.5) em += nc * smoothstep(max(0.2, pv * 1.5), 0.0, abs(v - (h - 0.9))) * 1.1 * glow;
+          if (style > 0.62) em += nc * smoothstep(max(0.2, pv * 1.5), 0.0, abs(v - (h - 0.9))) * 0.95 * glow;
         } else if (N.y < 0.5) {
           vec2 id = floor(cell), f = fract(cell);
           // anti-aliased window openings, with floor slabs and mullions between them
@@ -222,8 +238,8 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
           em += vec3(1.0, 0.7, 0.42) * step(0.4, v) * step(v, 2.3) * inUnit * shop * 0.2 * glow;
           em += neon(fract(s * 5.3 + unit * 0.37)) * smoothstep(max(0.16, pv * 1.5), 0.0, abs(v - 2.75)) * inUnit * shop * 0.9 * glow;
           // neon crown band + edge lines on styled buildings
-          if (style > 0.5) em += nc * smoothstep(max(0.2, pv * 1.5), 0.0, abs(v - (h - 0.9))) * 1.1 * glow;
-          if (style > 0.8) em += nc * smoothstep(fw * 0.5 - max(0.2, px * 1.5), fw * 0.5, abs(u)) * 0.9 * glow;
+          if (style > 0.62) em += nc * smoothstep(max(0.2, pv * 1.5), 0.0, abs(v - (h - 0.9))) * 0.95 * glow;
+          if (style > 0.86) em += nc * smoothstep(fw * 0.5 - max(0.2, px * 1.5), fw * 0.5, abs(u)) * 0.8 * glow;
           // vertical signs on river-facing walls, scrolling and flickering
           float side = pathX(vW.z) - vW.x;
           if (fract(s * 5.13) > 0.82 && h > 14.0 && N.x * sign(side) > 0.5) {
@@ -238,7 +254,7 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
         } else {
           // roofs: neon rim on styled buildings (it's what you see on the way down)
           vec2 q = abs(vL.xz) - vS.xz * 0.5 + max(0.3, px * 1.5);
-          if (style > 0.5) em += nc * step(0.0, max(q.x, q.y)) * 0.8 * glow;
+          if (style > 0.62) em += nc * step(0.0, max(q.x, q.y)) * 0.7 * glow;
         }
         col += em;
         // low cyan haze (light pollution) hugging the streets at night
@@ -314,6 +330,34 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
     reflW = w; reflH = h;
     water.getRenderTarget().setSize(w, h);
   };
+  // quay walls along both banks, on exactly the water's curve (the water's edge IS the wall's inner face):
+  // a top walk, the wall dropping into the water, and the outer face down to the street
+  const qp: number[] = [], qn: number[] = [];
+  const quad = (a: number[], b: number[], c: number[], d: number[], n: number[]) => {
+    qp.push(...a, ...b, ...c, ...a, ...c, ...d);
+    for (let i = 0; i < 6; i++) qn.push(...n);
+  };
+  for (const side of [-1, 1]) {
+    for (let z = ZN; z > riverEnd - 3; z -= 3) {
+      const z2 = Math.max(riverEnd - 3, z - 3);
+      const c1 = pathX(z), c2 = pathX(z2);
+      const i1 = c1 + side * RIVER_W, i2 = c2 + side * RIVER_W;
+      const o1 = c1 + side * (RIVER_W + QUAY_W), o2 = c2 + side * (RIVER_W + QUAY_W);
+      quad([i1, QUAY_TOP, z], [o1, QUAY_TOP, z], [o2, QUAY_TOP, z2], [i2, QUAY_TOP, z2], [0, 1, 0]);
+      quad([i1, WATER_Y - 0.2, z], [i1, QUAY_TOP, z], [i2, QUAY_TOP, z2], [i2, WATER_Y - 0.2, z2], [-side, 0, 0]);
+      quad([o1, QUAY_TOP, z], [o1, 0, z], [o2, 0, z2], [o2, QUAY_TOP, z2], [side, 0, 0]);
+    }
+  }
+  // the basin's end wall in front of the tower
+  const ce = pathX(riverEnd - 3), ze = riverEnd - 3, we = RIVER_W + QUAY_W;
+  quad([ce - we, QUAY_TOP, ze], [ce + we, QUAY_TOP, ze], [ce + we, QUAY_TOP, ze - QUAY_W], [ce - we, QUAY_TOP, ze - QUAY_W], [0, 1, 0]);
+  quad([ce - we, WATER_Y - 0.2, ze], [ce + we, WATER_Y - 0.2, ze], [ce + we, QUAY_TOP, ze], [ce - we, QUAY_TOP, ze], [0, 0, 1]);
+  const quayGeo = new THREE.BufferGeometry();
+  quayGeo.setAttribute('position', new THREE.Float32BufferAttribute(qp, 3));
+  quayGeo.setAttribute('normal', new THREE.Float32BufferAttribute(qn, 3));
+  const quayMat = new THREE.MeshStandardMaterial({ color: 0x1b2330, roughness: 0.85, metalness: 0.1, side: THREE.DoubleSide });
+  const quay = new THREE.Mesh(quayGeo, quayMat);
+
   water.rotation.x = -Math.PI / 2;
   water.position.y = WATER_Y;
   const wU = (water.material as T.ShaderMaterial).uniforms as Record<string, { value: unknown }>;
@@ -335,7 +379,7 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
   for (let gz = Math.floor(ZF / CELL); gz < Math.ceil(ZN / CELL); gz++) {
     const z = gz * CELL, bridge = bridgeZ.includes(z);
     for (let x = X0; x < X1; x += step) {
-      if (Math.abs(x - pathX(z)) > CITY || nearTower(x, z, 0)) continue;
+      if (Math.abs(x - pathX(z)) > FLAT || nearTower(x, z, 0)) continue;
       if (onRiver(x, z, 0)) { if (bridge) lamp(x, 2.4, z + 1.9, CYAN); continue; }
       lamp(x, 0.9, z + 2.2, r() < 0.7 ? SODIUM : WHITE);
     }
@@ -343,15 +387,15 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
   for (let gx = Math.floor(X0 / CELL); gx < Math.ceil(X1 / CELL); gx++) {
     const x = gx * CELL;
     for (let z = ZF; z < ZN; z += step) {
-      if (Math.abs(x - pathX(z)) > CITY || onRiver(x, z, 0) || nearTower(x, z, 0)) continue;
+      if (Math.abs(x - pathX(z)) > FLAT || onRiver(x, z, 0) || nearTower(x, z, 0)) continue;
       lamp(x + 2.2, 0.9, z, r() < 0.7 ? SODIUM : WHITE);
     }
   }
   // embankments: a neon line of lights down both banks (doubles in the water)
   for (let z = riverEnd; z < ZN; z += mobile ? 3.5 : 2.4) {
     const c = pathX(z), k = Math.floor(z / 2.4);
-    lamp(c - RIVER_W - 0.6, 0.4, z, k % 7 === 0 ? PINK : CYAN);
-    lamp(c + RIVER_W + 0.6, 0.4, z, k % 9 === 0 ? PINK : CYAN);
+    lamp(c - RIVER_W - 0.6, QUAY_TOP + 0.3, z, k % 7 === 0 ? PINK : CYAN);
+    lamp(c + RIVER_W + 0.6, QUAY_TOP + 0.3, z, k % 9 === 0 ? PINK : CYAN);
   }
   const lampGeo = new THREE.BufferGeometry();
   lampGeo.setAttribute('position', new THREE.Float32BufferAttribute(lp, 3));
@@ -425,7 +469,8 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
         float riv = abs(p.x - pathX(p.z));
         if (aMot.w > 1.5) p.x = pathX(p.z) + aLine.y;
         else if (aMot.w > 0.5 && riv < ${(BANK + 3).toFixed(1)}) p.y = 2.3; // over the bridge
-        float hide = (aMot.w < 0.5 && riv < ${BANK.toFixed(1)} && p.z > ${(riverEnd - 8).toFixed(1)}) || (aMot.w < 1.5 && distance(p.xz, uTower.xz) < 26.0) ? 1.0 : 0.0;
+        float hide = (aMot.w < 0.5 && riv < ${BANK.toFixed(1)} && p.z > ${(riverEnd - 8).toFixed(1)}) || (aMot.w < 1.5 && distance(p.xz, uTower.xz) < 26.0)
+          || (aMot.w < 1.5 && riv > ${FLAT.toFixed(1)}) ? 1.0 : 0.0; // streets stop where the hills begin
         vW = p; vCol = aCol; vA = 1.0 - hide;
         vec4 mv = viewMatrix * vec4(p, 1.0);
         // flying cars are lights you notice at night; by day they all but vanish
@@ -541,7 +586,7 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
 
   const fogLin = o.fog.color;
   const city: City = {
-    objects: [buildings, water, lamps, cars, net, nodes],
+    objects: [buildings, water, quay, lamps, cars, net, nodes],
     beacons,
     setLight: (keyDir, key, sky, ground, night, skyRaw) => {
       U.uKeyDir.value.copy(keyDir).normalize();
@@ -568,8 +613,8 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
       U.uScale.value = h / (2 * Math.tan(29 * Math.PI / 180));
     },
     dispose: () => {
-      [box, bGeo, rGeo, lampGeo, carGeo, pipeGeo, nodeGeo].forEach(g => { g.dispose(); });
-      [bMat, lampMat, carMat, pipeMat, nodeMat].forEach(m => { m.dispose(); });
+      [box, bGeo, rGeo, quayGeo, lampGeo, carGeo, pipeGeo, nodeGeo].forEach(g => { g.dispose(); });
+      [bMat, quayMat, lampMat, carMat, pipeMat, nodeMat].forEach(m => { m.dispose(); });
       dotTex.dispose();
       water.dispose();
     },
