@@ -1,3 +1,5 @@
+import portfolioShot from '../assets/work/portfolio.webp';
+
 export interface Service {
   num: string;
   title: string;
@@ -54,7 +56,7 @@ export const services: Service[] = [
 // client work is described without naming clients; add `image` screenshots when ready
 export const work: WorkItem[] = [
   { id: 'skyvault', title: 'SKYVAULT', blurb: 'Inventory and parts traceability for aviation repair stations, from receiving to release.', tags: ['AVIATION', 'WEB + MOBILE'], status: 'IN DEVELOPMENT', kind: 'both', accent: '#00E5FF', href: 'https://getskyvault.app', cta: 'GETSKYVAULT.APP', tilt: 'rotateX(3deg) rotateY(6deg)', at: 0.70, offset: 0 },
-  { id: 'portfolio', title: 'FOUNDER PORTFOLIO', blurb: 'The engineering behind NovaEdge: open-source work, experiments and the founder\'s track record.', tags: ['PORTFOLIO', 'WEB'], status: 'LIVE', kind: 'web', accent: '#A98BFF', href: 'https://ktsierra.github.io/ktsierra_portfolio/', cta: 'VISIT', tilt: 'rotateX(2deg) rotateY(2deg)', at: 0.715, offset: 36 },
+  { id: 'portfolio', title: 'FOUNDER PORTFOLIO', blurb: 'The engineering behind NovaEdge: open-source work, experiments and the founder\'s track record.', tags: ['PORTFOLIO', 'WEB'], status: 'LIVE', kind: 'web', accent: '#A98BFF', href: 'https://ktsierra.github.io/', cta: 'VISIT', image: portfolioShot, tilt: 'rotateX(2deg) rotateY(2deg)', at: 0.715, offset: 36 },
   { id: 'unifi', title: 'UNIFIED SITE OPS', blurb: 'End-to-end UniFi rollout: network, door access, intercom and VoIP, environmental sensors and camera security on one console.', tags: ['IT INFRASTRUCTURE', 'ON-SITE'], status: 'DEPLOYED', kind: 'network', accent: '#5CF2B8', cta: 'DETAILS ON REQUEST', tilt: 'rotateX(2deg) rotateY(-2deg)', at: 0.73, offset: 36 },
   { id: 'identity', title: 'MULTICLOUD GOVERNANCE', blurb: 'Links a client\'s AWS data to Microsoft identities and groups, with governance and dynamic workflows built in.', tags: ['MULTICLOUD', 'DATA GOVERNANCE'], status: 'IN PRODUCTION', kind: 'cloud', accent: '#FFB35C', cta: 'DETAILS ON REQUEST', tilt: 'rotateX(3deg) rotateY(-6deg)', at: 0.745, offset: 0 },
 ];
