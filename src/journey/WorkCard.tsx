@@ -101,7 +101,12 @@ const CardBody = ({ w, index, total }: { w: WorkItem; index: number; total: numb
         <div className="j-mock j-mock--both j-shot-pair">
           <div className="j-mock-grid" />
           <div className="j-mock-browser"><div className="j-mock-bar"><i /><i /><i /><span /></div><img src={w.image} alt={`${w.title} on the web`} loading="lazy" /></div>
-          <div className="j-mock-phone j-mock-phone--front"><img src={w.phoneImage} alt={`${w.title} on a phone`} loading="lazy" /></div>
+          <div className="j-device">
+            <div className="j-device-screen">
+              <div className="j-device-status"><span>9:41</span><i className="j-device-island" /><span className="j-device-icons"><b /><b /><b /></span></div>
+              <img src={w.phoneImage} alt={`${w.title} on a phone`} loading="lazy" />
+            </div>
+          </div>
         </div>
       ) : w.image ? <img src={w.image} alt={`${w.title} screenshot`} loading="lazy" /> : <MockShot kind={w.kind} seed={index + 1} />}
     </div>
