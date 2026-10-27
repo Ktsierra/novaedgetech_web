@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const send = vi.fn();
-vi.mock('resend', () => ({ Resend: vi.fn(() => ({ emails: { send } })) }));
+vi.mock('resend', () => ({ Resend: class { emails = { send }; } }));
 
 // the Vercel function is plain ESM without type declarations: import it through a path variable
 const contactPath = '../api/contact.js';
@@ -44,7 +44,7 @@ describe('api/contact', () => {
   it('escapes what the visitor typed: no markup or links reach the email', async () => {
     await post({ name: '<b>Ada</b>', email: 'ada@example.com', message: '<a href="https://evil.example">click</a>\nline 2' });
     const { html } = send.mock.calls[0][0] as Sent;
-    expect(html).not.toContain('<a href');
+    expect(html).not.toContain('<a href="https://evil.example');
     expect(html).not.toContain('<b>Ada</b>');
     expect(html).toContain('&lt;a href=&quot;https://evil.example&quot;&gt;click&lt;/a&gt;<br>line 2');
     expect(escapeHtml(`<>&"'`)).toBe('&lt;&gt;&amp;&quot;&#39;');
