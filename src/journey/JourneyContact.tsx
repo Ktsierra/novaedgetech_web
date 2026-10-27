@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { ApiResponse } from '../types/types';
+
+/** what /api/contact returns */
+interface ApiResponse { success?: boolean; error?: string }
 
 type Tone = 'idle' | 'warn' | 'ok';
 
