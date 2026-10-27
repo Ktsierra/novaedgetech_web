@@ -25,7 +25,7 @@ const placeFrom = (headers = {}) => {
  * The enquiry email: table layout + inline styles (what Gmail / Outlook / Apple Mail all render), no images.
  * Every visitor-supplied value is escaped before it gets here.
  */
-export const enquiryHtml = ({ name, email, message, preview, place, when }) => {
+export const enquiryHtml = ({ name, email, emailHref, message, preview, place, when }) => {
   const row = (label, value) => `
           <tr>
             <td style="padding:10px 0;border-bottom:1px solid #e6ebf2;width:96px;vertical-align:top;font:600 11px/1.6 Arial,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:#7a8699">${label}</td>
@@ -47,7 +47,7 @@ export const enquiryHtml = ({ name, email, message, preview, place, when }) => {
           <h1 style="margin:10px 0 0;font:700 22px/1.3 Arial,sans-serif;color:#0e1621">${name} wants to talk</h1>
         </td></tr>
         <tr><td style="padding:12px 28px 0">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${row("Name", name)}${row("Email", `<a href="mailto:${email}" style="color:#0a7f94;text-decoration:none">${email}</a>`)}${place ? row("From", place) : ""}${row("Received", when)}
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${row("Name", name)}${row("Email", `<a href="mailto:${emailHref}" style="color:#0a7f94;text-decoration:none">${email}</a>`)}${place ? row("From", place) : ""}${row("Received", when)}
           </table>
         </td></tr>
         <tr><td style="padding:22px 28px 0">
@@ -55,7 +55,7 @@ export const enquiryHtml = ({ name, email, message, preview, place, when }) => {
           <div style="margin-top:10px;padding:16px 18px;background:#f5f8fb;border-left:3px solid #00e5ff;border-radius:6px;font:15px/1.6 Arial,sans-serif;color:#0e1621">${message.replace(/\r?\n/g, "<br>")}</div>
         </td></tr>
         <tr><td style="padding:26px 28px 30px">
-          <a href="mailto:${email}?subject=${encodeURIComponent("Re: your NovaEdge enquiry")}" style="display:inline-block;padding:12px 22px;background:#00e5ff;border-radius:8px;font:700 14px/1 Arial,sans-serif;color:#0e1621;text-decoration:none">Reply to ${name}</a>
+          <a href="mailto:${emailHref}?subject=${encodeURIComponent("Re: your NovaEdge enquiry")}" style="display:inline-block;padding:12px 22px;background:#00e5ff;border-radius:8px;font:700 14px/1 Arial,sans-serif;color:#0e1621;text-decoration:none">Reply to ${name}</a>
           <div style="margin-top:10px;font:12px/1.5 Arial,sans-serif;color:#7a8699">Or just hit Reply: it goes straight to ${email}.</div>
         </td></tr>
         <tr><td style="padding:16px 28px;background:#f5f8fb;border-top:1px solid #e6ebf2;font:12px/1.5 Arial,sans-serif;color:#7a8699">
@@ -107,7 +107,8 @@ export default async function handler(req, res) {
       replyTo: email,
       subject: `New website enquiry from ${name}`,
       text: `New website enquiry\n\nName: ${name}\nEmail: ${email}\n${place ? `From: ${place}\n` : ""}Received: ${when}\n\n${message}\n\nReply to this email to answer ${name} directly.\n`,
-      html: enquiryHtml({ name: escapeHtml(name), email: escapeHtml(email), message: escapeHtml(message), preview: escapeHtml(message.slice(0, 120)), place: escapeHtml(place), when }),
+      // the link target is URI-encoded: a valid address can contain ?, & or #, which would otherwise end the recipient
+      html: enquiryHtml({ name: escapeHtml(name), email: escapeHtml(email), emailHref: escapeHtml(encodeURIComponent(email).replace(/%40/g, "@")), message: escapeHtml(message), preview: escapeHtml(message.slice(0, 120)), place: escapeHtml(place), when }),
     });
 
     if (error || !data?.id) {

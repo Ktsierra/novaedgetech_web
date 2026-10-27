@@ -34,7 +34,7 @@ const JourneyContact = () => {
       const result = await res.json() as ApiResponse;
       if (!res.ok || !result.success) throw new Error(result.error ?? 'send failed');
       setStatus({ tone: 'ok', text: '> message queued. we\'ll be in your orbit within 24h' });
-      setForm({ name: '', email: '', message: '' }); // sent: start clean
+      setForm({ name: '', email: '', message: '' }); // sent: start clean (fields are read-only while sending, so nothing new is lost)
     } catch {
       setStatus({ tone: 'warn', text: '> transmission failed. email us directly below' });
     } finally {
@@ -46,15 +46,15 @@ const JourneyContact = () => {
     <form data-form className="j-form" onSubmit={e => { void onSubmit(e); }} noValidate>
       <label className="j-field">
         <span className="j-prompt">&gt;</span>
-        <input name="name" aria-label="Your name" placeholder="your name" autoComplete="name" maxLength={100} value={form.name} onChange={onChange} />
+        <input name="name" aria-label="Your name" placeholder="your name" autoComplete="name" maxLength={100} readOnly={sending} value={form.name} onChange={onChange} />
       </label>
       <label className="j-field">
         <span className="j-prompt">&gt;</span>
-        <input name="email" type="email" aria-label="Email" placeholder="email" autoComplete="email" maxLength={254} value={form.email} onChange={onChange} />
+        <input name="email" type="email" aria-label="Email" placeholder="email" autoComplete="email" maxLength={254} readOnly={sending} value={form.email} onChange={onChange} />
       </label>
       <label className="j-field j-field--wide">
         <span className="j-prompt">&gt;</span>
-        <textarea name="message" aria-label="Your idea" rows={2} placeholder="the idea: web app, mobile app, both?" maxLength={5000} value={form.message} onChange={onChange} />
+        <textarea name="message" aria-label="Your idea" rows={2} placeholder="the idea: web app, mobile app, both?" maxLength={5000} readOnly={sending} value={form.message} onChange={onChange} />
       </label>
       <div className="j-form-foot">
         <span className={'j-form-status j-form-status--' + status.tone} role="status" aria-live="polite">{status.text}</span>
