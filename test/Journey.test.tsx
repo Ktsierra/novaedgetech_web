@@ -42,5 +42,7 @@ describe('Journey', () => {
     const init = contactCalls(fetchSpy)[0][1] as RequestInit | undefined;
     const body = JSON.parse(init?.body as string) as Record<string, string>;
     expect(body).toEqual({ name: 'Ada', email: 'ada@example.com', message: 'A mobile app' });
+    // a sent form starts clean
+    for (const label of ['Your name', 'Email', 'Your idea']) expect(screen.getByLabelText(label)).toHaveProperty('value', '');
   });
 });
