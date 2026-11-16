@@ -5,7 +5,7 @@ import JourneyContact from './JourneyContact';
 import WorkCard from './WorkCard';
 import IdeaSlot from './IdeaCard';
 import BrandLogo from './BrandLogo';
-import { CONTACT_EMAIL, GO, services, work } from './journeyText';
+import { CONTACT_EMAIL, CONTACT_PHONE, GO, GOOGLE_PROFILE, GOOGLE_REVIEW, HOURS, SERVICE_AREA, services, work } from './journeyText';
 
 /** CSS custom properties for the reveal classes */
 const v = (vars: Record<string, string>) => vars as CSSProperties;
@@ -47,7 +47,7 @@ const Journey = (props: JourneyOptions) => {
 
       {/* ---------- nav ---------- */}
       <nav data-nav className="j-nav">
-        <a href="#top" data-go={GO.top} data-hov className="j-logo" aria-label="NovaEdge Technology, back to top"><BrandLogo size={32} /></a>
+        <a href="#top" data-go={GO.top} data-hov className="j-logo" aria-label="NovaEdge Tech, back to top"><BrandLogo size={32} /></a>
         <div className="j-nav-links">
           <a href="#services" data-go={GO.services} data-hov>SERVICES</a>
           <a href="#work" data-go={GO.work} data-hov>WORK</a>
@@ -178,8 +178,18 @@ const Journey = (props: JourneyOptions) => {
             </div>
             <div className="j-laptop-base" />
           </div>
-          <a data-at="0.968" href={`mailto:${CONTACT_EMAIL}`} className="j-fade j-mail" style={v({ '--dur': '.9s' })}>{CONTACT_EMAIL}</a>
+          <div data-at="0.968" className="j-fade j-reach" style={v({ '--dur': '.9s' })}>
+            <a href={`mailto:${CONTACT_EMAIL}`} className="j-mail">{CONTACT_EMAIL}</a>
+            <a href={`tel:${CONTACT_PHONE.tel}`} className="j-mail">{CONTACT_PHONE.display}</a>
+          </div>
           <div data-at="0.974" className="j-fade j-footer" style={v({ '--dur': '1s' })}>
+            <div className="j-local">
+              <span>Serving {SERVICE_AREA}</span>
+              <span>{HOURS}</span>
+              <a href={`tel:${CONTACT_PHONE.tel}`}>{CONTACT_PHONE.display}</a>
+              <a href={GOOGLE_PROFILE} target="_blank" rel="noopener noreferrer">Find us on Google</a>
+              <a href={GOOGLE_REVIEW} target="_blank" rel="noopener noreferrer">Leave us a review</a>
+            </div>
             <span>© {new Date().getFullYear()} NOVAEDGE TECH CORP</span>
             <span>NOVAEDGETECHNOLOGY.COM</span>
             <span>REACT ✦ THREE.JS ✦ STARDUST</span>

@@ -585,10 +585,17 @@ body {
   width: 78%; height: 16px; margin: 0 auto; border-radius: 0 0 14px 14px;
   background: linear-gradient(#0B1120, #050810); clip-path: polygon(4% 0, 96% 0, 100% 100%, 0 100%);
 }
+.j-reach { margin-top: min(26px, 3vh); display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 26px; }
 .journey .j-mail {
-  margin-top: min(26px, 3vh); font-size: 12px; letter-spacing: 0.14em; color: var(--j-cyan);
+  font-size: 12px; letter-spacing: 0.14em; color: var(--j-cyan);
   border-bottom: 1px solid rgba(0, 229, 255, 0.4); padding-bottom: 3px;
 }
+.j-local {
+  flex-basis: 100%; display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 18px; margin-bottom: 4px;
+  letter-spacing: 0.12em; color: rgba(237, 241, 255, 0.62);
+}
+.journey .j-local a { color: var(--j-cyan); text-decoration: none; }
+.journey .j-local a:hover { text-decoration: underline; }
 .j-credits { flex-basis: 100%; text-align: center; font-size: 7.5px; opacity: .7; }
 .j-footer {
   width: 100%; max-width: 1100px; margin-top: min(40px, 5vh); margin-bottom: auto; box-sizing: border-box;
