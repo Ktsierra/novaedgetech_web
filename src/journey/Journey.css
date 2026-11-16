@@ -548,7 +548,7 @@ body {
 .j-desk-glow { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(70% 60% at 50% 46%, rgba(0, 60, 80, 0.18) 0%, rgba(3, 5, 13, 0) 60%); }
 .j-desk-col {
   position: relative; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
-  padding: 90px var(--j-pad) 36px; box-sizing: border-box; overflow-y: auto;
+  padding: 90px var(--j-pad) 36px; box-sizing: border-box; overflow: hidden; /* scrolled by the page (engine tailPx) */
 }
 .j-desk-eyebrow { margin-top: auto; text-align: center; }
 .j-desk-title { font-size: clamp(20px, min(3vw, 4.2vh), 42px); text-align: center; }

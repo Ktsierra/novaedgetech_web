@@ -198,7 +198,7 @@ const Journey = (props: JourneyOptions) => {
         </div>
       </section>
 
-      <main className="j-main"><div data-track className="j-track" /></main>
+      <main className="j-main"><div data-track className="j-track" /><div data-tail className="j-tail" /></main>
     </div>
   );
 };
