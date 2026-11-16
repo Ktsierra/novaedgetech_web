@@ -45,8 +45,6 @@ export const CONTACT_EMAIL = 'jose.sierra@novaedgetechnology.com';
 
 /** must match the Google Business Profile exactly */
 export const CONTACT_PHONE = { display: '(305) 707-8670', tel: '+13057078670' };
-export const SERVICE_AREA = 'Miami-Dade, Broward, Palm Beach, Fort Myers, Cape Coral and Naples';
-export const HOURS = 'Mon to Fri, 9 AM to 6 PM';
 export const GOOGLE_PROFILE = 'https://maps.google.com/maps?cid=3427477623515060148';
 export const GOOGLE_REVIEW = 'https://search.google.com/local/writereview?placeid=ChIJH0YcxgJew40RtBc3Mb3YkC8';
 

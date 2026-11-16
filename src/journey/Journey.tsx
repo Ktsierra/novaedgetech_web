@@ -5,7 +5,7 @@ import JourneyContact from './JourneyContact';
 import WorkCard from './WorkCard';
 import IdeaSlot from './IdeaCard';
 import BrandLogo from './BrandLogo';
-import { CONTACT_EMAIL, CONTACT_PHONE, GO, GOOGLE_PROFILE, GOOGLE_REVIEW, HOURS, SERVICE_AREA, services, work } from './journeyText';
+import { CONTACT_EMAIL, CONTACT_PHONE, GO, GOOGLE_PROFILE, GOOGLE_REVIEW, services, work } from './journeyText';
 
 /** CSS custom properties for the reveal classes */
 const v = (vars: Record<string, string>) => vars as CSSProperties;
@@ -184,15 +184,12 @@ const Journey = (props: JourneyOptions) => {
           </div>
           <div data-at="0.974" className="j-fade j-footer" style={v({ '--dur': '1s' })}>
             <div className="j-local">
-              <span>Serving {SERVICE_AREA}</span>
-              <span>{HOURS}</span>
-              <a href={`tel:${CONTACT_PHONE.tel}`}>{CONTACT_PHONE.display}</a>
               <a href={GOOGLE_PROFILE} target="_blank" rel="noopener noreferrer">Find us on Google</a>
               <a href={GOOGLE_REVIEW} target="_blank" rel="noopener noreferrer">Leave us a review</a>
             </div>
             <span>© {new Date().getFullYear()} NOVAEDGE TECH CORP</span>
-            <span>NOVAEDGETECHNOLOGY.COM</span>
-            <span>REACT ✦ THREE.JS ✦ STARDUST</span>
+            <span className="j-foot-extra">NOVAEDGETECHNOLOGY.COM</span>
+            <span className="j-foot-extra">REACT ✦ THREE.JS ✦ STARDUST</span>
             <span className="j-credits">AWS ARCHITECTURE ICONS (CC BY-ND 2.0) · MICROSOFT ENTRA ICON © MICROSOFT · EARTH IMAGERY NASA</span>
           </div>
         </div>

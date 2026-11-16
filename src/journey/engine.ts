@@ -116,7 +116,7 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
   // when the contact column is taller than the screen (phones), the page gets that much extra length after the
   // journey and the extra scroll slides the column up. The column never scrolls on its own: an inner scroll box
   // captured swipes and had to be scrolled all the way back before the page would move
-  const tail = q('[data-tail]'), deskCol = q('.j-desk-col');
+  const tail = q('[data-tail]'), deskCol = q('.j-desk-col'), laptop = q('.j-laptop');
   let tailPx = 0;
   const scrollRange = () => Math.max(1, document.documentElement.scrollHeight - (lvh.offsetHeight || innerHeight) - tailPx);
   const measure = () => {
@@ -642,10 +642,17 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
     }
     // contact column overflow -> page scroll past the end of the journey (see tailPx)
     if (deskCol && tail && deskStage && deskStage.style.display === 'block') {
-      const over = Math.max(0, deskCol.scrollHeight - deskCol.clientHeight);
+      // never slide the laptop (the form) up under the header: on short phones the last footer lines can stay below
+      const navBottom = nav ? nav.getBoundingClientRect().bottom : 0;
+      // ...unless the screen is too short for the whole laptop: then the bottom of the form (send button) wins
+      const over = laptop ? clamp(deskCol.scrollHeight - deskCol.clientHeight, 0, Math.max(laptop.offsetTop - navBottom - 10,
+        laptop.offsetTop + laptop.offsetHeight + 16 - deskCol.clientHeight)) : Math.max(0, deskCol.scrollHeight - deskCol.clientHeight);
       if (Math.abs(over - tailPx) > 2) { tailPx = over; tail.style.height = String(over) + 'px'; scrollMax = scrollRange(); }
       deskCol.scrollTop = clamp(scrollY - scrollMax, 0, tailPx);
-    }
+      // footer still taller than what is left (short phones): the HUD fades out over it as the column slides up
+      if (hud && finished) hud.style.opacity = deskCol.scrollHeight - deskCol.clientHeight > tailPx + 2 && tailPx > 0
+        ? (1 - clamp(deskCol.scrollTop / Math.min(60, tailPx), 0, 1)).toFixed(3) : '1';
+    } else if (hud && finished && hud.style.opacity !== '1') hud.style.opacity = '1';
     // the desk surface starts right under the laptop wherever the layout puts it
     if (deskSurf && laptopBase && deskStage && deskStage.style.display === 'block') {
       deskSurf.style.top = (laptopBase.getBoundingClientRect().bottom - deskStage.getBoundingClientRect().top - 3).toFixed(1) + 'px';

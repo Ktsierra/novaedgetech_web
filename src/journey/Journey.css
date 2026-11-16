@@ -702,7 +702,16 @@ body {
   .j-code { font-size: 11px; }
   .j-form { grid-template-columns: 1fr; gap: 10px; }
   .j-form-foot { flex-direction: column-reverse; align-items: stretch; text-align: center; }
-  .j-footer { justify-content: center; text-align: center; }
+  .j-footer { justify-content: center; text-align: center; margin-top: 18px; padding-top: 14px; gap: 8px; }
+  /* phones: keep the contact form clear of the header at the very end, the footer stays short */
+  .j-reach { margin-top: 16px; gap: 8px 22px; }
+  .j-foot-extra { display: none; }
+}
+/* short phones: tighter laptop so the form, the contact links and the footer all fit above the HUD */
+@media (max-width: 759px) and (max-height: 820px) {
+  .j-code { font-size: 11px; line-height: 1.5; }
+  .j-screen-body { padding: 12px 14px 14px; }
+  .j-field { padding: 6px 2px; }
 }
 
 /* very short phones (e.g. SE with toolbars): drop the card previews so titles, actions and the slot still fit */
