@@ -40,7 +40,7 @@ export const enquiryHtml = ({ name, email, emailHref, message, preview, place, w
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border-radius:14px;overflow:hidden;box-shadow:0 2px 10px rgba(14,22,33,.08)">
         <tr><td style="background:#0e1621;padding:22px 28px;border-bottom:3px solid #00e5ff">
           <span style="font:800 20px/1 Arial,sans-serif;letter-spacing:.02em;color:#ffffff">NOVA</span><span style="font:800 20px/1 Arial,sans-serif;letter-spacing:.02em;color:#00e5ff">EDGE</span>
-          <div style="margin-top:6px;font:600 10px/1 Arial,sans-serif;letter-spacing:.32em;color:#8b98ad">TECHNOLOGY</div>
+          <div style="margin-top:6px;font:600 10px/1 Arial,sans-serif;letter-spacing:.32em;color:#8b98ad">TECH</div>
         </td></tr>
         <tr><td style="padding:28px 28px 8px">
           <div style="font:600 11px/1 Arial,sans-serif;letter-spacing:.14em;text-transform:uppercase;color:#00a9c2">New website enquiry</div>
