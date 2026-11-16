@@ -113,7 +113,12 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
   // the city canvas is sized to the large viewport too (see .j-surface3d): mobile toolbars showing / hiding
   // then never resize it, which used to wipe the river's reflection buffers for a frame (a flicker)
   const surfH = () => lvh.offsetHeight || innerHeight;
-  const scrollRange = () => Math.max(1, document.documentElement.scrollHeight - (lvh.offsetHeight || innerHeight));
+  // when the contact column is taller than the screen (phones), the page gets that much extra length after the
+  // journey and the extra scroll slides the column up. The column never scrolls on its own: an inner scroll box
+  // captured swipes and had to be scrolled all the way back before the page would move
+  const tail = q('[data-tail]'), deskCol = q('.j-desk-col');
+  let tailPx = 0;
+  const scrollRange = () => Math.max(1, document.documentElement.scrollHeight - (lvh.offsetHeight || innerHeight) - tailPx);
   const measure = () => {
     W = innerWidth; H = innerHeight;
     if (cv && ctx) {
@@ -634,6 +639,12 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
         handoff.style.opacity = a.toFixed(3);
         if (handoffDark) handoffDark.style.opacity = m.toFixed(3);
       }
+    }
+    // contact column overflow -> page scroll past the end of the journey (see tailPx)
+    if (deskCol && tail && deskStage && deskStage.style.display === 'block') {
+      const over = Math.max(0, deskCol.scrollHeight - deskCol.clientHeight);
+      if (Math.abs(over - tailPx) > 2) { tailPx = over; tail.style.height = String(over) + 'px'; scrollMax = scrollRange(); }
+      deskCol.scrollTop = clamp(scrollY - scrollMax, 0, tailPx);
     }
     // the desk surface starts right under the laptop wherever the layout puts it
     if (deskSurf && laptopBase && deskStage && deskStage.style.display === 'block') {
