@@ -75,7 +75,7 @@ const Journey = (props: JourneyOptions) => {
         </h1>
         <div className="j-hero-foot">
           <p data-hero className="j-rise j-hero-copy" style={v({ '--dur': '.9s', '--delay': '.1s' })}>
-            Web apps. Mobile apps. Engineered for startups that move fast, from first commit to orbit. Scroll: we&apos;ll take you from the galaxy to your desk.
+            Web apps. Mobile apps. AI in the tools you already use. Engineered for startups that move fast, from first commit to orbit. Scroll: we&apos;ll take you from the galaxy to your desk.
           </p>
           <div data-hero className="j-rise j-hero-ctas" style={v({ '--dur': '.9s', '--delay': '.2s' })}>
             <a href="#contact" data-go={GO.contact} data-hov className="j-btn j-btn--solid">START A PROJECT ↗</a>
