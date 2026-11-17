@@ -56,10 +56,11 @@ export const loaderStatuses = [
 ];
 
 export const services: Service[] = [
-  { num: '01', title: 'WEB APPLICATIONS', body: 'SaaS platforms, dashboards, internal tools. React, Next.js and Node, typed end to end.', at: 0.495 },
-  { num: '02', title: 'MOBILE APPLICATIONS', body: 'iOS and Android that feel native. One codebase when it\'s smart, two when it matters.', at: 0.515 },
-  { num: '03', title: 'MVP → LAUNCH', body: 'Idea to shipped in weeks. Design, build, deploy. Then iterate with real users.', at: 0.535 },
-  { num: '04', title: 'NETWORK & INFRASTRUCTURE', body: 'Wi-Fi, access control, VoIP and cameras on one stack, plus cloud identity. Designed, deployed, managed.', at: 0.555 },
+  { num: '01', title: 'WEB APPLICATIONS', body: 'SaaS platforms, dashboards, internal tools. React, Next.js and Node, typed end to end.', at: 0.49 },
+  { num: '02', title: 'MOBILE APPLICATIONS', body: 'iOS and Android that feel native. One codebase when it\'s smart, two when it matters.', at: 0.505 },
+  { num: '03', title: 'MVP → LAUNCH', body: 'Idea to shipped in weeks. Design, build, deploy. Then iterate with real users.', at: 0.52 },
+  { num: '04', title: 'AI WORKFLOW INTEGRATION', body: 'AI built into the tools your team already uses: automate repetitive tasks, summarize documents and email, and connect AI assistants to your business data securely.', at: 0.535 },
+  { num: '05', title: 'NETWORK & INFRASTRUCTURE', body: 'Wi-Fi, access control, VoIP and cameras on one stack, plus cloud identity. Designed, deployed, managed.', at: 0.55 },
 ];
 
 // client work is described without naming clients; add `image` screenshots when ready
@@ -106,7 +107,7 @@ export const GO = {
   top: 0,
   /** "take the journey" plays the whole trip, galaxy to desk */
   journey: 0.97,
-  /** just past the last service reveal (04 at 0.555), so the anchor lands with all four on screen */
+  /** just past the last service reveal (05 at 0.55), so the anchor lands with all five on screen */
   services: 0.565,
   work: 0.76,
   contact: 0.97,
