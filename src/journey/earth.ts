@@ -54,9 +54,10 @@ const hasWebGL = (canvas: HTMLCanvasElement) => {
  * into its own transparent canvas. three is imported lazily so it never blocks the loader.
  *
  * `size` is the backing-store size it will be shown at (device pixels): it is warmed up at that size, so taking
- * it into use asks nothing more of the graphics card. `built` is called once only the graphics card's part is left.
+ * it into use asks nothing more of the graphics card. `progress` is told how far along it is: 0.2 once it is built and only the
+ * graphics card's part is left, 1 when it is ready.
  */
-export async function createEarth(canvas: HTMLCanvasElement, size: number, built?: () => void): Promise<EarthView> {
+export async function createEarth(canvas: HTMLCanvasElement, size: number, progress?: (done: number) => void): Promise<EarthView> {
   if (!webglPossible() || !hasWebGL(canvas)) throw new Error('WebGL unavailable');
   const THREE = await import('three');
   // the maps download (and decode, in the background) while the scene is put together. Not before three has
@@ -198,7 +199,7 @@ export async function createEarth(canvas: HTMLCanvasElement, size: number, built
   // spin + orbit angles when the lock began; the lock then turns onward from here
   let latch: { y: number; ma: number } | null = null;
 
-  built?.();
+  progress?.(0.2);
   // ---- from here on it is the graphics card's work, which waits for a still picture (warmup.ts) ----
   const renderer = await makeRenderer('earth', () => {
     const r = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
@@ -292,6 +293,7 @@ export async function createEarth(canvas: HTMLCanvasElement, size: number, built
     small: () => { view.setSize(256); },
     frame: () => { renderer.render(scene, cam); },
     uploads: maps.map((tex, i) => () => { uploadPicture(renderer, tex, pictures[i]); }),
+    progress: done => { progress?.(0.2 + 0.8 * done); },
     real: () => { view.setSize(size); view.render(performance.now(), 0, 0); },
   });
   dot.visible = false;

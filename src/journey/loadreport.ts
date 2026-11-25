@@ -18,6 +18,8 @@ export interface LoadTrace {
   pieces: [string, number, number, boolean][];
   /** every frame, four numbers each: its time, how far the galaxy had formed (0..1), the phase (see PHASES), the counter */
   frames: number[];
+  /** frames in which the formed galaxy was left as it was (not redrawn) while the loader waited for the graphics card */
+  held: number;
 }
 
 const PHASES = ['pre', 'forming', 'settled', 'done'];
@@ -75,13 +77,27 @@ function describe(t: LoadTrace, long: [number, number][]): string {
   };
   const first = (p: number) => { for (let i = 0; i < n; i++) if (phase(i) >= p) return at(i); return NaN; };
   const moving = slowIn(1), other = slowIn(null).sort((a, b) => b.gap - a.gap);
-  // the longest the counter showed the same number while the stars were moving
-  let stuck = 0, stuckAt = 0, since = -1, was = -1;
-  for (let i = 0; i < n; i++) {
-    if (phase(i) !== 1) { since = -1; continue; }
-    if (since < 0 || count(i) !== was) { since = at(i); was = count(i); }
-    if (at(i) - since > stuck) { stuck = at(i) - since; stuckAt = was; }
-  }
+  /** the longest the counter showed one number during a phase, and that number */
+  const stuckIn = (p: number) => {
+    let stuck = 0, stuckAt = 0, since = -1, was = -1;
+    for (let i = 0; i < n; i++) {
+      if (phase(i) !== p) { since = -1; continue; }
+      if (since < 0 || count(i) !== was) { since = at(i); was = count(i); }
+      if (at(i) - since > stuck) { stuck = at(i) - since; stuckAt = was; }
+    }
+    return `${r(stuck)} ms (at ${String(stuckAt)})`;
+  };
+  /** frames, slow frames and the longest gap, phase by phase */
+  const byPhase = PHASES.map((name, p) => {
+    let slowN = 0, worst = 0;
+    for (let i = 1; i < n; i++) {
+      if (phase(i - 1) !== p) continue;
+      const gap = at(i) - at(i - 1);
+      if (gap > slow) slowN++;
+      if (gap > worst) worst = gap;
+    }
+    return `${name} ${String(frames(p))} (${String(slowN)} slow, worst ${r(worst)} ms)`;
+  });
   const gpuSteps = t.pieces.filter(p => p[3] && p[2] >= 0.3), cpu = t.pieces.filter(p => !p[3]);
   const sum = (list: [string, number, number, boolean][]) => list.reduce((s, p) => s + p[2], 0);
   const big = gpuSteps.filter(p => p[2] >= 2), longest = [...cpu].sort((a, b) => b[2] - a[2])[0] as typeof cpu[number] | undefined;
@@ -97,8 +113,9 @@ function describe(t: LoadTrace, long: [number, number][]): string {
     '',
     `loader: gone at ${r(t.finished)} ms (journey started at ${r(t.start)}, ${String(n)} frames recorded)`,
     `stars: moving from ${r(first(1))} to ${r(formed)} ms, ${String(frames(1))} frames, ${String(moving.length)} slow (worst ${r(Math.max(0, ...moving.map(s => s.gap)))} ms)`,
-    `hold on the formed galaxy: ${r(t.finished - formed)} ms, the graphics card busy for ${r(sum(hold))} of them`,
-    `counter: the longest it showed one number while the stars moved: ${r(stuck)} ms (at ${String(stuckAt)})`,
+    `hold on the formed galaxy: ${r(t.finished - formed)} ms, the graphics card busy for ${r(sum(hold))} of them, the galaxy left untouched for ${String(t.held)} frames`,
+    `counter: the longest it showed one number while the stars moved: ${stuckIn(1)}; during the hold: ${stuckIn(2)}`,
+    `frames by phase: ${byPhase.join(' · ')}`,
     '',
     'slow frames while the stars were moving [at ms, counter, length, what ran inside]:',
     ...(moving.length ? moving.slice(0, 40).map(s => `  ${r(at(s.i - 1))}  ${String(count(s.i - 1))}%  ${r(s.gap)} ms  ${inside(at(s.i - 1), at(s.i))}`) : ['  none']),

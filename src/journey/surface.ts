@@ -80,9 +80,10 @@ const hasWebGL = (canvas: HTMLCanvasElement) => {
  * three is loaded lazily.
  *
  * `warmW` x `warmH` is the size it will be shown at (CSS pixels): it is warmed up at that size, so its render
- * targets are allocated before it is ever on screen. `built` is called once only the graphics card's part is left.
+ * targets are allocated before it is ever on screen. `progress` is told how far along it is: 0.2 once it is built and only the
+ * graphics card's part is left, 1 when it is ready.
  */
-export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warmH = 200, built?: () => void): Promise<SurfaceView> {
+export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warmH = 200, progress?: (done: number) => void): Promise<SurfaceView> {
   if (!webglPossible(true) || !hasWebGL(canvas)) throw new Error('WebGL2 unavailable');
   const THREE = await import('three');
   const moonPending = fetchPicture(moonUrl); // downloads while the terrain and the city are built
@@ -351,7 +352,7 @@ export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warm
   const hemi = new THREE.HemisphereLight(0x3d6fa8, 0x04080f, 0.55);
   scene.add(sunLight, hemi);
 
-  built?.();
+  progress?.(0.2);
   // ---- from here on it is the graphics card's work, which waits for a still picture (warmup.ts) ----
   const renderer = await makeRenderer('city', () => {
     const r = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false }); // MSAA lives in the composer
@@ -568,6 +569,7 @@ export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warm
       () => { [frontTex, sideTex, dotTex].forEach(tx => { renderer.initTexture(tx); }); },
     ],
     target: rt,
+    progress: done => { progress?.(0.2 + 0.8 * done); },
     real: () => { view.setSize(warmW, warmH); view.render(performance.now(), 0.8, 0.5, 0, 0); },
   });
   t0 = -1;

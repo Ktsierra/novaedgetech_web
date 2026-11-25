@@ -8,15 +8,21 @@ export interface SunView {
   dispose: () => void;
 }
 
-// 3D value noise + fbm, shared by the surface and corona shaders
+// 3D value noise + fbm, shared by the surface and corona shaders.
+// The octave count is a uniform, not a constant, on purpose. With a constant the shader compiler unrolls the
+// loop, and every fbm() call becomes forty copies of the hash: on Windows these two small shaders took longer to
+// compile (0.6 s on a GTX 980 in Firefox) than the city's twenty-four together. A loop it can't unroll is
+// compiled once per call. Same sums in the same order, so the picture is the same.
+const OCTAVES = 5;
 const NOISE = /* glsl */ `
+  uniform int uOctaves;
   float h3(vec3 p){ p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
   float n3(vec3 x){
     vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
     return mix(mix(mix(h3(i), h3(i + vec3(1,0,0)), f.x), mix(h3(i + vec3(0,1,0)), h3(i + vec3(1,1,0)), f.x), f.y),
                mix(mix(h3(i + vec3(0,0,1)), h3(i + vec3(1,0,1)), f.x), mix(h3(i + vec3(0,1,1)), h3(i + vec3(1,1,1)), f.x), f.y), f.z);
   }
-  float fbm(vec3 p){ float s = 0.0, a = 0.5; for (int i = 0; i < 5; i++){ s += a * n3(p); p *= 2.03; a *= 0.5; } return s; }
+  float fbm(vec3 p){ float s = 0.0, a = 0.5; for (int i = 0; i < uOctaves; i++){ s += a * n3(p); p *= 2.03; a *= 0.5; } return s; }
 `;
 
 const hasWebGL = (canvas: HTMLCanvasElement) => {
@@ -35,9 +41,10 @@ const hasWebGL = (canvas: HTMLCanvasElement) => {
  * Drawn in screen space (orthographic, CSS pixels) at whatever position/size the journey engine computes.
  *
  * `w` x `h` is the size it will be shown at (CSS pixels): it is warmed up at that size, so taking it into use
- * asks nothing more of the graphics card. `built` is called once only the graphics card's part is left.
+ * asks nothing more of the graphics card. `progress` is told how far along it is: 0.2 once it is built and only the
+ * graphics card's part is left, 1 when it is ready.
  */
-export async function createSun(canvas: HTMLCanvasElement, w: number, h: number, built?: () => void): Promise<SunView> {
+export async function createSun(canvas: HTMLCanvasElement, w: number, h: number, progress?: (done: number) => void): Promise<SunView> {
   if (!webglPossible() || !hasWebGL(canvas)) throw new Error('WebGL unavailable');
   const THREE = await import('three');
   await turn('sun:build');
@@ -45,11 +52,11 @@ export async function createSun(canvas: HTMLCanvasElement, w: number, h: number,
   const scene = new THREE.Scene();
   const cam = new THREE.OrthographicCamera(0, 1, 1, 0, -2000, 2000);
 
-  const uTime = { value: 0 };
+  const uTime = { value: 0 }, uOctaves = { value: OCTAVES };
 
   // ---- photosphere ----
   const surfMat = new THREE.ShaderMaterial({
-    uniforms: { uTime },
+    uniforms: { uTime, uOctaves },
     vertexShader: `varying vec3 vN; varying vec3 vObj;
       void main(){ vObj = normalize(position); vN = normalize(normalMatrix * normal); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
     fragmentShader: `uniform float uTime; varying vec3 vN; varying vec3 vObj;
@@ -79,7 +86,7 @@ export async function createSun(canvas: HTMLCanvasElement, w: number, h: number,
   // ---- corona: camera-facing quad (plane spans 4 disc radii either side) ----
   const CORONA = 4;
   const coronaMat = new THREE.ShaderMaterial({
-    uniforms: { uTime, uAlpha: { value: 1 } },
+    uniforms: { uTime, uOctaves, uAlpha: { value: 1 } },
     transparent: true,
     depthWrite: false,
     depthTest: false,
@@ -111,7 +118,7 @@ export async function createSun(canvas: HTMLCanvasElement, w: number, h: number,
   corona.renderOrder = 1;
   scene.add(corona);
 
-  built?.();
+  progress?.(0.2);
   // ---- from here on it is the graphics card's work, which waits for a still picture (warmup.ts) ----
   // an OPAQUE black canvas: the layer is screen-blended over the galaxy (black = no change), so the corona is pure
   // added light. A transparent canvas left its soft alpha to each browser's compositor, and Chrome / Safari drew
@@ -164,6 +171,7 @@ export async function createSun(canvas: HTMLCanvasElement, w: number, h: number,
   await warmUp('sun', renderer, scene, cam, {
     small: () => { view.setSize(128, 128); },
     frame: () => { renderer.render(scene, cam); },
+    progress: done => { progress?.(0.2 + 0.8 * done); },
     real: () => {
       view.setSize(w, h);
       view.render(performance.now(), w / 2, h / 2, 30, 1);

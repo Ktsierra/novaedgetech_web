@@ -3,7 +3,7 @@ import { SurfaceView, createSurface } from './surface';
 import { SunView, createSun } from './sun';
 import { bands, loaderStatuses, terminalCode } from './journeyText';
 import type { LoadTrace } from './loadreport';
-import { gpu, pacer, record, rush, still, turn } from './schedule';
+import { gpu, pacer, record, rush, still, turn, working } from './schedule';
 import { softwareRendered } from './warmup';
 
 export interface JourneyOptions {
@@ -80,6 +80,7 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
   const skip = (opts.skipIntro ?? false) || reduced;
   let dead = false;
   let finished = false; // the loader has gone and the page is in use
+  let skyDirty = false; // the galaxy canvas was wiped (a resize) and has to be drawn again, even while it is held still
   let raf = 0;
   const timers: number[] = [];
   const cleanups: (() => void)[] = [];
@@ -135,6 +136,7 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
       const DPR = Math.min(devicePixelRatio || 1, 1.5);
       cv.width = W * DPR; cv.height = H * DPR;
       ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+      skyDirty = true;
     }
     scrollMax = scrollRange();
     const mobile = W < MOBILE_BREAKPOINT;
@@ -221,6 +223,9 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
   // only dim haze, never punch dark holes over stars or empty space
   const ROT = 0.00042; // the spiral pattern turns rigidly so every layer stays aligned
   let discRot = 0;
+  // The galaxy's own clock (what its twinkling reads) and how fast it is turning (1 = as designed). Both stop
+  // while the loader waits for the graphics card with the galaxy formed: see the main loop
+  let skyT = 0, spin = 1;
   const DISC_R = maxR * 1.05;
   const disc = mkCanvas(1024);
   let discReady = false, discAt = 0;
@@ -294,7 +299,7 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
     og.globalAlpha = 1; og.drawImage(tiny, 0, 0, 1024, 1024);
     og.globalAlpha = 0.6; og.drawImage(lo, 0, 0, 1024, 1024);
     discReady = true;
-    discAt = inTurns ? performance.now() : -1e9;
+    discAt = inTurns ? skyT : -1e9;
   };
   // stars of the arm we're flying through (unit cube, streamed toward the camera during the approach)
   const LOCAL = Array.from({ length: W < MOBILE_BREAKPOINT ? 140 : 240 }, () => ({
@@ -347,7 +352,7 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
   const query = new URLSearchParams(location.search);
   let eager = query.get('gl') === 'early';
   const trace: LoadTrace | null = query.has('loadreport')
-    ? { start: performance.now(), t0, finished: 0, mode: eager ? 'early, as asked (?gl=early)' : 'still', pieces: [], frames: [] } : null;
+    ? { start: performance.now(), t0, finished: 0, mode: eager ? 'early, as asked (?gl=early)' : 'still', pieces: [], frames: [], held: 0 } : null;
   if (trace) {
     record((tag, at, ms, onGpu) => { trace.pieces.push([tag, at, ms, onGpu]); });
     cleanups.push(() => { record(null); });
@@ -446,20 +451,20 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
   // galaxy forming on screen keeps moving. Their work on the graphics card waits until that picture is still:
   // before the stars start to move, or once they have settled. Failures fall back silently.
   const ASSETS = 3;
-  let built = 0, assetsDone = 0;
-  const step = async <T>(make: ((built: () => void) => Promise<T>) | null, adopt: (v: T) => void, dispose: (v: T) => void) => {
-    let counted = false;
-    const onBuilt = () => { if (!counted) { counted = true; built++; } };
+  let assetsDone = 0;
+  // how far along each scene is: 0.2 once it is built, then up to 1 as its steps on the graphics card finish
+  const parts = [0, 0, 0];
+  const step = async <T>(i: number, make: ((progress: (done: number) => void) => Promise<T>) | null, adopt: (v: T) => void, dispose: (v: T) => void) => {
     try {
       if (make) {
-        const v = await make(onBuilt);
+        const v = await make(done => { parts[i] = Math.max(parts[i], done); });
         // each scene was warmed up at the size the page had when it started. If the window has changed since,
         // adopting it resizes it: work for the graphics card, so this waits its turn as well
         await gpu('adopt');
         if (dead) dispose(v); else adopt(v);
       }
     } catch { /* no WebGL / textures failed: that scene keeps its CSS/canvas fallback */ }
-    onBuilt();
+    parts[i] = 1;
     assetsDone++;
   };
   // The work starts a moment later, and only if this run is still wanted. In development React mounts, unmounts
@@ -474,14 +479,14 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
     }
     void buildDisc(!skip);
     // (each is warmed up at the size it will be shown at, so its buffers exist before it's ever on screen)
-    void step(sunCv ? done => createSun(sunCv, W, H, done) : null, v => { sun3d = v; v.setSize(W, H); }, v => { v.dispose(); });
+    void step(0, sunCv ? progress => createSun(sunCv, W, H, progress) : null, v => { sun3d = v; v.setSize(W, H); }, v => { v.dispose(); });
     const px = earthSize();
-    void step(earthCv ? done => createEarth(earthCv, px, done) : null, e => {
+    void step(1, earthCv ? progress => createEarth(earthCv, px, progress) : null, e => {
       earth = e; earthPx = px;
       if (geo) e.setTarget(geo.lat, geo.lon);
       syncEarthSize();
     }, e => { e.dispose(); });
-    void step(surfCv ? done => createSurface(surfCv, W, surfH(), done) : null, v => {
+    void step(2, surfCv ? progress => createSurface(surfCv, W, surfH(), progress) : null, v => {
       surface = v; v.setSize(W, surfH());
       // until (or without) IP geolocation, estimate the visitor's longitude from their clock's UTC offset
       const g = geo ?? { lat: 30, lon: -new Date().getTimezoneOffset() / 4 };
@@ -611,6 +616,7 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
 
   // ---------- main loop ----------
   let lastNow = 0;
+  let held = false, drewAtRest = false; // the formed galaxy has been drawn at rest, and is being left alone
   const loop = (now: number) => {
     if (dead) return;
     // frame-rate independent smoothing (≈0.09/frame at 60fps) so slow frames don't feel like scroll lag
@@ -618,7 +624,7 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
     const dt = Math.min(0.1, gap / 1000);
     lastNow = now;
     ssy += (scrollY - ssy) * (1 - Math.exp(-dt * 5.7));
-    smx += (mx - smx) * 0.05; smy += (my - smy) * 0.05;
+    if (!held) { smx += (mx - smx) * 0.05; smy += (my - smy) * 0.05; }
     if ((frameC++ % 60) === 0) scrollMax = scrollRange();
     const p = clamp(ssy / scrollMax, 0, 1);
     // (a gap of over a second is the tab coming back from the background: catch up in one go, as before)
@@ -627,23 +633,49 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
     // the loader holds until the 3D scenes are warmed up (capped so a slow connection never gets stuck)
     const assetsReady = assetsDone >= ASSETS || now - t0 > 9000;
     // The counter follows the galaxy for as long as the building of the scenes keeps up (each one built lifts
-    // its ceiling), and keeps its last tenth for their work on the graphics card, done once the galaxy has formed
-    const shown = Math.min(form, 0.4 + 0.6 * built / ASSETS) * (0.9 + 0.1 * assetsDone / ASSETS);
-    if (counter && !finished) counter.textContent = String(Math.round(shown * 100)).padStart(3, '0');
-    // nothing on screen is moving before the galaxy starts to form (the pre-roll), nor once it has formed and the
-    // loader is only waiting for the scenes: setup gets most of each frame then, and a small share in between
-    const settled = form <= 0 || form >= 1;
-    if (!finished && !skip) rush(settled && !assetsReady);
+    // its ceiling), and keeps its last tenth for their work on the graphics card, done once the galaxy has
+    // formed: it moves on with every step of that work, the one thing on screen that still changes then
+    let built = 0, onCard = 0;
+    for (const part of parts) { if (part >= 0.2) built++; onCard += Math.max(0, part - 0.2) / 0.8; }
+    const shown = Math.min(form, 0.4 + 0.6 * built / ASSETS) * (0.9 + 0.1 * onCard / ASSETS);
+    // (100 is for when everything is ready, not for the last step being under way)
+    const percent = Math.min(Math.round(shown * 100), assetsDone >= ASSETS ? 100 : 99);
+    if (counter && !finished) counter.textContent = String(percent).padStart(3, '0');
+    // The graphics card is only given setup work while the picture is still (schedule.ts): anything that moves
+    // shows every frame that work holds up. Before the stars start to move it is still anyway. A formed galaxy
+    // is not: it turns and twinkles (turning through that work was a stutter at the end of the load). So when
+    // there is setup work at hand, `spin` brings it to rest: over the end of the formation if that is still under
+    // way, quickly otherwise. Once at rest it is left alone until the work is done (see `held`, below), and then
+    // it picks up again. While all that is left is waiting for a download, it keeps turning.
+    const strict = !skip && !eager;
+    const busy = strict && !finished && working();
+    const spinTo = !busy ? 1 : form < 1 ? 1 - sstep(clamp((form - 0.7) / 0.3, 0, 1)) : 0;
+    spin += clamp(spinTo - spin, -dt * 4, dt / 0.9);
+    const calm = form <= 0 || (form >= 1 && (!strict || spin === 0));
+    // setup gets most of each frame while the picture is still and the loader is waiting for it, a small share
+    // while the stars are moving
+    if (!finished && !skip) rush(calm && !assetsReady);
     if (form >= 1 && assetsReady && !finished) finish();
-    // ...and those are the only moments the graphics card is given setup work. Once the page is in use (a scene
-    // that arrives late), the picture counts as still when the page has finished coming in and isn't being scrolled
+    // (once the page is in use, a scene that arrives late: still means the page has finished coming in and isn't
+    // being scrolled)
     if (Math.abs(scrollY - ssy) > 0.5) movedAt = now;
-    still(eager || (finished ? now - Math.max(movedAt + 150, shownAt + 1200) > 0 : settled));
+    still(eager || (finished ? now - Math.max(movedAt + 150, shownAt + 1200) > 0 : calm));
     const phase = finished ? 3 : form <= 0 ? 0 : form < 1 ? 1 : 2;
     if (phase !== phaseNo) { phaseNo = phase; root.dataset.intro = PHASES[phase]; }
-    if (trace && (!trace.finished || now < trace.finished + 2500)) trace.frames.push(now, form, phase, Math.round(shown * 100));
+    if (trace && (!trace.finished || now < trace.finished + 2500)) trace.frames.push(now, form, phase, percent);
 
-    if (ctx) drawSky(ctx, p, form, now);
+    // The formed galaxy, at rest, with setup work at hand: left exactly as it is. Not redrawn (unless a resize
+    // has wiped it), and its clock stopped, so nothing jumps when it carries on.
+    const wasHeld = held;
+    held = busy && form >= 1 && spin === 0 && drewAtRest && !skyDirty;
+    if (held) { if (trace) trace.held++; }
+    else {
+      // (its clock moves a frame at a time: not by however long a wait or a slow frame took)
+      skyT += wasHeld ? 1000 / 60 : Math.min(gap, 100);
+      if (ctx) drawSky(ctx, p, form, skyT);
+      skyDirty = false;
+      drewAtRest = form >= 1 && spin === 0;
+    }
 
     // --- hero out ---
     if (hero) {
@@ -786,8 +818,9 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
     const Z = Math.exp(Math.log(16) * easeIO(seg(p, 0.045, 0.31)));
     const gA = 1 - seg(p, 0.25, 0.32);
     const viewX = W / 2 + smx * 26, viewY = H * 0.52 + smy * 16;
-    fTh += ROT;
-    discRot += ROT;
+    const turned = ROT * spin;
+    fTh += turned;
+    discRot += turned;
     const fwx = viewX + Math.cos(fTh) * fr, fwy = viewY + Math.sin(fTh) * fr * 0.58;
     const mixF = easeIO(seg(p, 0.05, 0.24));
     const fx = viewX + (fwx - viewX) * mixF, fy = viewY + (fwy - viewY) * mixF;
@@ -806,7 +839,7 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
       // clouds turn at the same rate as the stars so gas and dust stay on their arms
       const clouds = (list: Nebula[], alpha: number) => {
         for (const nb of list) {
-          nb.th += ROT;
+          nb.th += turned;
           const wx = viewX + Math.cos(nb.th) * nb.r, wy = viewY + Math.sin(nb.th) * nb.r * 0.58;
           const x = viewX + (wx - fx) * Z, y = viewY + (wy - fy) * Z;
           const rad = nb.rad * (0.6 + Z * 0.5), ry = rad * 0.72; // flattened with the disc
@@ -837,7 +870,7 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
         g.drawImage(flareImg, cwx - coreR * 1.9, cwy - coreR * 0.17, coreR * 3.8, coreR * 0.34);
       }
       for (const pt of P) {
-        pt.th += ROT;
+        pt.th += turned;
         const f = ease(clamp((form - pt.d) / 0.5, 0, 1));
         const wx0 = viewX + Math.cos(pt.th) * pt.r, wy0 = viewY + Math.sin(pt.th) * pt.r * 0.58;
         const tx = viewX + (wx0 - fx) * Z, ty2 = viewY + (wy0 - fy) * Z;

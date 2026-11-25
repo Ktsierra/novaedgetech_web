@@ -207,6 +207,37 @@ describe('work for the graphics card', () => {
     expect(ran).toBe(true);
   });
 
+  it('says whether there is setup work at hand', async () => {
+    const { gate, frame, settle } = rig();
+    expect(gate.working()).toBe(false);
+    // a piece waiting for its frame, then running
+    let ran = false;
+    void (async () => { await gate.turn(); ran = true; })();
+    await settle();
+    expect(gate.working()).toBe(true);
+    await frame(16);
+    expect(ran).toBe(true);
+    expect(gate.working()).toBe(false);
+    // a step for the graphics card that is waiting for a still picture counts as well...
+    gate.still(false);
+    let drew = false;
+    let resume = () => { /* set by the pass */ };
+    const pass = gate.pass(async () => { await gate.gpu(); drew = true; await new Promise<void>(res => { resume = res; }); });
+    await settle();
+    await frame(16);
+    expect(gate.working()).toBe(true);
+    gate.still(true);
+    await frame(16);
+    await frame(16);
+    expect(drew).toBe(true);
+    // ...and so does a pass that is between two of its steps
+    expect(gate.working()).toBe(true);
+    resume();
+    await pass;
+    await settle();
+    expect(gate.working()).toBe(false);
+  });
+
   it('reports each piece with its name, its time and who it was for', async () => {
     const { gate, spend, frame, settle, notes } = rig();
     void (async () => { await gate.turn('build'); spend(3); await gate.gpu('upload'); spend(7); })();

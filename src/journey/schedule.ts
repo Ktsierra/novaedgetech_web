@@ -44,6 +44,12 @@ export interface Gate {
   rush: (on: boolean) => void;
   /** Whether the picture is holding still right now: `gpu()` waits for it. */
   still: (on: boolean) => void;
+  /**
+   * Whether any setup work is at hand: queued, running, or waiting for a still picture. Not while everything
+   * left is waiting for a download. The page uses it to bring the picture to rest when there is work to do, and
+   * to let it move again when there isn't.
+   */
+  working: () => boolean;
 }
 
 /** setup work per frame, in ms: a 60 Hz frame is 16.7 ms and the galaxy needs its part of it */
@@ -61,6 +67,7 @@ export function createGate(env: GateEnv): Gate {
   let rushing = false, serving = false;
   let calm = true; // (until the page says its picture is moving)
   let since = -1; // when work for the graphics card first found the picture moving
+  let asking = 0, passing = 0; // gpu() calls not yet granted, passes not yet over
   let line: Promise<unknown> = Promise.resolve();
   const lanes: Waiter[][] = [[], []];
   // A device whose frames are slow to come round anyway (`wait` well over a 30 fps frame) isn't going to look
@@ -100,19 +107,25 @@ export function createGate(env: GateEnv): Gate {
   return {
     turn: (tag = '', first = false) => ask(1, first ? 0 : 1, tag),
     gpu: async (tag = '') => {
-      for (;;) {
-        if (clear()) {
-          await ask(0.25, 1, tag, true);
-          if (clear()) return;
-          continue; // the picture started moving while this waited for its turn
+      asking++;
+      try {
+        for (;;) {
+          if (clear()) {
+            await ask(0.25, 1, tag, true);
+            if (clear()) return;
+            continue; // the picture started moving while this waited for its turn
+          }
+          if (since < 0) since = env.now();
+          await env.frame();
         }
-        if (since < 0) since = env.now();
-        await env.frame();
+      } finally {
+        asking--;
       }
     },
     pass: work => {
+      passing++;
       const run = line.then(work);
-      line = run.then(() => undefined, () => undefined);
+      line = run.then(() => { passing--; }, () => { passing--; });
       return run;
     },
     rush: on => { rushing = on; },
@@ -120,6 +133,7 @@ export function createGate(env: GateEnv): Gate {
       calm = on;
       if (on) since = -1;
     },
+    working: () => serving || asking > 0 || passing > 0,
   };
 }
 
@@ -161,6 +175,7 @@ export const gpu = gate.gpu;
 export const pass = gate.pass;
 export const rush = gate.rush;
 export const still = gate.still;
+export const working = gate.working;
 
 /**
  * For long loops: check `due()` every so often and `await rest()` when it is, so each piece of the loop only

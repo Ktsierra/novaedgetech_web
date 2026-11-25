@@ -78,10 +78,12 @@ const settle = (renderer: T.WebGLRenderer, drew: boolean) => {
 };
 
 /** One step of work for the graphics card: waits for a still picture, does the work, sees it through. */
-const step = async (renderer: T.WebGLRenderer, tag: string, work: () => void, drew = false) => {
+type Step = (tag: string, work: () => void, drew?: boolean) => Promise<void>;
+const stepper = (renderer: T.WebGLRenderer, done: () => void): Step => async (tag, work, drew = false) => {
   await gpu(tag);
   work();
   settle(renderer, drew);
+  done();
 };
 
 /**
@@ -107,19 +109,19 @@ export const makeRenderer = (tag: string, create: () => T.WebGLRenderer) => pass
  * programs by output colour space, and compiling the city against the canvas built programs that its render
  * targets never used. The real ones were then linked in one long freeze, in the first frame.
  */
-async function issuePrograms(tag: string, renderer: T.WebGLRenderer, scene: T.Scene, cam: T.Camera, drawFrame: () => void, target: T.WebGLRenderTarget | null) {
+async function issuePrograms(step: Step, tag: string, renderer: T.WebGLRenderer, scene: T.Scene, cam: T.Camera, drawFrame: () => void, target: T.WebGLRenderTarget | null) {
   const mats = new Set<T.Material>();
   const compile = (ob: T.Object3D, camera: T.Camera, within?: T.Scene) => { renderer.compile(ob, camera, within).forEach(m => mats.add(m)); };
   // one object at a time first: writing out a program's source is main-thread work too
   let n = 0;
   for (const part of scene.children) {
     if (holdsLight(part)) continue; // compile() would count its lights twice; the pass below covers it
-    await step(renderer, `${tag}:programs ${String(++n)}`, () => {
+    await step(`${tag}:programs ${String(++n)}`, () => {
       renderer.setRenderTarget(target);
       try { compile(part, cam, scene); } finally { renderer.setRenderTarget(null); }
     });
   }
-  await step(renderer, tag + ':programs', () => {
+  await step(tag + ':programs', () => {
     // eslint-disable-next-line @typescript-eslint/unbound-method -- put back exactly as it was, a few lines down
     const draw = renderer.render;
     renderer.render = (ob, camera) => { compile(ob, camera); };
@@ -157,13 +159,13 @@ async function whenCompiled(tag: string, renderer: T.WebGLRenderer, mats: Set<T.
  * be: the picture is still while they run, but the page may already be in use (a scene that arrives late).
  * Everything is put back afterwards.
  */
-async function drawInStages(tag: string, renderer: T.WebGLRenderer, scene: T.Scene, drawFrame: () => void) {
+async function drawInStages(step: Step, tag: string, scene: T.Scene, drawFrame: () => void) {
   const parts: { ob: T.Object3D; culled: boolean }[] = [];
   scene.traverse(ob => { if (ob.visible && isDrawn(ob)) parts.push({ ob, culled: ob.frustumCulled }); });
   // hidden, then shown one by one; drawn wherever the camera happens to point
   for (const p of parts) { p.ob.visible = false; p.ob.frustumCulled = false; }
   try {
-    await step(renderer, tag + ':draw nothing', drawFrame, true); // the frame's own passes, with nothing in the scene
+    await step(tag + ':draw nothing', drawFrame, true); // the frame's own passes, with nothing in the scene
     const seen = new Set<T.Material>();
     let n = 0;
     for (const p of parts) {
@@ -171,7 +173,7 @@ async function drawInStages(tag: string, renderer: T.WebGLRenderer, scene: T.Sce
       const mats = materialsOf(p.ob);
       if (mats.every(m => seen.has(m))) continue; // nothing new to link: it rides along with the next draw
       mats.forEach(m => seen.add(m));
-      await step(renderer, `${tag}:draw ${String(++n)} ${mats[0].type}`, drawFrame, true);
+      await step(`${tag}:draw ${String(++n)} ${mats[0].type}`, drawFrame, true);
     }
   } finally {
     for (const p of parts) { p.ob.visible = true; p.ob.frustumCulled = p.culled; }
@@ -189,7 +191,23 @@ export interface WarmUp {
   target?: T.WebGLRenderTarget | null;
   /** sizes the scene for the page and draws its first real frame, hidden */
   real: () => void;
+  /** told how far along this is (0..1) as each step finishes: the loader's counter moves on it */
+  progress?: (done: number) => void;
 }
+
+/** how many draws drawInStages will make: one of nothing, then one for each object that brings a new material */
+const stagesOf = (scene: T.Scene) => {
+  const seen = new Set<T.Material>();
+  let n = 1;
+  scene.traverse(ob => {
+    if (!ob.visible || !isDrawn(ob)) return;
+    const mats = materialsOf(ob);
+    if (mats.every(m => seen.has(m))) return;
+    mats.forEach(m => seen.add(m));
+    n++;
+  });
+  return n;
+};
 
 /**
  * Gets a scene onto the GPU while the picture is still: programs compiled, textures uploaded, every object drawn
@@ -199,21 +217,27 @@ export interface WarmUp {
  */
 export async function warmUp(tag: string, renderer: T.WebGLRenderer, scene: T.Scene, cam: T.Camera, w: WarmUp) {
   let mats: Set<T.Material> | null = null;
+  // (the size, a program step for each top-level object and one for the frame's own passes, the uploads, the
+  // staged draws, the real frame)
+  const total = 3 + scene.children.filter(part => !holdsLight(part)).length + (w.uploads?.length ?? 0) + stagesOf(scene);
+  let done = 0;
+  const step = stepper(renderer, () => { w.progress?.(Math.min(1, ++done / total)); });
   // every scene hands its programs over before any of them goes on to upload and draw: where the browser compiles
   // in the background, the biggest scene's programs are then compiling while the others finish
   await pass(async () => {
     try {
-      await step(renderer, tag + ':size', w.small);
-      mats = await issuePrograms(tag, renderer, scene, cam, w.frame, w.target ?? null);
+      await step(tag + ':size', w.small);
+      mats = await issuePrograms(step, tag, renderer, scene, cam, w.frame, w.target ?? null);
     } catch { /* the hidden frame below covers whatever is left */ }
   });
   await pass(async () => {
     try {
       let n = 0;
-      for (const upload of w.uploads ?? []) await step(renderer, `${tag}:upload ${String(++n)}`, upload);
+      for (const upload of w.uploads ?? []) await step(`${tag}:upload ${String(++n)}`, upload);
       if (mats) await whenCompiled(tag, renderer, mats);
-      await drawInStages(tag, renderer, scene, w.frame);
+      await drawInStages(step, tag, scene, w.frame);
     } catch { /* as above */ }
-    await step(renderer, tag + ':frame', w.real, true);
+    await step(tag + ':frame', w.real, true);
+    w.progress?.(1);
   });
 }
