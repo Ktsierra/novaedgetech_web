@@ -1,5 +1,5 @@
-import { ownFrame } from './schedule';
-import { tune, warmUp, webglPossible } from './warmup';
+import { turn } from './schedule';
+import { makeRenderer, warmUp, webglPossible } from './warmup';
 
 export interface SunView {
   setSize: (w: number, h: number) => void;
@@ -33,19 +33,15 @@ const hasWebGL = (canvas: HTMLCanvasElement) => {
  * Procedural star for the galaxy -> solar system leg: granulated, limb-darkened photosphere plus a
  * corona with slow streamers. No textures, so it is ready almost immediately.
  * Drawn in screen space (orthographic, CSS pixels) at whatever position/size the journey engine computes.
+ *
+ * `w` x `h` is the size it will be shown at (CSS pixels): it is warmed up at that size, so taking it into use
+ * asks nothing more of the graphics card. `built` is called once only the graphics card's part is left.
  */
-export async function createSun(canvas: HTMLCanvasElement): Promise<SunView> {
+export async function createSun(canvas: HTMLCanvasElement, w: number, h: number, built?: () => void): Promise<SunView> {
   if (!webglPossible() || !hasWebGL(canvas)) throw new Error('WebGL unavailable');
   const THREE = await import('three');
-  // (each slow step that can't be split - here setting up the renderer - waits for a frame of its own: schedule.ts)
-  await ownFrame();
+  await turn('sun:build');
 
-  // an OPAQUE black canvas: the layer is screen-blended over the galaxy (black = no change), so the corona is pure
-  // added light. A transparent canvas left its soft alpha to each browser's compositor, and Chrome / Safari drew
-  // it as a hard-edged sticker
-  const renderer = new THREE.WebGLRenderer({ canvas, alpha: false, antialias: true });
-  tune(renderer);
-  renderer.setClearColor(0x000000, 1);
   const scene = new THREE.Scene();
   const cam = new THREE.OrthographicCamera(0, 1, 1, 0, -2000, 2000);
 
@@ -115,13 +111,26 @@ export async function createSun(canvas: HTMLCanvasElement): Promise<SunView> {
   corona.renderOrder = 1;
   scene.add(corona);
 
-  let H = 1, t0 = -1, hidden = true;
+  built?.();
+  // ---- from here on it is the graphics card's work, which waits for a still picture (warmup.ts) ----
+  // an OPAQUE black canvas: the layer is screen-blended over the galaxy (black = no change), so the corona is pure
+  // added light. A transparent canvas left its soft alpha to each browser's compositor, and Chrome / Safari drew
+  // it as a hard-edged sticker
+  const renderer = await makeRenderer('sun', () => {
+    const r = new THREE.WebGLRenderer({ canvas, alpha: false, antialias: true });
+    r.setClearColor(0x000000, 1);
+    return r;
+  });
+
+  let W = 0, H = 0, ratio = 0, t0 = -1, hidden = true;
   const view: SunView = {
-    setSize: (w: number, h: number) => {
-      H = h;
-      renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.5));
-      renderer.setSize(w, h, false);
-      cam.left = 0; cam.right = w; cam.top = h; cam.bottom = 0;
+    setSize: (cw: number, ch: number) => {
+      const pr = Math.min(devicePixelRatio || 1, 1.5);
+      if (cw === W && ch === H && pr === ratio) return; // (a resize, even to the same size, is work for the GPU)
+      W = cw; H = ch; ratio = pr;
+      renderer.setPixelRatio(pr);
+      renderer.setSize(cw, ch, false);
+      cam.left = 0; cam.right = cw; cam.top = ch; cam.bottom = 0;
       cam.updateProjectionMatrix();
     },
     render: (now: number, x: number, y: number, r: number, alpha: number) => {
@@ -150,13 +159,18 @@ export async function createSun(canvas: HTMLCanvasElement): Promise<SunView> {
       renderer.forceContextLoss();
     },
   };
-  // warm-up while the loader is up (see warmup.ts), then hide the layer again
-  await ownFrame();
-  view.setSize(128, 128);
-  await warmUp(renderer, scene, cam, () => { renderer.render(scene, cam); });
-  view.render(performance.now(), 64, 64, 30, 1);
-  canvas.style.opacity = '0';
-  hidden = true;
-  t0 = -1;
+  // warm-up while the loader is up (see warmup.ts): every object drawn once into a small buffer, then one frame
+  // at the real size, and the layer is hidden again before anything is painted
+  await warmUp('sun', renderer, scene, cam, {
+    small: () => { view.setSize(128, 128); },
+    frame: () => { renderer.render(scene, cam); },
+    real: () => {
+      view.setSize(w, h);
+      view.render(performance.now(), w / 2, h / 2, 30, 1);
+      canvas.style.opacity = '0';
+      hidden = true;
+      t0 = -1;
+    },
+  });
   return view;
 }

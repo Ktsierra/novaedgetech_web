@@ -59,6 +59,7 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
     import('three/examples/jsm/objects/Reflector.js'),
     import('three/examples/jsm/utils/BufferGeometryUtils.js'),
   ]);
+  await turn('city:buildings'); // (the city is laid out in pieces that take turns with the loader's frames: schedule.ts)
   const { pathX, riverEnd, tower, mobile } = o;
   const r = rng(20251022);
   const onRiver = (x: number, z: number, pad: number) => z > riverEnd - 8 && Math.abs(x - pathX(z)) - pad < BANK;
@@ -147,7 +148,7 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
     bridgeZ.push(z);
     add(pathX(z), 1.4, z, 2 * BANK + 8, 0.8, 3.4, -0.5);
   }
-  await turn(); // (the city is laid out in pieces that take turns with the loader's frames: schedule.ts)
+  await turn('city:buildings sort');
   // draw nearest-first (the camera looks down the river toward -z), so the depth test skips hidden facades
   // instead of shading them: the city overlaps itself a lot
   const order = bSeed.map((_, i) => i).sort((i, j) => bPos[j * 3 + 2] - bPos[i * 3 + 2]);
@@ -271,7 +272,7 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
   });
   const buildings = new THREE.Mesh(bGeo, bMat);
   buildings.frustumCulled = false;
-  await turn();
+  await turn('city:river');
 
   // ---------- river (real reflections, rippled and smeared into light streaks) ----------
   const rp: number[] = [], ri: number[] = [];
@@ -369,7 +370,7 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
   water.position.y = WATER_Y;
   const wU = (water.material as T.ShaderMaterial).uniforms as Record<string, { value: unknown }>;
 
-  await turn();
+  await turn('city:lamps');
 
   // ---------- street lamps + river-bank lights (static) ----------
   const dotCv = document.createElement('canvas');
@@ -432,7 +433,7 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
   });
   const lamps = new THREE.Points(lampGeo, lampMat);
 
-  await turn();
+  await turn('city:traffic');
 
   // ---------- traffic: street cars (head / tail lights) + airborne lanes over the river ----------
   const CARS = mobile ? 1300 : 2800;
@@ -505,7 +506,7 @@ export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
   const cars = new THREE.Points(carGeo, carMat);
   cars.frustumCulled = false;
 
-  await turn();
+  await turn('city:network');
 
   // ---------- network: packets arcing rooftop to rooftop, the tower as the hub ----------
   const hub = { x: tower.x, z: tower.z, y: tower.top };

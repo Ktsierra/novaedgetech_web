@@ -1,9 +1,9 @@
 import moonUrl from '../assets/earth/moon_1024.jpg';
 import { subPoints, skyPosition } from './astro';
 import { buildCity } from './city';
-import { ownFrame, pacer, turn } from './schedule';
+import { pacer, turn } from './schedule';
 import { fetchPicture, pictureTexture, uploadPicture } from './textures';
-import { tune, warmUp, webglPossible } from './warmup';
+import { makeRenderer, warmUp, webglPossible } from './warmup';
 
 export interface SurfaceView {
   setSize: (w: number, h: number) => void;
@@ -78,27 +78,24 @@ const hasWebGL = (canvas: HTMLCanvasElement) => {
  * neon survey grid on the ground, mountains around it, a sky dome, stars and the moon. The sky follows the visitor's real local time: sun and moon
  * at their true altitude and bearing, blending night -> twilight -> a hazy, high-altitude day by the sun's height.
  * three is loaded lazily.
+ *
+ * `warmW` x `warmH` is the size it will be shown at (CSS pixels): it is warmed up at that size, so its render
+ * targets are allocated before it is ever on screen. `built` is called once only the graphics card's part is left.
  */
-export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warmH = 200): Promise<SurfaceView> {
+export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warmH = 200, built?: () => void): Promise<SurfaceView> {
   if (!webglPossible(true) || !hasWebGL(canvas)) throw new Error('WebGL2 unavailable');
   const THREE = await import('three');
   const moonPending = fetchPicture(moonUrl); // downloads while the terrain and the city are built
   void moonPending.catch(() => undefined); // (reported where it is awaited, below)
-  // The scene is built in small pieces that take turns with the loader's frames (schedule.ts): `turn()` between
-  // pieces, `ownFrame()` before a slow one that can't be split (here: setting up the renderer)
-  await ownFrame();
-
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false }); // MSAA lives in the composer
-  tune(renderer);
-  renderer.outputColorSpace = THREE.SRGBColorSpace;
   const [{ EffectComposer }, { RenderPass }, { UnrealBloomPass }, { OutputPass }] = await Promise.all([
     import('three/examples/jsm/postprocessing/EffectComposer.js'),
     import('three/examples/jsm/postprocessing/RenderPass.js'),
     import('three/examples/jsm/postprocessing/UnrealBloomPass.js'),
     import('three/examples/jsm/postprocessing/OutputPass.js'),
   ]);
-
-  await turn();
+  // The scene is built in small pieces that take turns with the loader's frames (schedule.ts): `turn()` between
+  // pieces. None of it touches the graphics card: that part comes last, and waits for a still picture
+  await turn('city:sky');
 
   const fog = new THREE.Fog(0x0b3a52, 90, 680); // reaches far enough for the mountains to stay readable
   const scene = new THREE.Scene();
@@ -168,18 +165,18 @@ export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warm
   const starMat = new THREE.PointsMaterial({ color: 0xc9d6ff, size: 1.3, sizeAttenuation: false, transparent: true, opacity: 0.7, fog: false, depthWrite: false });
   const stars = new THREE.Points(starGeo, starMat);
   scene.add(stars);
-  await turn();
+  await turn('city:terrain mesh');
 
   // ---------- terrain ----------
   const mobile = innerWidth < 760;
   const SIZE = 800, SEG = mobile ? 170 : 240; // lighter mesh on phones
   const terrGeo = new THREE.PlaneGeometry(SIZE, SIZE, SEG, SEG);
-  await turn();
+  await turn('city:terrain turn');
   terrGeo.rotateX(-Math.PI / 2);
   const pos = terrGeo.attributes.position as InstanceType<typeof THREE.BufferAttribute>;
   const cols = new Float32Array(pos.count * 3);
   const low = new THREE.Color(0x070e18), high = new THREE.Color(0x2b4a6b), snow = new THREE.Color(0x8aa4c0), tmp = new THREE.Color();
-  const pace = pacer();
+  const pace = pacer('city:terrain heights');
   for (let i = 0; i < pos.count; i++) {
     if ((i & 255) === 0 && pace.due()) await pace.rest(); // ~58k vertices of noise: a few milliseconds at a time
     const x = pos.getX(i), z = pos.getZ(i) - 100; // terrain extends mostly ahead of the start
@@ -190,9 +187,9 @@ export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warm
     cols[i * 3] = tmp.r; cols[i * 3 + 1] = tmp.g; cols[i * 3 + 2] = tmp.b;
   }
   terrGeo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
-  await turn();
+  await turn('city:terrain normals');
   terrGeo.computeVertexNormals();
-  await turn();
+  await turn('city:ground');
   const terrMat = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.92, metalness: 0 });
   // the night glow (set in updateSky) climbs with altitude: none on the city floor, strongest up the slopes
   terrMat.onBeforeCompile = sh => {
@@ -263,7 +260,7 @@ export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warm
   // the same Moon that orbited the globe, hanging over the far ridges (sunlit side gives it a phase)
   const moonPic = await moonPending;
   const moonTex = pictureTexture(THREE, moonPic, true);
-  await turn();
+  await turn('city:moon, tower');
   // lit by the REAL sun direction (even below the horizon), so its phase is tonight's; paler by day
   const moonMat = new THREE.ShaderMaterial({
     transparent: true,
@@ -312,7 +309,7 @@ export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warm
   const TX = pathX(TZ), TY = heightAt(TX, TZ) - 1;
   const frontTex = new THREE.CanvasTexture(winCv(true));
   const sideTex = new THREE.CanvasTexture(winCv(false));
-  [frontTex, sideTex].forEach(tx => { tx.colorSpace = THREE.SRGBColorSpace; tx.anisotropy = renderer.capabilities.getMaxAnisotropy(); });
+  [frontTex, sideTex].forEach(tx => { tx.colorSpace = THREE.SRGBColorSpace; });
   const towerMat = (tex: InstanceType<typeof THREE.Texture> | null) => new THREE.MeshStandardMaterial({ color: 0x05080f, roughness: 0.7, metalness: 0.25, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: tex ? 1 : 0 });
   const towerMats = [towerMat(sideTex), towerMat(sideTex), towerMat(null), towerMat(null), towerMat(frontTex), towerMat(sideTex)];
   const towerGeo = new THREE.BoxGeometry(TW, TH, TD);
@@ -333,20 +330,11 @@ export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warm
   neon(TX, TY + TH + 6, TZ, 0.4, 12, 0.4);
   bp.push(TX, TY + TH + 12.5, TZ);
 
-  await turn();
-
   // ---------- the city ----------
   const city = await buildCity(THREE, { pathX, pathGlsl: PATH_GLSL, riverEnd: RIVER_END, tower: { x: TX, z: TZ, top: TY + TH + 0.4 }, mobile, fog });
   city.objects.forEach(ob => { scene.add(ob); });
-  await turn();
+  await turn('city:lights');
 
-  // post: multisampled render (smooth edges) -> bloom (neon actually glows) -> sRGB output
-  const rt = new THREE.WebGLRenderTarget(2, 2, { type: THREE.HalfFloatType, samples: mobile ? 0 : 2 });
-  const composer = new EffectComposer(renderer, rt);
-  composer.addPass(new RenderPass(scene, cam));
-  const bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.75, 0.5, 0.82);
-  composer.addPass(bloom);
-  composer.addPass(new OutputPass());
   bp.push(...city.beacons);
   beaconGeo.setAttribute('position', new THREE.Float32BufferAttribute(bp, 3));
   // centre of the target window on the front (+z) face
@@ -362,6 +350,23 @@ export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warm
   sunLight.position.copy(SUN).multiplyScalar(100);
   const hemi = new THREE.HemisphereLight(0x3d6fa8, 0x04080f, 0.55);
   scene.add(sunLight, hemi);
+
+  built?.();
+  // ---- from here on it is the graphics card's work, which waits for a still picture (warmup.ts) ----
+  const renderer = await makeRenderer('city', () => {
+    const r = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false }); // MSAA lives in the composer
+    r.outputColorSpace = THREE.SRGBColorSpace;
+    const maxAniso = r.capabilities.getMaxAnisotropy();
+    [frontTex, sideTex].forEach(tx => { tx.anisotropy = maxAniso; });
+    return r;
+  });
+  // post: multisampled render (smooth edges) -> bloom (neon actually glows) -> sRGB output
+  const rt = new THREE.WebGLRenderTarget(2, 2, { type: THREE.HalfFloatType, samples: mobile ? 0 : 2 });
+  const composer = new EffectComposer(renderer, rt);
+  composer.addPass(new RenderPass(scene, cam));
+  const bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.75, 0.5, 0.82);
+  composer.addPass(bloom);
+  composer.addPass(new OutputPass());
 
   // ---------- the visitor's sky ----------
   // palettes: night (moonlit), twilight (blue hour: deep blue overhead, a magenta / amber band at the horizon), day (hazy, high-altitude: darker than a
@@ -547,22 +552,24 @@ export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warm
       renderer.forceContextLoss();
     },
   };
-  // warm-up while the loader is up, a piece per frame (warmup.ts), in a mid-descent pose: shaders compiled for
-  // the buffers they really draw into, textures uploaded, each object drawn once into small buffers
-  await ownFrame();
-  renderer.setSize(96, 60, false);
-  composer.setSize(96, 60);
-  city.setSize(96, 60, 96, 60);
-  pose(performance.now(), 0.8, 0.5, 0, 0);
-  await warmUp(renderer, scene, cam, () => { composer.render(); }, [
-    () => { uploadPicture(renderer, moonTex, moonPic); },
-    () => { [frontTex, sideTex, dotTex].forEach(tx => { renderer.initTexture(tx); }); },
-  ], rt);
-  // then the usual hidden frame at the real viewport size, so the render targets are allocated before the city
-  // is ever on screen
-  view.setSize(warmW, warmH);
-  await ownFrame();
-  view.render(performance.now(), 0.8, 0.5, 0, 0);
+  // warm-up while the loader is up (warmup.ts), in a mid-descent pose: shaders compiled for the buffers they
+  // really draw into, textures uploaded, each object drawn once into small buffers. Then the hidden frame at the
+  // real viewport size, so the render targets are allocated before the city is ever on screen
+  await warmUp('city', renderer, scene, cam, {
+    small: () => {
+      renderer.setSize(96, 60, false);
+      composer.setSize(96, 60);
+      city.setSize(96, 60, 96, 60);
+      pose(performance.now(), 0.8, 0.5, 0, 0);
+    },
+    frame: () => { composer.render(); },
+    uploads: [
+      () => { uploadPicture(renderer, moonTex, moonPic); },
+      () => { [frontTex, sideTex, dotTex].forEach(tx => { renderer.initTexture(tx); }); },
+    ],
+    target: rt,
+    real: () => { view.setSize(warmW, warmH); view.render(performance.now(), 0.8, 0.5, 0, 0); },
+  });
   t0 = -1;
   return view;
 }

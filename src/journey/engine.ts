@@ -2,7 +2,9 @@ import { EARTH_FRAME, EarthView, createEarth } from './earth';
 import { SurfaceView, createSurface } from './surface';
 import { SunView, createSun } from './sun';
 import { bands, loaderStatuses, terminalCode } from './journeyText';
-import { ownFrame, pacer, rush, turn } from './schedule';
+import type { LoadTrace } from './loadreport';
+import { gpu, pacer, record, rush, still, turn } from './schedule';
+import { softwareRendered } from './warmup';
 
 export interface JourneyOptions {
   skipIntro?: boolean;
@@ -77,6 +79,7 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
   const reduced = mm('(prefers-reduced-motion: reduce)');
   const skip = (opts.skipIntro ?? false) || reduced;
   let dead = false;
+  let finished = false; // the loader has gone and the page is in use
   let raf = 0;
   const timers: number[] = [];
   const cleanups: (() => void)[] = [];
@@ -99,10 +102,16 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
   let surface: SurfaceView | null = null, surfaceOn = false;
   let sun3d: SunView | null = null;
   let earth: EarthView | null = null, earthOn = false, earthPx = 0, earthTier = 1;
+  const earthSize = () => Math.min(3072, 2 * Rend * EARTH_FRAME * Math.min(devicePixelRatio || 1, 1.5) * earthTier);
   const syncEarthSize = () => {
     if (!earth) return;
-    const px = Math.min(3072, 2 * Rend * EARTH_FRAME * Math.min(devicePixelRatio || 1, 1.5) * earthTier);
+    const px = earthSize();
     if (Math.abs(px - earthPx) > 1) { earthPx = px; earth.setSize(px); }
+  };
+  const sizeScenes = () => {
+    syncEarthSize();
+    surface?.setSize(W, surfH());
+    sun3d?.setSize(W, H);
   };
   const planetDef = { el: planetStage, in0: 0.30, in1: 0.36, out0: 0.60, out1: 0.67, maxZ: 10, drift: 1.08, enterFrom: 1, ey: 0 };
   // journey progress is measured against the LARGE viewport (toolbars hidden), so mobile browsers showing their
@@ -133,9 +142,10 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
     AY = mobile ? 0.22 : 0.5;
     // keep in sync with .j-pwrap sizes in Journey.css
     Rend = mobile ? Math.min(0.23 * W, 0.11 * H) : Math.min(0.28 * Math.min(W, H), 0.21 * W);
-    syncEarthSize();
-    surface?.setSize(W, surfH());
-    sun3d?.setSize(W, H);
+    // resizing a scene is work for the graphics card: while the loader is up it waits for a still picture, like
+    // the rest of their setup (schedule.ts)
+    if (finished) sizeScenes();
+    else if (sun3d || earth || surface) void gpu('resize').then(() => { if (!dead) sizeScenes(); });
     if (planetStage) planetStage.style.transformOrigin = `${String(AX * 100)}% ${String(AY * 100)}%`;
     const cue = q('[data-cue]');
     if (cue) cue.style.display = H < 650 || mobile ? 'none' : 'flex';
@@ -233,7 +243,7 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
       lg.drawImage(batch, -S / 2, -S / 2);
       bg.clearRect(-S / 2, -S / 2, S, S);
     };
-    const pace = pacer(4, true); // first in line: the galaxy is what's on screen
+    const pace = pacer('haze', 4, true); // first in line: the galaxy is what's on screen
     const HAZE = W < MOBILE_BREAKPOINT ? 18000 : 30000;
     for (let i = 0; i < HAZE; i++) {
       if (inTurns && (i & 127) === 0 && pace.due()) {
@@ -260,7 +270,7 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
     }
     flush();
     if (inTurns) {
-      await turn(true);
+      await turn('haze:dust', true);
       if (dead) return;
     }
     // soft dust lanes along the inner edge of each arm, as overlapping streaks
@@ -324,9 +334,24 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
   // the intro's own clock (ms since t0). It only moves with the frames: if one runs long the galaxy holds for a
   // moment instead of skipping ahead, which read as a glitch
   let introMs = NaN;
-  let finished = false;
   // nothing is moving yet (see the loop). Without an intro the page can be scrolled straight away: no rushing
   rush(!skip);
+  still(true);
+  // where the intro has got to, for anything that wants to know from outside (the load checks do)
+  const PHASES = ['pre', 'forming', 'settled', 'done'];
+  let phaseNo = 0, movedAt = -1e9, shownAt = -1e9;
+  root.dataset.intro = PHASES[0];
+  // ?loadreport keeps a record of this load (every piece of setup, every frame) and shows it once the loader has
+  // gone, to copy and send in: how it really went on that device. ?gl=early leaves the graphics card's setup in
+  // the middle of the star animation, to compare the two on the same device
+  const query = new URLSearchParams(location.search);
+  let eager = query.get('gl') === 'early';
+  const trace: LoadTrace | null = query.has('loadreport')
+    ? { start: performance.now(), t0, finished: 0, mode: eager ? 'early, as asked (?gl=early)' : 'still', pieces: [], frames: [] } : null;
+  if (trace) {
+    record((tag, at, ms, onGpu) => { trace.pieces.push([tag, at, ms, onGpu]); });
+    cleanups.push(() => { record(null); });
+  }
 
   // ---------- scramble ----------
   const CH = '!<>-_\\/[]{}=+*^?#';
@@ -370,7 +395,16 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
   const nav = q('[data-nav]');
   const finish = () => {
     finished = true;
+    if (!skip) shownAt = performance.now(); // (the loader fades and the page comes in: a second of movement)
     rush(false);
+    if (trace) {
+      trace.finished = performance.now();
+      // (a little later, so the report also covers the page coming in)
+      timers.push(window.setTimeout(() => {
+        record(null);
+        void import('./loadreport').then(m => { if (!dead) cleanups.push(m.showLoadReport(trace)); });
+      }, 2600));
+    }
     clearInterval(stInt);
     if (statusEl) statusEl.textContent = '> deployed. scroll to travel.';
     if (loader) {
@@ -407,19 +441,25 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
   const sunCv = q('[data-sun3d]') as HTMLCanvasElement | null;
   const surfCv = q('[data-surface3d]') as HTMLCanvasElement | null;
   // 3D scenes load behind the loader (each compiles its shaders and renders a hidden warm-up frame), so none
-  // of that work lands mid-scroll. All three build at once: their downloads overlap, and their main-thread work
-  // queues at one gate (schedule.ts) that hands out a few milliseconds per frame, so the galaxy forming on
-  // screen keeps moving while they do. Failures fall back silently.
+  // of that work lands mid-scroll. All three build at once: their downloads overlap, and their work queues at
+  // one gate (schedule.ts). Building them is main-thread work, handed out a few milliseconds per frame, so the
+  // galaxy forming on screen keeps moving. Their work on the graphics card waits until that picture is still:
+  // before the stars start to move, or once they have settled. Failures fall back silently.
   const ASSETS = 3;
-  let assetsDone = 0;
-  const step = async <T>(make: (() => Promise<T>) | null, adopt: (v: T) => void, dispose: (v: T) => void) => {
+  let built = 0, assetsDone = 0;
+  const step = async <T>(make: ((built: () => void) => Promise<T>) | null, adopt: (v: T) => void, dispose: (v: T) => void) => {
+    let counted = false;
+    const onBuilt = () => { if (!counted) { counted = true; built++; } };
     try {
       if (make) {
-        const v = await make();
-        await ownFrame(); // adopting sizes the scene for the real viewport: not in the warm-up frame's frame
+        const v = await make(onBuilt);
+        // each scene was warmed up at the size the page had when it started. If the window has changed since,
+        // adopting it resizes it: work for the graphics card, so this waits its turn as well
+        await gpu('adopt');
         if (dead) dispose(v); else adopt(v);
       }
     } catch { /* no WebGL / textures failed: that scene keeps its CSS/canvas fallback */ }
+    onBuilt();
     assetsDone++;
   };
   // The work starts a moment later, and only if this run is still wanted. In development React mounts, unmounts
@@ -427,15 +467,21 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
   // (disposing it took their WebGL contexts down with it)
   void Promise.resolve().then(() => {
     if (dead) return;
+    // with no graphics card in use there are no frames to protect from one, and waiting would only lengthen the loader
+    if (!eager && sunCv && softwareRendered(sunCv)) {
+      eager = true;
+      if (trace) trace.mode = 'early: a software renderer, with no graphics card to hold up';
+    }
     void buildDisc(!skip);
-    void step(sunCv ? () => createSun(sunCv) : null, v => { sun3d = v; v.setSize(W, H); }, v => { v.dispose(); });
-    void step(earthCv ? () => createEarth(earthCv) : null, e => {
-      earth = e;
+    // (each is warmed up at the size it will be shown at, so its buffers exist before it's ever on screen)
+    void step(sunCv ? done => createSun(sunCv, W, H, done) : null, v => { sun3d = v; v.setSize(W, H); }, v => { v.dispose(); });
+    const px = earthSize();
+    void step(earthCv ? done => createEarth(earthCv, px, done) : null, e => {
+      earth = e; earthPx = px;
       if (geo) e.setTarget(geo.lat, geo.lon);
       syncEarthSize();
     }, e => { e.dispose(); });
-    // warmed up at the real viewport size, so its render targets are allocated before it's ever on screen
-    void step(surfCv ? () => createSurface(surfCv, W, surfH()) : null, v => {
+    void step(surfCv ? done => createSurface(surfCv, W, surfH(), done) : null, v => {
       surface = v; v.setSize(W, surfH());
       // until (or without) IP geolocation, estimate the visitor's longitude from their clock's UTC offset
       const g = geo ?? { lat: 30, lon: -new Date().getTimezoneOffset() / 4 };
@@ -580,12 +626,22 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
     const form = skip ? 1 : clamp(introMs / 2300, 0, 1);
     // the loader holds until the 3D scenes are warmed up (capped so a slow connection never gets stuck)
     const assetsReady = assetsDone >= ASSETS || now - t0 > 9000;
-    const shown = Math.min(form, 0.4 + 0.6 * assetsDone / ASSETS);
+    // The counter follows the galaxy for as long as the building of the scenes keeps up (each one built lifts
+    // its ceiling), and keeps its last tenth for their work on the graphics card, done once the galaxy has formed
+    const shown = Math.min(form, 0.4 + 0.6 * built / ASSETS) * (0.9 + 0.1 * assetsDone / ASSETS);
     if (counter && !finished) counter.textContent = String(Math.round(shown * 100)).padStart(3, '0');
     // nothing on screen is moving before the galaxy starts to form (the pre-roll), nor once it has formed and the
     // loader is only waiting for the scenes: setup gets most of each frame then, and a small share in between
-    if (!finished && !skip) rush(form <= 0 || (form >= 1 && !assetsReady));
+    const settled = form <= 0 || form >= 1;
+    if (!finished && !skip) rush(settled && !assetsReady);
     if (form >= 1 && assetsReady && !finished) finish();
+    // ...and those are the only moments the graphics card is given setup work. Once the page is in use (a scene
+    // that arrives late), the picture counts as still when the page has finished coming in and isn't being scrolled
+    if (Math.abs(scrollY - ssy) > 0.5) movedAt = now;
+    still(eager || (finished ? now - Math.max(movedAt + 150, shownAt + 1200) > 0 : settled));
+    const phase = finished ? 3 : form <= 0 ? 0 : form < 1 ? 1 : 2;
+    if (phase !== phaseNo) { phaseNo = phase; root.dataset.intro = PHASES[phase]; }
+    if (trace && (!trace.finished || now < trace.finished + 2500)) trace.frames.push(now, form, phase, Math.round(shown * 100));
 
     if (ctx) drawSky(ctx, p, form, now);
 
@@ -906,7 +962,10 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
 
   return () => {
     dead = true;
+    // (whatever setup is still queued must not wait on a picture nobody is drawing any more)
     rush(false);
+    still(true);
+    delete root.dataset.intro;
     cancelAnimationFrame(raf);
     clearInterval(stInt);
     timers.forEach(t => { clearTimeout(t); });
