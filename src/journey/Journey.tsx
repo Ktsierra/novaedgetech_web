@@ -186,6 +186,7 @@ const Journey = (props: JourneyOptions) => {
             <div className="j-local">
               <a href={GOOGLE_PROFILE} target="_blank" rel="noopener noreferrer">Find us on Google</a>
               <a href={GOOGLE_REVIEW} target="_blank" rel="noopener noreferrer">Leave us a review</a>
+              <a href="/privacy">Privacy</a>
             </div>
             <span>© {new Date().getFullYear()} NOVAEDGE TECH CORP</span>
             <span className="j-foot-extra">NOVAEDGETECHNOLOGY.COM</span>
