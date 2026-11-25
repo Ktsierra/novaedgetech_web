@@ -6,9 +6,11 @@ import moonUrl from '../assets/earth/moon_1024.jpg';
 import lightsUrl from '../assets/earth/earth_lights_2048.jpg';
 import { subPoints } from './astro';
 
-const D = Math.PI / 180;
+import { turn } from './schedule';
+import { fetchPicture, pictureTexture, uploadPicture } from './textures';
+import { makeRenderer, warmUp, webglPossible } from './warmup';
 
-import { compileScene } from './warmup';
+const D = Math.PI / 180;
 
 export interface EarthView {
   /** backing-store size in device pixels (the canvas CSS size is set by Journey.css) */
@@ -39,7 +41,9 @@ const SUN_DIR: [number, number, number] = [-0.72, 0.5, 0.48];
 
 const hasWebGL = (canvas: HTMLCanvasElement) => {
   try {
-    return !!(canvas.getContext('webgl2') ?? canvas.getContext('webgl'));
+    const gl = canvas.getContext('webgl2') ?? canvas.getContext('webgl');
+    // (a context a previous run lost on purpose when it was disposed is of no use: hot reload, in development)
+    return !!gl && !gl.isContextLost();
   } catch {
     return false;
   }
@@ -48,41 +52,25 @@ const hasWebGL = (canvas: HTMLCanvasElement) => {
 /**
  * Textured NASA Blue Marble Earth (option 2 from the Earth model handoff), rendered with three.js
  * into its own transparent canvas. three is imported lazily so it never blocks the loader.
+ *
+ * `size` is the backing-store size it will be shown at (device pixels): it is warmed up at that size, so taking
+ * it into use asks nothing more of the graphics card. `progress` is told how far along it is: 0.2 once it is built and only the
+ * graphics card's part is left, 1 when it is ready.
  */
-export async function createEarth(canvas: HTMLCanvasElement): Promise<EarthView> {
-  if (!hasWebGL(canvas)) throw new Error('WebGL unavailable');
+export async function createEarth(canvas: HTMLCanvasElement, size: number, progress?: (done: number) => void): Promise<EarthView> {
+  if (!webglPossible() || !hasWebGL(canvas)) throw new Error('WebGL unavailable');
   const THREE = await import('three');
+  // the maps download (and decode, in the background) while the scene is put together. Not before three has
+  // arrived: every scene needs it first, and on a slow connection 1.7 MB of maps would take its bandwidth.
+  // The clouds are the one image with transparency: see fetchPicture
+  const pending = Promise.all([fetchPicture(dayUrl), fetchPicture(normalUrl), fetchPicture(specUrl), fetchPicture(cloudsUrl, false), fetchPicture(moonUrl), fetchPicture(lightsUrl)]);
+  void pending.catch(() => undefined); // (reported where it is awaited, below)
 
-  const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
-  renderer.setClearColor(0x000000, 0);
-  renderer.outputColorSpace = THREE.SRGBColorSpace;
-  const maxAniso = renderer.capabilities.getMaxAnisotropy();
-
-  const loader = new THREE.TextureLoader();
-  const load = async (url: string, srgb = false) => {
-    const t = await loader.loadAsync(url);
-    if (srgb) t.colorSpace = THREE.SRGBColorSpace;
-    t.anisotropy = maxAniso;
-    return t;
-  };
-  const [day, normal, spec, clouds, moonTex, lights] = await Promise.all([load(dayUrl, true), load(normalUrl), load(specUrl), load(cloudsUrl, true), load(moonUrl, true), load(lightsUrl, true)]);
-
-  // specular map (white = water) -> roughness map: glossy oceans, matte land
-  const toRoughness = (tex: InstanceType<typeof THREE.Texture>) => {
-    const img = tex.image as HTMLImageElement;
-    const cv = document.createElement('canvas');
-    cv.width = img.width; cv.height = img.height;
-    const g = cv.getContext('2d');
-    if (!g) return null;
-    g.drawImage(img, 0, 0);
-    const d = g.getImageData(0, 0, cv.width, cv.height), a = d.data;
-    for (let i = 0; i < a.length; i += 4) { const v = 150 + (255 - a[i + 1]) * 0.41; a[i] = a[i + 1] = a[i + 2] = v; }
-    g.putImageData(d, 0, 0);
-    const t = new THREE.CanvasTexture(cv);
-    t.anisotropy = maxAniso;
-    return t;
-  };
-  const rough = toRoughness(spec);
+  const pictures = await pending;
+  await turn('earth:maps');
+  const SRGB = [true, false, false, true, true, true];
+  const maps = pictures.map((pic, i) => pictureTexture(THREE, pic, SRGB[i]));
+  const [day, normal, spec, clouds, moonTex, lights] = maps;
 
   const scene = new THREE.Scene();
   const cam = new THREE.OrthographicCamera(-EARTH_FRAME, EARTH_FRAME, EARTH_FRAME, -EARTH_FRAME, 0.1, 10);
@@ -101,7 +89,7 @@ export async function createEarth(canvas: HTMLCanvasElement): Promise<EarthView>
   const surfGeo = new THREE.SphereGeometry(1, 128, 96);
   surfGeo.scale(1, POLAR, 1);
   const surfMat = new THREE.MeshStandardMaterial({
-    map: day, normalMap: normal, normalScale: new THREE.Vector2(0.7, 0.7), roughnessMap: rough, roughness: 1, metalness: 0,
+    map: day, normalMap: normal, normalScale: new THREE.Vector2(0.7, 0.7), roughnessMap: spec, roughness: 1, metalness: 0,
     emissiveMap: lights, emissive: new THREE.Color(0xffc27a), emissiveIntensity: 1.5,
   });
   // city lights (NASA Black Marble) only on the night side, fading in across the terminator
@@ -109,12 +97,17 @@ export async function createEarth(canvas: HTMLCanvasElement): Promise<EarthView>
   const sunDir = new THREE.Vector3(...SUN_DIR).normalize();
   surfMat.onBeforeCompile = sh => {
     sh.uniforms.uSunView = { value: sunDir };
-    sh.fragmentShader = 'uniform vec3 uSunView;\n' + sh.fragmentShader.replace('#include <emissivemap_fragment>',
-      '#include <emissivemap_fragment>\n  totalEmissiveRadiance *= smoothstep(0.1, -0.2, dot(normalize(vNormal), uSunView));');
+    sh.fragmentShader = 'uniform vec3 uSunView;\n' + sh.fragmentShader
+      // the specular map is white on water: glossy oceans (roughness 0.59), matte land (1.0). Mapped here, per
+      // pixel, rather than by baking a second 2k texture on the main thread
+      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n  roughnessFactor = 0.5882 + (1.0 - roughnessFactor) * 0.41;')
+      .replace('#include <emissivemap_fragment>',
+        '#include <emissivemap_fragment>\n  totalEmissiveRadiance *= smoothstep(0.1, -0.2, dot(normalize(vNormal), uSunView));');
   };
   const surface = new THREE.Mesh(surfGeo, surfMat);
   surface.rotation.y = faceY;
   earth.add(surface);
+  await turn('earth:clouds');
 
   const cloudGeo = new THREE.SphereGeometry(1.006, 96, 72);
   cloudGeo.scale(1, POLAR, 1);
@@ -154,12 +147,14 @@ export async function createEarth(canvas: HTMLCanvasElement): Promise<EarthView>
     blendSrcAlpha: THREE.OneFactor,
     blendDstAlpha: THREE.OneFactor,
   });
+  await turn('earth:air');
   const rimMat = rimShader('pow(max(1.0 - facing, 0.0), 3.0)', 1.1, THREE.FrontSide);
   const rim = new THREE.Mesh(new THREE.SphereGeometry(1.008, 96, 72), rimMat);
   // halo shell: brightest where it meets the globe edge (facing ≈ 0.36 for r = 1.07), fading out to its own silhouette
   const haloMat = rimShader('pow(smoothstep(0.0, 0.36, facing), 2.2)', 0.75, THREE.BackSide);
   const halo = new THREE.Mesh(new THREE.SphereGeometry(1.07, 96, 72), haloMat);
   scene.add(rim, halo);
+  await turn('earth:moon');
 
   // moon on an inclined orbit: passes in front of the globe, and behind it (depth-tested)
   const moonGeo = new THREE.SphereGeometry(MOON_R, 64, 48);
@@ -204,10 +199,23 @@ export async function createEarth(canvas: HTMLCanvasElement): Promise<EarthView>
   // spin + orbit angles when the lock began; the lock then turns onward from here
   let latch: { y: number; ma: number } | null = null;
 
-  let t0 = -1;
+  progress?.(0.2);
+  // ---- from here on it is the graphics card's work, which waits for a still picture (warmup.ts) ----
+  const renderer = await makeRenderer('earth', () => {
+    const r = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+    r.setClearColor(0x000000, 0);
+    r.outputColorSpace = THREE.SRGBColorSpace;
+    const maxAniso = r.capabilities.getMaxAnisotropy();
+    maps.forEach(tx => { tx.anisotropy = maxAniso; });
+    return r;
+  });
+
+  let t0 = -1, sizedTo = 0;
   const view: EarthView = {
     setSize: (px: number) => {
       const s = Math.max(2, Math.round(px));
+      if (s === sizedTo) return; // (a resize, even to the same size, is work for the GPU)
+      sizedTo = s;
       renderer.setPixelRatio(1);
       renderer.setSize(s, s, false);
     },
@@ -270,19 +278,24 @@ export async function createEarth(canvas: HTMLCanvasElement): Promise<EarthView>
       renderer.render(scene, cam);
     },
     dispose: () => {
-      [day, normal, spec, clouds, moonTex, lights, rough, dotTex].forEach(tx => tx?.dispose());
+      [...maps, dotTex].forEach(tx => { tx.dispose(); });
       [surfGeo, cloudGeo, rim.geometry, halo.geometry, moonGeo].forEach(g => { g.dispose(); });
       [surfMat, cloudMat, rimMat, haloMat, moonMat, dotMat].forEach(m => { m.dispose(); });
       renderer.dispose();
       renderer.forceContextLoss();
     },
   };
-  // warm-up while the loader is up: compile shaders and render one hidden frame (uploads textures),
-  // so the first on-screen frame doesn't hitch mid-scroll
+  // warm-up while the loader is up (warmup.ts): shaders compiled, each map uploaded, each object drawn once into
+  // a small buffer. Then one hidden frame at the real size, so nothing is left for the first frame that shows
+  // the globe
   dot.visible = true;
-  await compileScene(renderer, scene, cam);
-  view.setSize(256);
-  view.render(performance.now(), 0, 0);
+  await warmUp('earth', renderer, scene, cam, {
+    small: () => { view.setSize(256); },
+    frame: () => { renderer.render(scene, cam); },
+    uploads: maps.map((tex, i) => () => { uploadPicture(renderer, tex, pictures[i]); }),
+    progress: done => { progress?.(0.2 + 0.8 * done); },
+    real: () => { view.setSize(size); view.render(performance.now(), 0, 0); },
+  });
   dot.visible = false;
   t0 = -1; lastT = -1; spinPhase = orbitPhase = 0;
   return view;
