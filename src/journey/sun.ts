@@ -9,10 +9,11 @@ export interface SunView {
 }
 
 // 3D value noise + fbm, shared by the surface and corona shaders.
-// The octave count is a uniform, not a constant, on purpose. With a constant the shader compiler unrolls the
-// loop, and every fbm() call becomes forty copies of the hash: on Windows these two small shaders took longer to
-// compile (0.6 s on a GTX 980 in Firefox) than the city's twenty-four together. A loop it can't unroll is
-// compiled once per call. Same sums in the same order, so the picture is the same.
+// The octave count is a uniform, not a constant, on purpose. These two small shaders were measured taking
+// longer to compile on Windows (0.6 s on a GTX 980 in Firefox) than the city's twenty-four together. The likely
+// reason: a compiler that knows the loop runs five times unrolls it, and every fbm() call becomes forty copies
+// of the hash. Given a count it can't see, it has to keep the loop. Same sums in the same order, so the
+// picture is the same (checked pixel for pixel); whether it compiles faster only shows on such a machine.
 const OCTAVES = 5;
 const NOISE = /* glsl */ `
   uniform int uOctaves;
