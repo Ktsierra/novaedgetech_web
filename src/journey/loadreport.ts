@@ -137,7 +137,7 @@ function describe(t: LoadTrace, long: [number, number][]): string {
     `graphics card set up: ${t.mode === 'still' ? 'only while the picture is still' : t.mode}`,
     '',
     `loader: gone at ${r(t.finished)} ms (journey started at ${r(t.start)}, ${String(n)} frames recorded)`,
-    `start: the stars waited ${r(waited)} ms for setup (${String(START_WAIT)} at most); graphics card work done before they moved: ${r(sum(before))} ms in ${String(before.length)} steps, left for afterwards: ${r(sum(hold))} ms in ${String(hold.length)} steps`,
+    `start: the stars waited ${r(waited)} ms for setup (they stop waiting at ${String(START_WAIT)}, once the piece under way is over); graphics card work done before they moved: ${r(sum(before))} ms in ${String(before.length)} steps, left for afterwards: ${r(sum(hold))} ms in ${String(hold.length)} steps`,
     `files: ${files(first(1))}`,
     `stars: moving from ${r(first(1))} to ${r(formed)} ms, ${String(frames(1))} frames, ${String(moving.length)} slow (worst ${r(Math.max(0, ...moving.map(s => s.gap)))} ms)`,
     `hold on the formed galaxy: ${r(t.finished - formed)} ms, the graphics card busy for ${r(sum(hold))} of them, the galaxy left untouched for ${String(t.held)} frames`,
