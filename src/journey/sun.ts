@@ -1,4 +1,4 @@
-import { turn } from './schedule';
+import { net, turn } from './schedule';
 import { makeRenderer, warmUp, webglPossible } from './warmup';
 
 export interface SunView {
@@ -47,7 +47,7 @@ const hasWebGL = (canvas: HTMLCanvasElement) => {
  */
 export async function createSun(canvas: HTMLCanvasElement, w: number, h: number, progress?: (done: number) => void): Promise<SunView> {
   if (!webglPossible() || !hasWebGL(canvas)) throw new Error('WebGL unavailable');
-  const THREE = await import('three');
+  const THREE = await net(import('three'));
   await turn('sun:build');
 
   const scene = new THREE.Scene();

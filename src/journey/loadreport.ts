@@ -1,3 +1,4 @@
+import { START_WAIT } from './intro';
 import { rendererName } from './warmup';
 
 /**
@@ -8,7 +9,7 @@ import { rendererName } from './warmup';
 export interface LoadTrace {
   /** when the journey started, in ms since the page did (as every time in here) */
   start: number;
-  /** when the stars start to move */
+  /** when the stars could first have started to move (they wait for setup that is at hand: intro.ts) */
   t0: number;
   /** when the loader went (0 until then) */
   finished: number;
@@ -38,6 +39,28 @@ const graphics = () => {
     }
   } catch { /* below */ }
   return 'no WebGL context';
+};
+
+/**
+ * Where the scenes' files came from and when they were here: the stars wait for setup, never for a download, so
+ * what they waited for depends on this.
+ */
+const files = (starsAt: number) => {
+  try {
+    const all = (performance.getEntriesByType('resource') as PerformanceResourceTiming[]).filter(e => e.name.startsWith(location.origin + '/assets/'));
+    // (0 bytes over the network for a file that has a body: it came from the browser's cache)
+    const from = (e: PerformanceResourceTiming) => typeof (e as Partial<PerformanceResourceTiming>).transferSize !== 'number' ? 'source unknown'
+      : e.transferSize === 0 && e.decodedBodySize > 0 ? 'from cache' : e.transferSize < e.encodedBodySize ? 'from cache, checked with the server' : 'downloaded';
+    const code = all.filter(e => e.name.includes('three.module')).sort((a, b) => a.responseEnd - b.responseEnd)[0] as PerformanceResourceTiming | undefined;
+    const pics = all.filter(e => /\/(earth|moon)_[^/]*\.(jpe?g|png|webp)$/.test(e.name));
+    const last = [...pics].sort((a, b) => b.responseEnd - a.responseEnd)[0] as PerformanceResourceTiming | undefined;
+    const cached = pics.filter(e => from(e).startsWith('from cache')).length;
+    const when = (ms: number) => `${r(ms)} ms (${ms <= starsAt ? 'before' : 'after'} the stars started)`;
+    return `3D library here at ${code ? `${when(code.responseEnd)}, ${from(code)}` : '?'}; `
+      + `pictures: ${String(pics.length)}, ${String(cached)} from cache, ${last ? `the last here at ${when(last.responseEnd)}` : 'none seen'}`;
+  } catch {
+    return 'not reported by this browser';
+  }
 };
 
 function describe(t: LoadTrace, long: [number, number][]): string {
@@ -102,7 +125,9 @@ function describe(t: LoadTrace, long: [number, number][]): string {
   const sum = (list: [string, number, number, boolean][]) => list.reduce((s, p) => s + p[2], 0);
   const big = gpuSteps.filter(p => p[2] >= 2), longest = [...cpu].sort((a, b) => b[2] - a[2])[0] as typeof cpu[number] | undefined;
   const formed = first(2), mem = (navigator as { deviceMemory?: number }).deviceMemory;
-  const hold = gpuSteps.filter(p => p[1] >= formed && p[1] < t.finished);
+  const hold = gpuSteps.filter(p => p[1] >= formed && p[1] < t.finished), before = gpuSteps.filter(p => p[1] < first(1));
+  // (without an intro, as with reduced motion, there are no stars to hold back)
+  const waited = t.t0 < t.start ? 0 : Math.max(0, first(1) - t.t0);
   const lines = [
     'NovaEdge load report',
     `${new Date().toISOString()}  ${location.pathname}${location.search}`,
@@ -112,9 +137,11 @@ function describe(t: LoadTrace, long: [number, number][]): string {
     `graphics card set up: ${t.mode === 'still' ? 'only while the picture is still' : t.mode}`,
     '',
     `loader: gone at ${r(t.finished)} ms (journey started at ${r(t.start)}, ${String(n)} frames recorded)`,
+    `start: the stars waited ${r(waited)} ms for setup (${String(START_WAIT)} at most); graphics card work done before they moved: ${r(sum(before))} ms in ${String(before.length)} steps, left for afterwards: ${r(sum(hold))} ms in ${String(hold.length)} steps`,
+    `files: ${files(first(1))}`,
     `stars: moving from ${r(first(1))} to ${r(formed)} ms, ${String(frames(1))} frames, ${String(moving.length)} slow (worst ${r(Math.max(0, ...moving.map(s => s.gap)))} ms)`,
     `hold on the formed galaxy: ${r(t.finished - formed)} ms, the graphics card busy for ${r(sum(hold))} of them, the galaxy left untouched for ${String(t.held)} frames`,
-    `counter: the longest it showed one number while the stars moved: ${stuckIn(1)}; during the hold: ${stuckIn(2)}`,
+    `counter: the longest it showed one number before the stars: ${stuckIn(0)}; while they moved: ${stuckIn(1)}; during the hold: ${stuckIn(2)}`,
     `frames by phase: ${byPhase.join(' · ')}`,
     '',
     'slow frames while the stars were moving [at ms, counter, length, what ran inside]:',

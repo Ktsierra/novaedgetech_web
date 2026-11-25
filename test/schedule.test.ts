@@ -181,6 +181,22 @@ describe('work for the graphics card', () => {
     expect(ran).toBe(1); // a fresh wait, not the old one still expired
   });
 
+  it('lets a quiet piece take a still moment without asking for one', async () => {
+    const { gate, frame, settle } = rig();
+    gate.still(false);
+    let ran = false;
+    void (async () => { await gate.gpu('late picture', true); ran = true; })();
+    await settle();
+    for (let i = 0; i < 70; i++) await frame(100); // 7 s of a moving picture: past anyone's patience
+    expect(ran).toBe(false);
+    expect(gate.working()).toBe(false); // and all that time, no work at hand: nothing stops for it
+    expect(gate.atHand()).toBe(false);
+    gate.still(true); // (something else brought the picture to rest, or the page has stopped moving)
+    await frame(16);
+    await frame(16);
+    expect(ran).toBe(true);
+  });
+
   it('runs one scene\'s pass at a time, in the order they were asked for', async () => {
     const { gate, frame, settle } = rig();
     const ran: string[] = [];
@@ -236,6 +252,70 @@ describe('work for the graphics card', () => {
     await pass;
     await settle();
     expect(gate.working()).toBe(false);
+  });
+
+  it('counts a job as at hand between its pieces, but not while it waits for the network', async () => {
+    const { gate, frame, settle } = rig();
+    expect(gate.atHand()).toBe(false);
+    let arrived = () => { /* set below */ };
+    let decoded = () => { /* set below */ };
+    let over = false;
+    const scene = gate.job(async () => {
+      await gate.net(new Promise<void>(res => { arrived = res; })); // its code is on the way
+      await new Promise<void>(res => { decoded = res; }); // here: an image being decoded, no download
+      await gate.turn('build');
+      over = true;
+    });
+    await settle();
+    expect(gate.atHand()).toBe(false); // nothing to get on with: a download decides when
+    expect(gate.working()).toBe(false);
+    arrived();
+    await settle();
+    expect(gate.atHand()).toBe(true); // between two pieces, with nothing at the gate yet
+    expect(gate.working()).toBe(false);
+    decoded();
+    await settle();
+    expect(gate.atHand()).toBe(true); // at the gate
+    await frame(16);
+    await scene;
+    await settle();
+    expect(over).toBe(true);
+    expect(gate.atHand()).toBe(false);
+  });
+
+  it('does not count a job in a wait of its own while another download is on its way', async () => {
+    const { gate, settle } = rig();
+    let arrived = () => { /* set below */ };
+    let decoded = () => { /* set below */ };
+    const a = gate.job(() => new Promise<void>(res => { decoded = res; }));
+    const b = gate.job(() => gate.net(new Promise<void>(res => { arrived = res; })));
+    await settle();
+    expect(gate.atHand()).toBe(false);
+    arrived();
+    await b;
+    await settle();
+    expect(gate.atHand()).toBe(true);
+    decoded();
+    await a;
+    await settle();
+    expect(gate.atHand()).toBe(false);
+  });
+
+  it('keeps count when a download or a job fails', async () => {
+    const { gate, settle } = rig();
+    const lost = gate.net(Promise.reject(new Error('offline')));
+    await expect(lost).rejects.toThrow('offline');
+    const failed = gate.job(() => Promise.reject(new Error('no WebGL')));
+    await expect(failed).rejects.toThrow('no WebGL');
+    await settle();
+    expect(gate.atHand()).toBe(false);
+    // (and the counts are back where they were: the next job is at hand, the next download is waited for)
+    let arrived = () => { /* set below */ };
+    const next = gate.job(() => gate.net(new Promise<void>(res => { arrived = res; })));
+    await settle();
+    expect(gate.atHand()).toBe(false);
+    arrived();
+    await next;
   });
 
   it('reports each piece with its name, its time and who it was for', async () => {

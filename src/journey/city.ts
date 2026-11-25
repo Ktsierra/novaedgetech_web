@@ -1,5 +1,5 @@
 import type * as T from 'three';
-import { turn } from './schedule';
+import { net, turn } from './schedule';
 
 type Three = typeof import('three');
 
@@ -54,11 +54,14 @@ const rng = (seed: number) => () => {
 };
 const smooth = (t: number) => { const x = Math.min(1, Math.max(0, t)); return x * x * (3 - 2 * x); };
 
-export async function buildCity(THREE: Three, o: CityOpts): Promise<City> {
-  const [{ Reflector }, { mergeGeometries }] = await Promise.all([
-    import('three/examples/jsm/objects/Reflector.js'),
-    import('three/examples/jsm/utils/BufferGeometryUtils.js'),
-  ]);
+/** the two helpers the city needs from three's examples (a wait for the network: asked for when the scene starts) */
+export const cityHelpers = () => net(Promise.all([
+  import('three/examples/jsm/objects/Reflector.js'),
+  import('three/examples/jsm/utils/BufferGeometryUtils.js'),
+]));
+
+export async function buildCity(THREE: Three, o: CityOpts, helpers = cityHelpers()): Promise<City> {
+  const [{ Reflector }, { mergeGeometries }] = await helpers;
   await turn('city:buildings'); // (the city is laid out in pieces that take turns with the loader's frames: schedule.ts)
   const { pathX, riverEnd, tower, mobile } = o;
   const r = rng(20251022);

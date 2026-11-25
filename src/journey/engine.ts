@@ -3,7 +3,8 @@ import { SurfaceView, createSurface } from './surface';
 import { SunView, createSun } from './sun';
 import { bands, loaderStatuses, terminalCode } from './journeyText';
 import type { LoadTrace } from './loadreport';
-import { gpu, pacer, record, rush, still, turn, working } from './schedule';
+import { FORM_MS, PREROLL, introClock } from './intro';
+import { atHand, gpu, job, pacer, record, rush, still, turn, working } from './schedule';
 import { softwareRendered } from './warmup';
 
 export interface JourneyOptions {
@@ -335,9 +336,9 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
   let stI = 1;
   const stInt = window.setInterval(() => { if (statusEl) statusEl.textContent = '> ' + loaderStatuses[stI++ % loaderStatuses.length] + '_'; }, 460);
   if (!skip) document.body.style.overflow = 'hidden';
-  const t0 = performance.now() + (skip ? -99999 : 350);
-  // the intro's own clock (ms since t0). It only moves with the frames: if one runs long the galaxy holds for a
-  // moment instead of skipping ahead, which read as a glitch
+  // the stars can start from t0 on; they wait for the setup that is at hand (intro.ts)
+  const t0 = performance.now() + (skip ? -99999 : PREROLL);
+  // the intro's own clock: ms since the stars started to move
   let introMs = NaN;
   // nothing is moving yet (see the loop). Without an intro the page can be scrolled straight away: no rushing
   rush(!skip);
@@ -449,12 +450,14 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
   // of that work lands mid-scroll. All three build at once: their downloads overlap, and their work queues at
   // one gate (schedule.ts). Building them is main-thread work, handed out a few milliseconds per frame, so the
   // galaxy forming on screen keeps moving. Their work on the graphics card waits until that picture is still:
-  // before the stars start to move, or once they have settled. Failures fall back silently.
+  // before the stars start to move (they wait for it: intro.ts), or once they have settled. Failures fall back
+  // silently.
   const ASSETS = 3;
   let assetsDone = 0;
   // how far along each scene is: 0.2 once it is built, then up to 1 as its steps on the graphics card finish
   const parts = [0, 0, 0];
-  const step = async <T>(i: number, make: ((progress: (done: number) => void) => Promise<T>) | null, adopt: (v: T) => void, dispose: (v: T) => void) => {
+  // (a job at the gate from start to finish, so the stars know there is setup at hand: schedule.ts)
+  const step = <T>(i: number, make: ((progress: (done: number) => void) => Promise<T>) | null, adopt: (v: T) => void, dispose: (v: T) => void) => job(async () => {
     try {
       if (make) {
         const v = await make(done => { parts[i] = Math.max(parts[i], done); });
@@ -466,7 +469,7 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
     } catch { /* no WebGL / textures failed: that scene keeps its CSS/canvas fallback */ }
     parts[i] = 1;
     assetsDone++;
-  };
+  });
   // The work starts a moment later, and only if this run is still wanted. In development React mounts, unmounts
   // and mounts again in one go: the run it threw away must not start building on the canvases the next one uses
   // (disposing it took their WebGL contexts down with it)
@@ -627,27 +630,28 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
     if (!held) { smx += (mx - smx) * 0.05; smy += (my - smy) * 0.05; }
     if ((frameC++ % 60) === 0) scrollMax = scrollRange();
     const p = clamp(ssy / scrollMax, 0, 1);
-    // (a gap of over a second is the tab coming back from the background: catch up in one go, as before)
-    introMs = Number.isNaN(introMs) ? now - t0 : introMs + (gap > 1000 ? gap : Math.min(gap, 250));
-    const form = skip ? 1 : clamp(introMs / 2300, 0, 1);
+    // The graphics card is only given setup work while the picture is still (schedule.ts): anything that moves
+    // shows every frame that work holds up. Before the stars start to move it is still anyway, so they wait
+    // there for the setup that is at hand (intro.ts): with the files already on the device, all of it.
+    const strict = !skip && !eager;
+    introMs = introClock(introMs, now - t0, gap, strict && atHand());
+    const form = skip ? 1 : clamp(introMs / FORM_MS, 0, 1);
     // the loader holds until the 3D scenes are warmed up (capped so a slow connection never gets stuck)
     const assetsReady = assetsDone >= ASSETS || now - t0 > 9000;
-    // The counter follows the galaxy for as long as the building of the scenes keeps up (each one built lifts
-    // its ceiling), and keeps its last tenth for their work on the graphics card, done once the galaxy has
-    // formed: it moves on with every step of that work, the one thing on screen that still changes then
-    let built = 0, onCard = 0;
-    for (const part of parts) { if (part >= 0.2) built++; onCard += Math.max(0, part - 0.2) / 0.8; }
-    const shown = Math.min(form, 0.4 + 0.6 * built / ASSETS) * (0.9 + 0.1 * onCard / ASSETS);
+    // The counter: three tenths for the scenes (it moves on as each is built and with every step of its work on
+    // the graphics card: the one thing on screen that changes while the stars wait), the rest for the galaxy
+    let setup = 0;
+    for (const part of parts) setup += part / ASSETS;
+    const shown = 0.3 * setup + 0.7 * form;
     // (100 is for when everything is ready, not for the last step being under way)
     const percent = Math.min(Math.round(shown * 100), assetsDone >= ASSETS ? 100 : 99);
     if (counter && !finished) counter.textContent = String(percent).padStart(3, '0');
-    // The graphics card is only given setup work while the picture is still (schedule.ts): anything that moves
-    // shows every frame that work holds up. Before the stars start to move it is still anyway. A formed galaxy
-    // is not: it turns and twinkles (turning through that work was a stutter at the end of the load). So when
-    // there is setup work at hand, `spin` brings it to rest: over the end of the formation if that is still under
-    // way, quickly otherwise. Once at rest it is left alone until the work is done (see `held`, below), and then
-    // it picks up again. While all that is left is waiting for a download, it keeps turning.
-    const strict = !skip && !eager;
+    // What the stars did not wait for (files that arrived after they had started, or more work than they wait
+    // for) is done once the galaxy has formed. That is not a still picture: it turns and twinkles, and turning
+    // through that work was a stutter at the end of the load. So when there is setup work at hand, `spin` brings
+    // it to rest: over the end of the formation if that is still under way, quickly otherwise. Once at rest it
+    // is left alone until the work is done (see `held`, below), and then it picks up again. While all that is
+    // left is waiting for a download, it keeps turning.
     const busy = strict && !finished && working();
     const spinTo = !busy ? 1 : form < 1 ? 1 - sstep(clamp((form - 0.7) / 0.3, 0, 1)) : 0;
     spin += clamp(spinTo - spin, -dt * 4, dt / 0.9);
@@ -662,7 +666,9 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
     still(eager || (finished ? now - Math.max(movedAt + 150, shownAt + 1200) > 0 : calm));
     const phase = finished ? 3 : form <= 0 ? 0 : form < 1 ? 1 : 2;
     if (phase !== phaseNo) { phaseNo = phase; root.dataset.intro = PHASES[phase]; }
-    if (trace && (!trace.finished || now < trace.finished + 2500)) trace.frames.push(now, form, phase, percent);
+    // (by the clock, not the frame's own time stamp: that one can be older than the work that held the frame up,
+    // and the report matches frames against that work)
+    if (trace && (!trace.finished || now < trace.finished + 2500)) trace.frames.push(performance.now(), form, phase, percent);
 
     // The formed galaxy, at rest, with setup work at hand: left exactly as it is. Not redrawn (unless a resize
     // has wiped it), and its clock stopped, so nothing jumps when it carries on.
