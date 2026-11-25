@@ -55,11 +55,12 @@ const hasWebGL = (canvas: HTMLCanvasElement) => {
  */
 export async function createEarth(canvas: HTMLCanvasElement): Promise<EarthView> {
   if (!webglPossible() || !hasWebGL(canvas)) throw new Error('WebGL unavailable');
-  // the maps start downloading (and decoding, in the background) right away, alongside three itself.
+  const THREE = await import('three');
+  // the maps download (and decode, in the background) while the renderer is set up. Not before three has arrived:
+  // every scene needs it first, and on a slow connection 1.7 MB of maps would take its bandwidth.
   // The clouds are the one image with transparency: see fetchPicture
   const pending = Promise.all([fetchPicture(dayUrl), fetchPicture(normalUrl), fetchPicture(specUrl), fetchPicture(cloudsUrl, false), fetchPicture(moonUrl), fetchPicture(lightsUrl)]);
   void pending.catch(() => undefined); // (reported where it is awaited, below)
-  const THREE = await import('three');
   // (each slow step that can't be split - here setting up the renderer - waits for a frame of its own: schedule.ts)
   await ownFrame();
 

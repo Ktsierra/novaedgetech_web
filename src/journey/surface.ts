@@ -81,9 +81,9 @@ const hasWebGL = (canvas: HTMLCanvasElement) => {
  */
 export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warmH = 200): Promise<SurfaceView> {
   if (!webglPossible(true) || !hasWebGL(canvas)) throw new Error('WebGL2 unavailable');
+  const THREE = await import('three');
   const moonPending = fetchPicture(moonUrl); // downloads while the terrain and the city are built
   void moonPending.catch(() => undefined); // (reported where it is awaited, below)
-  const THREE = await import('three');
   // The scene is built in small pieces that take turns with the loader's frames (schedule.ts): `turn()` between
   // pieces, `ownFrame()` before a slow one that can't be split (here: setting up the renderer)
   await ownFrame();

@@ -35,14 +35,26 @@ const flipsBitmaps = () => flips ??= (async () => {
   }
 })();
 
+// two scenes asking for the same file at the same time (the moon) share one download
+const downloads = new Map<string, Promise<Blob>>();
+const download = (url: string) => {
+  let d = downloads.get(url);
+  if (!d) {
+    d = fetch(url).then(res => {
+      if (!res.ok) throw new Error('image unavailable: ' + url);
+      return res.blob();
+    }).finally(() => { downloads.delete(url); });
+    downloads.set(url, d);
+  }
+  return d;
+};
+
 /**
  * Download an image and get it ready for the GPU. `decode: false` skips the background decode: for images with
  * transparency, where browsers disagree about premultiplying a bitmap's alpha.
  */
 export async function fetchPicture(url: string, decode = true): Promise<Picture> {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error('image unavailable: ' + url);
-  const blob = await res.blob();
+  const blob = await download(url);
   const src = URL.createObjectURL(blob);
   const img = await new Promise<HTMLImageElement>((resolve, reject) => {
     const im = new Image();

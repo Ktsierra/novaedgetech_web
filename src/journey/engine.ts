@@ -325,7 +325,8 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
   // moment instead of skipping ahead, which read as a glitch
   let introMs = NaN;
   let finished = false;
-  rush(true); // nothing is moving yet (see the loop)
+  // nothing is moving yet (see the loop). Without an intro the page can be scrolled straight away: no rushing
+  rush(!skip);
 
   // ---------- scramble ----------
   const CH = '!<>-_\\/[]{}=+*^?#';
@@ -583,7 +584,7 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
     if (counter && !finished) counter.textContent = String(Math.round(shown * 100)).padStart(3, '0');
     // nothing on screen is moving before the galaxy starts to form (the pre-roll), nor once it has formed and the
     // loader is only waiting for the scenes: setup gets most of each frame then, and a small share in between
-    if (!finished) rush(form <= 0 || (form >= 1 && !assetsReady));
+    if (!finished && !skip) rush(form <= 0 || (form >= 1 && !assetsReady));
     if (form >= 1 && assetsReady && !finished) finish();
 
     if (ctx) drawSky(ctx, p, form, now);
