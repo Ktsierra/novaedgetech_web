@@ -20,6 +20,11 @@ describe('Journey', () => {
     expect(screen.getAllByText('SKYVAULT').length).toBeGreaterThan(0);
   });
 
+  it('links to the privacy policy from the footer', () => {
+    render(<Journey skipIntro />);
+    expect(screen.getByRole('link', { name: 'Privacy' }).getAttribute('href')).toBe('/privacy');
+  });
+
   it('requires name and email before transmitting', () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
     render(<Journey skipIntro />);
