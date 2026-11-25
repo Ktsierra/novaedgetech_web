@@ -2,6 +2,7 @@ import { EARTH_FRAME, EarthView, createEarth } from './earth';
 import { SurfaceView, createSurface } from './surface';
 import { SunView, createSun } from './sun';
 import { bands, loaderStatuses, terminalCode } from './journeyText';
+import { ownFrame, pacer, rush, turn } from './schedule';
 
 export interface JourneyOptions {
   skipIntro?: boolean;
@@ -211,15 +212,35 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
   const ROT = 0.00042; // the spiral pattern turns rigidly so every layer stays aligned
   let discRot = 0;
   const DISC_R = maxR * 1.05;
-  const disc = (() => {
+  const disc = mkCanvas(1024);
+  let discReady = false, discAt = 0;
+  // Built a few milliseconds at a time while the first frames are already running (`inTurns`), so the page
+  // doesn't start with a long pause. It is ready well before the galaxy has formed enough to show it; on a very
+  // slow device it fades in from whenever it is finished. Without an intro it is built in one go, as before
+  const buildDisc = async (inTurns: boolean) => {
     const S = 512, k = (S / 2) / DISC_R;
     const lo = mkCanvas(S), lg = lo.getContext('2d');
-    const out = mkCanvas(1024), og = out.getContext('2d');
-    if (!lg || !og) return out;
+    const og = disc.getContext('2d');
+    // each batch of dots goes on a scratch layer that is then added to the disc: the browser rasterises a canvas
+    // when it is read, so this keeps that work in small pieces too (adding layers gives the same pixels)
+    const batch = mkCanvas(S), bg = batch.getContext('2d');
+    if (!lg || !og || !bg) return;
     lg.translate(S / 2, S / 2);
     lg.globalCompositeOperation = 'lighter';
+    bg.translate(S / 2, S / 2);
+    bg.globalCompositeOperation = 'lighter';
+    const flush = () => {
+      lg.drawImage(batch, -S / 2, -S / 2);
+      bg.clearRect(-S / 2, -S / 2, S, S);
+    };
+    const pace = pacer(4, true); // first in line: the galaxy is what's on screen
     const HAZE = W < MOBILE_BREAKPOINT ? 18000 : 30000;
     for (let i = 0; i < HAZE; i++) {
+      if (inTurns && (i & 127) === 0 && pace.due()) {
+        flush();
+        await pace.rest();
+        if (dead) return;
+      }
       const u = rnd();
       let r: number, th: number, col: string;
       let patch = 1;
@@ -233,9 +254,14 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
         patch = 0.45 + 0.55 * Math.abs(Math.sin(r * 0.031 + (i % ARMS) * 1.7) * Math.sin(r * 0.013 + th * 2.1));
       }
       const fade = 1 - 0.65 * (r / maxR);
-      lg.fillStyle = 'rgba(' + col + ',' + ((0.028 + 0.05 * fade) * patch).toFixed(3) + ')';
+      bg.fillStyle = 'rgba(' + col + ',' + ((0.028 + 0.05 * fade) * patch).toFixed(3) + ')';
       const sz = 0.8 + rnd() * 0.9;
-      lg.fillRect(Math.cos(th) * r * k, Math.sin(th) * r * k, sz, sz);
+      bg.fillRect(Math.cos(th) * r * k, Math.sin(th) * r * k, sz, sz);
+    }
+    flush();
+    if (inTurns) {
+      await turn(true);
+      if (dead) return;
     }
     // soft dust lanes along the inner edge of each arm, as overlapping streaks
     lg.globalCompositeOperation = 'destination-out';
@@ -257,8 +283,9 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
     og.imageSmoothingQuality = 'high';
     og.globalAlpha = 1; og.drawImage(tiny, 0, 0, 1024, 1024);
     og.globalAlpha = 0.6; og.drawImage(lo, 0, 0, 1024, 1024);
-    return out;
-  })();
+    discReady = true;
+    discAt = inTurns ? performance.now() : -1e9;
+  };
   // stars of the arm we're flying through (unit cube, streamed toward the camera during the approach)
   const LOCAL = Array.from({ length: W < MOBILE_BREAKPOINT ? 140 : 240 }, () => ({
     x: (rnd() - 0.5) * 2.4, y: (rnd() - 0.5) * 1.6, z: rnd(), a: 0.4 + rnd() * 0.6,
@@ -294,7 +321,11 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
   const stInt = window.setInterval(() => { if (statusEl) statusEl.textContent = '> ' + loaderStatuses[stI++ % loaderStatuses.length] + '_'; }, 460);
   if (!skip) document.body.style.overflow = 'hidden';
   const t0 = performance.now() + (skip ? -99999 : 350);
+  // the intro's own clock (ms since t0). It only moves with the frames: if one runs long the galaxy holds for a
+  // moment instead of skipping ahead, which read as a glitch
+  let introMs = NaN;
   let finished = false;
+  rush(true); // nothing is moving yet (see the loop)
 
   // ---------- scramble ----------
   const CH = '!<>-_\\/[]{}=+*^?#';
@@ -338,6 +369,7 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
   const nav = q('[data-nav]');
   const finish = () => {
     finished = true;
+    rush(false);
     clearInterval(stInt);
     if (statusEl) statusEl.textContent = '> deployed. scroll to travel.';
     if (loader) {
@@ -374,34 +406,41 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
   const sunCv = q('[data-sun3d]') as HTMLCanvasElement | null;
   const surfCv = q('[data-surface3d]') as HTMLCanvasElement | null;
   // 3D scenes load behind the loader (each compiles its shaders and renders a hidden warm-up frame), so none
-  // of that work lands mid-scroll. The sun goes first (it's on screen soonest); then the Earth and the city
-  // build side by side, so the city's CPU / shader work overlaps the Earth's texture downloads instead of
-  // waiting for them. Failures fall back silently.
+  // of that work lands mid-scroll. All three build at once: their downloads overlap, and their main-thread work
+  // queues at one gate (schedule.ts) that hands out a few milliseconds per frame, so the galaxy forming on
+  // screen keeps moving while they do. Failures fall back silently.
   const ASSETS = 3;
   let assetsDone = 0;
   const step = async <T>(make: (() => Promise<T>) | null, adopt: (v: T) => void, dispose: (v: T) => void) => {
     try {
-      if (make) { const v = await make(); if (dead) dispose(v); else adopt(v); }
+      if (make) {
+        const v = await make();
+        await ownFrame(); // adopting sizes the scene for the real viewport: not in the warm-up frame's frame
+        if (dead) dispose(v); else adopt(v);
+      }
     } catch { /* no WebGL / textures failed: that scene keeps its CSS/canvas fallback */ }
     assetsDone++;
   };
-  void (async () => {
-    await step(sunCv ? () => createSun(sunCv) : null, v => { sun3d = v; v.setSize(W, H); }, v => { v.dispose(); });
-    await Promise.all([
-      step(earthCv ? () => createEarth(earthCv) : null, e => {
-        earth = e;
-        if (geo) e.setTarget(geo.lat, geo.lon);
-        syncEarthSize();
-      }, e => { e.dispose(); }),
-      // warmed up at the real viewport size, so its render targets are allocated before it's ever on screen
-      step(surfCv ? () => createSurface(surfCv, W, surfH()) : null, v => {
-        surface = v; v.setSize(W, surfH());
-        // until (or without) IP geolocation, estimate the visitor's longitude from their clock's UTC offset
-        const g = geo ?? { lat: 30, lon: -new Date().getTimezoneOffset() / 4 };
-        v.setLocation(g.lat, g.lon);
-      }, v => { v.dispose(); }),
-    ]);
-  })();
+  // The work starts a moment later, and only if this run is still wanted. In development React mounts, unmounts
+  // and mounts again in one go: the run it threw away must not start building on the canvases the next one uses
+  // (disposing it took their WebGL contexts down with it)
+  void Promise.resolve().then(() => {
+    if (dead) return;
+    void buildDisc(!skip);
+    void step(sunCv ? () => createSun(sunCv) : null, v => { sun3d = v; v.setSize(W, H); }, v => { v.dispose(); });
+    void step(earthCv ? () => createEarth(earthCv) : null, e => {
+      earth = e;
+      if (geo) e.setTarget(geo.lat, geo.lon);
+      syncEarthSize();
+    }, e => { e.dispose(); });
+    // warmed up at the real viewport size, so its render targets are allocated before it's ever on screen
+    void step(surfCv ? () => createSurface(surfCv, W, surfH()) : null, v => {
+      surface = v; v.setSize(W, surfH());
+      // until (or without) IP geolocation, estimate the visitor's longitude from their clock's UTC offset
+      const g = geo ?? { lat: 30, lon: -new Date().getTimezoneOffset() / 4 };
+      v.setLocation(g.lat, g.lon);
+    }, v => { v.dispose(); });
+  });
 
   // visitor's approximate location (Vercel IP geolocation via /api/geo): the globe turns to it before the dive
   let geo: { lat: number; lon: number } | null = null;
@@ -528,17 +567,23 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
   const loop = (now: number) => {
     if (dead) return;
     // frame-rate independent smoothing (≈0.09/frame at 60fps) so slow frames don't feel like scroll lag
-    const dt = lastNow ? Math.min(0.1, (now - lastNow) / 1000) : 1 / 60;
+    const gap = lastNow ? now - lastNow : 1000 / 60;
+    const dt = Math.min(0.1, gap / 1000);
     lastNow = now;
     ssy += (scrollY - ssy) * (1 - Math.exp(-dt * 5.7));
     smx += (mx - smx) * 0.05; smy += (my - smy) * 0.05;
     if ((frameC++ % 60) === 0) scrollMax = scrollRange();
     const p = clamp(ssy / scrollMax, 0, 1);
-    const form = skip ? 1 : clamp((now - t0) / 2300, 0, 1);
+    // (a gap of over a second is the tab coming back from the background: catch up in one go, as before)
+    introMs = Number.isNaN(introMs) ? now - t0 : introMs + (gap > 1000 ? gap : Math.min(gap, 250));
+    const form = skip ? 1 : clamp(introMs / 2300, 0, 1);
     // the loader holds until the 3D scenes are warmed up (capped so a slow connection never gets stuck)
     const assetsReady = assetsDone >= ASSETS || now - t0 > 9000;
     const shown = Math.min(form, 0.4 + 0.6 * assetsDone / ASSETS);
     if (counter && !finished) counter.textContent = String(Math.round(shown * 100)).padStart(3, '0');
+    // nothing on screen is moving before the galaxy starts to form (the pre-roll), nor once it has formed and the
+    // loader is only waiting for the scenes: setup gets most of each frame then, and a small share in between
+    if (!finished) rush(form <= 0 || (form >= 1 && !assetsReady));
     if (form >= 1 && assetsReady && !finished) finish();
 
     if (ctx) drawSky(ctx, p, form, now);
@@ -714,10 +759,10 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
         }
       };
       // diffuse disc first, squashed into the same tilted ellipse as the stars
-      {
+      if (discReady) {
         const cx0 = viewX + (viewX - fx) * Z, cy0 = viewY + (viewY - fy) * Z;
         g.save();
-        g.globalAlpha = gA * fe / (1 + (Z - 1) * 0.18);
+        g.globalAlpha = gA * fe / (1 + (Z - 1) * 0.18) * sstep(clamp((now - discAt) / 500, 0, 1));
         g.translate(cx0, cy0);
         g.scale(Z, Z * 0.58);
         g.rotate(discRot);
@@ -860,6 +905,7 @@ export function runJourney(root: HTMLElement, opts: JourneyOptions = {}): () => 
 
   return () => {
     dead = true;
+    rush(false);
     cancelAnimationFrame(raf);
     clearInterval(stInt);
     timers.forEach(t => { clearTimeout(t); });

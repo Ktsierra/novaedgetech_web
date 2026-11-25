@@ -6,9 +6,11 @@ import moonUrl from '../assets/earth/moon_1024.jpg';
 import lightsUrl from '../assets/earth/earth_lights_2048.jpg';
 import { subPoints } from './astro';
 
-const D = Math.PI / 180;
+import { ownFrame, turn } from './schedule';
+import { fetchPicture, pictureTexture, uploadPicture } from './textures';
+import { tune, warmUp, webglPossible } from './warmup';
 
-import { compileScene } from './warmup';
+const D = Math.PI / 180;
 
 export interface EarthView {
   /** backing-store size in device pixels (the canvas CSS size is set by Journey.css) */
@@ -39,7 +41,9 @@ const SUN_DIR: [number, number, number] = [-0.72, 0.5, 0.48];
 
 const hasWebGL = (canvas: HTMLCanvasElement) => {
   try {
-    return !!(canvas.getContext('webgl2') ?? canvas.getContext('webgl'));
+    const gl = canvas.getContext('webgl2') ?? canvas.getContext('webgl');
+    // (a context a previous run lost on purpose when it was disposed is of no use: hot reload, in development)
+    return !!gl && !gl.isContextLost();
   } catch {
     return false;
   }
@@ -50,39 +54,30 @@ const hasWebGL = (canvas: HTMLCanvasElement) => {
  * into its own transparent canvas. three is imported lazily so it never blocks the loader.
  */
 export async function createEarth(canvas: HTMLCanvasElement): Promise<EarthView> {
-  if (!hasWebGL(canvas)) throw new Error('WebGL unavailable');
+  if (!webglPossible() || !hasWebGL(canvas)) throw new Error('WebGL unavailable');
+  // the maps start downloading (and decoding, in the background) right away, alongside three itself.
+  // The clouds are the one image with transparency: see fetchPicture
+  const pending = Promise.all([fetchPicture(dayUrl), fetchPicture(normalUrl), fetchPicture(specUrl), fetchPicture(cloudsUrl, false), fetchPicture(moonUrl), fetchPicture(lightsUrl)]);
+  void pending.catch(() => undefined); // (reported where it is awaited, below)
   const THREE = await import('three');
+  // (each slow step that can't be split - here setting up the renderer - waits for a frame of its own: schedule.ts)
+  await ownFrame();
 
   const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+  tune(renderer);
   renderer.setClearColor(0x000000, 0);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   const maxAniso = renderer.capabilities.getMaxAnisotropy();
 
-  const loader = new THREE.TextureLoader();
-  const load = async (url: string, srgb = false) => {
-    const t = await loader.loadAsync(url);
-    if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+  const pictures = await pending;
+  const SRGB = [true, false, false, true, true, true];
+  const maps = pictures.map((pic, i) => {
+    const t = pictureTexture(THREE, pic, SRGB[i]);
     t.anisotropy = maxAniso;
     return t;
-  };
-  const [day, normal, spec, clouds, moonTex, lights] = await Promise.all([load(dayUrl, true), load(normalUrl), load(specUrl), load(cloudsUrl, true), load(moonUrl, true), load(lightsUrl, true)]);
-
-  // specular map (white = water) -> roughness map: glossy oceans, matte land
-  const toRoughness = (tex: InstanceType<typeof THREE.Texture>) => {
-    const img = tex.image as HTMLImageElement;
-    const cv = document.createElement('canvas');
-    cv.width = img.width; cv.height = img.height;
-    const g = cv.getContext('2d');
-    if (!g) return null;
-    g.drawImage(img, 0, 0);
-    const d = g.getImageData(0, 0, cv.width, cv.height), a = d.data;
-    for (let i = 0; i < a.length; i += 4) { const v = 150 + (255 - a[i + 1]) * 0.41; a[i] = a[i + 1] = a[i + 2] = v; }
-    g.putImageData(d, 0, 0);
-    const t = new THREE.CanvasTexture(cv);
-    t.anisotropy = maxAniso;
-    return t;
-  };
-  const rough = toRoughness(spec);
+  });
+  const [day, normal, spec, clouds, moonTex, lights] = maps;
+  await turn();
 
   const scene = new THREE.Scene();
   const cam = new THREE.OrthographicCamera(-EARTH_FRAME, EARTH_FRAME, EARTH_FRAME, -EARTH_FRAME, 0.1, 10);
@@ -101,7 +96,7 @@ export async function createEarth(canvas: HTMLCanvasElement): Promise<EarthView>
   const surfGeo = new THREE.SphereGeometry(1, 128, 96);
   surfGeo.scale(1, POLAR, 1);
   const surfMat = new THREE.MeshStandardMaterial({
-    map: day, normalMap: normal, normalScale: new THREE.Vector2(0.7, 0.7), roughnessMap: rough, roughness: 1, metalness: 0,
+    map: day, normalMap: normal, normalScale: new THREE.Vector2(0.7, 0.7), roughnessMap: spec, roughness: 1, metalness: 0,
     emissiveMap: lights, emissive: new THREE.Color(0xffc27a), emissiveIntensity: 1.5,
   });
   // city lights (NASA Black Marble) only on the night side, fading in across the terminator
@@ -109,12 +104,17 @@ export async function createEarth(canvas: HTMLCanvasElement): Promise<EarthView>
   const sunDir = new THREE.Vector3(...SUN_DIR).normalize();
   surfMat.onBeforeCompile = sh => {
     sh.uniforms.uSunView = { value: sunDir };
-    sh.fragmentShader = 'uniform vec3 uSunView;\n' + sh.fragmentShader.replace('#include <emissivemap_fragment>',
-      '#include <emissivemap_fragment>\n  totalEmissiveRadiance *= smoothstep(0.1, -0.2, dot(normalize(vNormal), uSunView));');
+    sh.fragmentShader = 'uniform vec3 uSunView;\n' + sh.fragmentShader
+      // the specular map is white on water: glossy oceans (roughness 0.59), matte land (1.0). Mapped here, per
+      // pixel, rather than by baking a second 2k texture on the main thread
+      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n  roughnessFactor = 0.5882 + (1.0 - roughnessFactor) * 0.41;')
+      .replace('#include <emissivemap_fragment>',
+        '#include <emissivemap_fragment>\n  totalEmissiveRadiance *= smoothstep(0.1, -0.2, dot(normalize(vNormal), uSunView));');
   };
   const surface = new THREE.Mesh(surfGeo, surfMat);
   surface.rotation.y = faceY;
   earth.add(surface);
+  await turn();
 
   const cloudGeo = new THREE.SphereGeometry(1.006, 96, 72);
   cloudGeo.scale(1, POLAR, 1);
@@ -154,12 +154,14 @@ export async function createEarth(canvas: HTMLCanvasElement): Promise<EarthView>
     blendSrcAlpha: THREE.OneFactor,
     blendDstAlpha: THREE.OneFactor,
   });
+  await turn();
   const rimMat = rimShader('pow(max(1.0 - facing, 0.0), 3.0)', 1.1, THREE.FrontSide);
   const rim = new THREE.Mesh(new THREE.SphereGeometry(1.008, 96, 72), rimMat);
   // halo shell: brightest where it meets the globe edge (facing ≈ 0.36 for r = 1.07), fading out to its own silhouette
   const haloMat = rimShader('pow(smoothstep(0.0, 0.36, facing), 2.2)', 0.75, THREE.BackSide);
   const halo = new THREE.Mesh(new THREE.SphereGeometry(1.07, 96, 72), haloMat);
   scene.add(rim, halo);
+  await turn();
 
   // moon on an inclined orbit: passes in front of the globe, and behind it (depth-tested)
   const moonGeo = new THREE.SphereGeometry(MOON_R, 64, 48);
@@ -270,18 +272,20 @@ export async function createEarth(canvas: HTMLCanvasElement): Promise<EarthView>
       renderer.render(scene, cam);
     },
     dispose: () => {
-      [day, normal, spec, clouds, moonTex, lights, rough, dotTex].forEach(tx => tx?.dispose());
+      [...maps, dotTex].forEach(tx => { tx.dispose(); });
       [surfGeo, cloudGeo, rim.geometry, halo.geometry, moonGeo].forEach(g => { g.dispose(); });
       [surfMat, cloudMat, rimMat, haloMat, moonMat, dotMat].forEach(m => { m.dispose(); });
       renderer.dispose();
       renderer.forceContextLoss();
     },
   };
-  // warm-up while the loader is up: compile shaders and render one hidden frame (uploads textures),
-  // so the first on-screen frame doesn't hitch mid-scroll
+  // warm-up while the loader is up, a piece per frame (warmup.ts): shaders compiled, each map uploaded, each
+  // object drawn once. Then one hidden frame, so nothing is left for the first frame that shows the globe
   dot.visible = true;
-  await compileScene(renderer, scene, cam);
+  await ownFrame();
   view.setSize(256);
+  await warmUp(renderer, scene, cam, () => { renderer.render(scene, cam); },
+    maps.map((tex, i) => () => { uploadPicture(renderer, tex, pictures[i]); }));
   view.render(performance.now(), 0, 0);
   dot.visible = false;
   t0 = -1; lastT = -1; spinPhase = orbitPhase = 0;

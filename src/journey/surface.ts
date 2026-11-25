@@ -1,7 +1,9 @@
 import moonUrl from '../assets/earth/moon_1024.jpg';
-import { compileScene } from './warmup';
 import { subPoints, skyPosition } from './astro';
 import { buildCity } from './city';
+import { ownFrame, pacer, turn } from './schedule';
+import { fetchPicture, pictureTexture, uploadPicture } from './textures';
+import { tune, warmUp, webglPossible } from './warmup';
 
 export interface SurfaceView {
   setSize: (w: number, h: number) => void;
@@ -45,14 +47,17 @@ const PATH_GLSL = 'float pathX(float z) { return sin(z * 0.009) * 22.0 + sin(z *
 /** the river ends in a basin in front of the tower */
 const RIVER_END = -108;
 /** flat city floor with the river cut into it; mountains rise past the city limits either side of the river */
-const heightAt = (x: number, z: number) => {
+export const heightAt = (x: number, z: number) => {
   const dx = Math.abs(x - pathX(z));
-  const ridge = 1 - Math.abs(fbm(x * 0.011 + 7.1, z * 0.011 - 3.4) * 2 - 1);
-  const base = fbm(x * 0.006, z * 0.006, 4);
-  const mountains = Math.pow(ridge * 0.75 + base * 0.6, 2.2) * 85;
   // mountains on the SIDES only, rising just past the city limits (~150 m off the river) and lower toward the
   // back, so the valley stays open ahead to clear sky for the sun, moon and twilight
   const mask = smooth((dx - 150) / 110) * (1 - 0.5 * smooth((-z - 60) / 260));
+  // the city floor is exactly flat: no noise to work out there (a third of the mesh, and under the camera's
+  // path, which asks every frame)
+  if (mask === 0) return 0;
+  const ridge = 1 - Math.abs(fbm(x * 0.011 + 7.1, z * 0.011 - 3.4) * 2 - 1);
+  const base = fbm(x * 0.006, z * 0.006, 4);
+  const mountains = Math.pow(ridge * 0.75 + base * 0.6, 2.2) * 85;
   // (the river is NOT cut into this coarse mesh: its triangles never matched the water's curve. The water and
   // its quay walls sit on the flat floor, built along the same curve - see city.ts)
   return mountains * mask;
@@ -60,7 +65,9 @@ const heightAt = (x: number, z: number) => {
 
 const hasWebGL = (canvas: HTMLCanvasElement) => {
   try {
-    return !!canvas.getContext('webgl2');
+    const gl = canvas.getContext('webgl2');
+    // (a context a previous run lost on purpose when it was disposed is of no use: hot reload, in development)
+    return !!gl && !gl.isContextLost();
   } catch {
     return false;
   }
@@ -73,10 +80,16 @@ const hasWebGL = (canvas: HTMLCanvasElement) => {
  * three is loaded lazily.
  */
 export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warmH = 200): Promise<SurfaceView> {
-  if (!hasWebGL(canvas)) throw new Error('WebGL2 unavailable');
+  if (!webglPossible(true) || !hasWebGL(canvas)) throw new Error('WebGL2 unavailable');
+  const moonPending = fetchPicture(moonUrl); // downloads while the terrain and the city are built
+  void moonPending.catch(() => undefined); // (reported where it is awaited, below)
   const THREE = await import('three');
+  // The scene is built in small pieces that take turns with the loader's frames (schedule.ts): `turn()` between
+  // pieces, `ownFrame()` before a slow one that can't be split (here: setting up the renderer)
+  await ownFrame();
 
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false }); // MSAA lives in the composer
+  tune(renderer);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   const [{ EffectComposer }, { RenderPass }, { UnrealBloomPass }, { OutputPass }] = await Promise.all([
     import('three/examples/jsm/postprocessing/EffectComposer.js'),
@@ -84,6 +97,8 @@ export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warm
     import('three/examples/jsm/postprocessing/UnrealBloomPass.js'),
     import('three/examples/jsm/postprocessing/OutputPass.js'),
   ]);
+
+  await turn();
 
   const fog = new THREE.Fog(0x0b3a52, 90, 680); // reaches far enough for the mountains to stay readable
   const scene = new THREE.Scene();
@@ -153,16 +168,20 @@ export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warm
   const starMat = new THREE.PointsMaterial({ color: 0xc9d6ff, size: 1.3, sizeAttenuation: false, transparent: true, opacity: 0.7, fog: false, depthWrite: false });
   const stars = new THREE.Points(starGeo, starMat);
   scene.add(stars);
+  await turn();
 
   // ---------- terrain ----------
   const mobile = innerWidth < 760;
   const SIZE = 800, SEG = mobile ? 170 : 240; // lighter mesh on phones
   const terrGeo = new THREE.PlaneGeometry(SIZE, SIZE, SEG, SEG);
+  await turn();
   terrGeo.rotateX(-Math.PI / 2);
   const pos = terrGeo.attributes.position as InstanceType<typeof THREE.BufferAttribute>;
   const cols = new Float32Array(pos.count * 3);
   const low = new THREE.Color(0x070e18), high = new THREE.Color(0x2b4a6b), snow = new THREE.Color(0x8aa4c0), tmp = new THREE.Color();
+  const pace = pacer();
   for (let i = 0; i < pos.count; i++) {
+    if ((i & 255) === 0 && pace.due()) await pace.rest(); // ~58k vertices of noise: a few milliseconds at a time
     const x = pos.getX(i), z = pos.getZ(i) - 100; // terrain extends mostly ahead of the start
     const h = heightAt(x, z);
     pos.setXYZ(i, x, h, z);
@@ -171,7 +190,9 @@ export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warm
     cols[i * 3] = tmp.r; cols[i * 3 + 1] = tmp.g; cols[i * 3 + 2] = tmp.b;
   }
   terrGeo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+  await turn();
   terrGeo.computeVertexNormals();
+  await turn();
   const terrMat = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.92, metalness: 0 });
   // the night glow (set in updateSky) climbs with altitude: none on the city floor, strongest up the slopes
   terrMat.onBeforeCompile = sh => {
@@ -240,8 +261,9 @@ export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warm
   scene.add(beacons);
 
   // the same Moon that orbited the globe, hanging over the far ridges (sunlit side gives it a phase)
-  const moonTex = await new THREE.TextureLoader().loadAsync(moonUrl);
-  moonTex.colorSpace = THREE.SRGBColorSpace;
+  const moonPic = await moonPending;
+  const moonTex = pictureTexture(THREE, moonPic, true);
+  await turn();
   // lit by the REAL sun direction (even below the horizon), so its phase is tonight's; paler by day
   const moonMat = new THREE.ShaderMaterial({
     transparent: true,
@@ -311,9 +333,12 @@ export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warm
   neon(TX, TY + TH + 6, TZ, 0.4, 12, 0.4);
   bp.push(TX, TY + TH + 12.5, TZ);
 
+  await turn();
+
   // ---------- the city ----------
   const city = await buildCity(THREE, { pathX, pathGlsl: PATH_GLSL, riverEnd: RIVER_END, tower: { x: TX, z: TZ, top: TY + TH + 0.4 }, mobile, fog });
   city.objects.forEach(ob => { scene.add(ob); });
+  await turn();
 
   // post: multisampled render (smooth edges) -> bloom (neon actually glows) -> sRGB output
   const rt = new THREE.WebGLRenderTarget(2, 2, { type: THREE.HalfFloatType, samples: mobile ? 0 : 2 });
@@ -425,7 +450,7 @@ export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warm
   // ---------- adaptive resolution ----------
   // the city is GPU-heavy: if frames run long, render fewer pixels (down to ~half) rather than pinning the GPU;
   // creep back up while there's headroom. Changes are rate-limited so it never oscillates visibly.
-  let vw = warmW, vh = warmH, quality = mobile ? 0.85 : 1, ema = 16.7, lastFrame = -1, lastAdjust = 0, longRun = 0, tier = 0;
+  let vw = warmW, vh = warmH, sized = false, quality = mobile ? 0.85 : 1, ema = 16.7, lastFrame = -1, lastAdjust = 0, longRun = 0, tier = 0;
   const applySize = () => {
     const full = Math.min(devicePixelRatio || 1, mobile ? 1.5 : 1.25);
     const dpr = Math.max(0.5, full * quality);
@@ -454,10 +479,51 @@ export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warm
     // stepping back up waits longer, so the resolution can't bounce up and down
     else if (ema < 18.5 && quality < 1) { quality = Math.min(1, quality * 1.1); lastAdjust = now + 6000; applySize(); }
   };
+  /** everything a frame needs before it is drawn: the camera's pose, the sky, the animated uniforms */
+  const pose = (now: number, descent: number, travel: number, mx: number, my: number, aim = 0, dolly = 0) => {
+    if (t0 < 0) t0 = now;
+    const t = (now - t0) / 1000;
+    const d = smooth(descent);
+    // drop from high above the clouds to cruising height, pitching from straight down to the horizon
+    const z = 150 - travel * 190 - d * 30;
+    const y = lerp(230, 13, Math.pow(d, 0.85)) + heightAt(pathX(z), z);
+    // levels out on the way down (an establishing look across the city and sky), then on into the river canyon
+    const pitch = lerp(-1.42, -0.1, smooth((descent - 0.12) / 0.66));
+    const a = smooth(aim), dl = smooth(dolly);
+    // mouse parallax and drift fade out as the camera commits to the window
+    const free = 1 - a;
+    const yaw = (-mx * 0.12 + Math.sin(t * 0.15) * 0.02) * free;
+    cam.position.set(pathX(z) + mx * 4 * free, y - my * 2 * free, z);
+    look.set(
+      cam.position.x + Math.sin(yaw) * Math.cos(pitch),
+      cam.position.y + Math.sin(pitch),
+      cam.position.z - Math.cos(yaw) * Math.cos(pitch),
+    );
+    // blend view DIRECTIONS (not look points: the window is ~60 units away, so lerping points
+    // swings the view almost all the way in the first few percent), then dolly up to the window
+    if (a > 0 || dl > 0) {
+      cruisePos.copy(cam.position);
+      cam.position.lerpVectors(cruisePos, WIN_STAND, dl);
+      cruiseDir.copy(look).sub(cruisePos).normalize();
+      winDir.copy(WIN).sub(cam.position).normalize();
+      cruiseDir.lerp(winDir, Math.max(a, dl)).normalize();
+      look.copy(cam.position).add(cruiseDir);
+    }
+    cam.lookAt(look);
+
+    if (now - skyAt > 10000) { skyAt = now; updateSky(); } // the sky moves ~0.25°/min
+
+    starMat.opacity = 0.75 * smooth((descent - 0.4) / 0.6) * starK;
+    gridCam.copy(cam.position);
+    gridMat.uniforms.uTime.value = t;
+    city.update(t, cam.position);
+    beaconMat.opacity = 0.3 + 0.7 * Math.pow(0.5 + 0.5 * Math.sin(t * 3.2), 3); // a soft pulse (hard blinks flash under bloom)
+  };
   const view: SurfaceView = {
     setSize: (w: number, h: number) => {
       // resizing a canvas (even to the same size) clears it: only when something really changed
-      if (w === vw && h === vh && aspect === w / Math.max(1, h)) return;
+      if (sized && w === vw && h === vh) return;
+      sized = true;
       vw = w; vh = h;
       applySize();
       cam.aspect = aspect = w / Math.max(1, h);
@@ -467,44 +533,8 @@ export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warm
     setLocation: (lat: number, lon: number) => { loc = { lat, lon }; skyAt = -1e9; },
     daylight: () => day,
     render: (now: number, descent: number, travel: number, mx: number, my: number, aim = 0, dolly = 0) => {
-      if (t0 < 0) t0 = now;
       adapt(now);
-      const t = (now - t0) / 1000;
-      const d = smooth(descent);
-      // drop from high above the clouds to cruising height, pitching from straight down to the horizon
-      const z = 150 - travel * 190 - d * 30;
-      const y = lerp(230, 13, Math.pow(d, 0.85)) + heightAt(pathX(z), z);
-      // levels out on the way down (an establishing look across the city and sky), then on into the river canyon
-      const pitch = lerp(-1.42, -0.1, smooth((descent - 0.12) / 0.66));
-      const a = smooth(aim), dl = smooth(dolly);
-      // mouse parallax and drift fade out as the camera commits to the window
-      const free = 1 - a;
-      const yaw = (-mx * 0.12 + Math.sin(t * 0.15) * 0.02) * free;
-      cam.position.set(pathX(z) + mx * 4 * free, y - my * 2 * free, z);
-      look.set(
-        cam.position.x + Math.sin(yaw) * Math.cos(pitch),
-        cam.position.y + Math.sin(pitch),
-        cam.position.z - Math.cos(yaw) * Math.cos(pitch),
-      );
-      // blend view DIRECTIONS (not look points: the window is ~60 units away, so lerping points
-      // swings the view almost all the way in the first few percent), then dolly up to the window
-      if (a > 0 || dl > 0) {
-        cruisePos.copy(cam.position);
-        cam.position.lerpVectors(cruisePos, WIN_STAND, dl);
-        cruiseDir.copy(look).sub(cruisePos).normalize();
-        winDir.copy(WIN).sub(cam.position).normalize();
-        cruiseDir.lerp(winDir, Math.max(a, dl)).normalize();
-        look.copy(cam.position).add(cruiseDir);
-      }
-      cam.lookAt(look);
-
-      if (now - skyAt > 10000) { skyAt = now; updateSky(); } // the sky moves ~0.25°/min
-
-      starMat.opacity = 0.75 * smooth((descent - 0.4) / 0.6) * starK;
-      gridCam.copy(cam.position);
-      gridMat.uniforms.uTime.value = t;
-      city.update(t, cam.position);
-      beaconMat.opacity = 0.3 + 0.7 * Math.pow(0.5 + 0.5 * Math.sin(t * 3.2), 3); // a soft pulse (hard blinks flash under bloom)
+      pose(now, descent, travel, mx, my, aim, dolly);
       composer.render();
     },
     dispose: () => {
@@ -517,9 +547,21 @@ export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warm
       renderer.forceContextLoss();
     },
   };
-  // warm-up while the loader is up (see earth.ts): mid-descent pose so terrain, grid, lights and tower are in view
-  await compileScene(renderer, scene, cam);
+  // warm-up while the loader is up, a piece per frame (warmup.ts), in a mid-descent pose: shaders compiled for
+  // the buffers they really draw into, textures uploaded, each object drawn once into small buffers
+  await ownFrame();
+  renderer.setSize(96, 60, false);
+  composer.setSize(96, 60);
+  city.setSize(96, 60, 96, 60);
+  pose(performance.now(), 0.8, 0.5, 0, 0);
+  await warmUp(renderer, scene, cam, () => { composer.render(); }, [
+    () => { uploadPicture(renderer, moonTex, moonPic); },
+    () => { [frontTex, sideTex, dotTex].forEach(tx => { renderer.initTexture(tx); }); },
+  ], rt);
+  // then the usual hidden frame at the real viewport size, so the render targets are allocated before the city
+  // is ever on screen
   view.setSize(warmW, warmH);
+  await ownFrame();
   view.render(performance.now(), 0.8, 0.5, 0, 0);
   t0 = -1;
   return view;

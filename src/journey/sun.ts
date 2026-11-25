@@ -1,4 +1,5 @@
-import { compileScene } from './warmup';
+import { ownFrame } from './schedule';
+import { tune, warmUp, webglPossible } from './warmup';
 
 export interface SunView {
   setSize: (w: number, h: number) => void;
@@ -20,7 +21,9 @@ const NOISE = /* glsl */ `
 
 const hasWebGL = (canvas: HTMLCanvasElement) => {
   try {
-    return !!(canvas.getContext('webgl2') ?? canvas.getContext('webgl'));
+    const gl = canvas.getContext('webgl2') ?? canvas.getContext('webgl');
+    // (a context a previous run lost on purpose when it was disposed is of no use: hot reload, in development)
+    return !!gl && !gl.isContextLost();
   } catch {
     return false;
   }
@@ -32,13 +35,16 @@ const hasWebGL = (canvas: HTMLCanvasElement) => {
  * Drawn in screen space (orthographic, CSS pixels) at whatever position/size the journey engine computes.
  */
 export async function createSun(canvas: HTMLCanvasElement): Promise<SunView> {
-  if (!hasWebGL(canvas)) throw new Error('WebGL unavailable');
+  if (!webglPossible() || !hasWebGL(canvas)) throw new Error('WebGL unavailable');
   const THREE = await import('three');
+  // (each slow step that can't be split - here setting up the renderer - waits for a frame of its own: schedule.ts)
+  await ownFrame();
 
   // an OPAQUE black canvas: the layer is screen-blended over the galaxy (black = no change), so the corona is pure
   // added light. A transparent canvas left its soft alpha to each browser's compositor, and Chrome / Safari drew
   // it as a hard-edged sticker
   const renderer = new THREE.WebGLRenderer({ canvas, alpha: false, antialias: true });
+  tune(renderer);
   renderer.setClearColor(0x000000, 1);
   const scene = new THREE.Scene();
   const cam = new THREE.OrthographicCamera(0, 1, 1, 0, -2000, 2000);
@@ -144,9 +150,10 @@ export async function createSun(canvas: HTMLCanvasElement): Promise<SunView> {
       renderer.forceContextLoss();
     },
   };
-  // warm-up while the loader is up (see earth.ts), then hide the layer again
-  await compileScene(renderer, scene, cam);
+  // warm-up while the loader is up (see warmup.ts), then hide the layer again
+  await ownFrame();
   view.setSize(128, 128);
+  await warmUp(renderer, scene, cam, () => { renderer.render(scene, cam); });
   view.render(performance.now(), 64, 64, 30, 1);
   canvas.style.opacity = '0';
   hidden = true;
