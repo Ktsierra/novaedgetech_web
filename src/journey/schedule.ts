@@ -12,6 +12,9 @@
  *   can't be seen.
  *
  * Every scene asks the same gate, so they queue instead of piling up.
+ *
+ * The gate also knows whether there is anything setup could be getting on with (`atHand()`): the stars wait for
+ * that before they start to move, so the graphics card's share is over before there is anything to hold up.
  */
 
 export interface GateEnv {
@@ -32,9 +35,11 @@ export interface Gate {
   turn: (tag?: string, first?: boolean) => Promise<void>;
   /**
    * Before a piece of work for the graphics card: waits until the picture is still, then starts a frame's share
-   * (such a piece can't be split and may be slow).
+   * (such a piece can't be split and may be slow). `quiet` is for a small piece that nothing is waiting for (a
+   * picture that arrived late): it takes the next still moment without asking for one, so nothing on screen
+   * stops on its account.
    */
-  gpu: (tag?: string) => Promise<void>;
+  gpu: (tag?: string, quiet?: boolean) => Promise<void>;
   /** One scene's work on the graphics card at a time: runs `work` once those asked for earlier have finished. */
   pass: <V>(work: () => Promise<V>) => Promise<V>;
   /**
@@ -50,6 +55,16 @@ export interface Gate {
    * to let it move again when there isn't.
    */
   working: () => boolean;
+  /** A scene's whole setup, from asking for its code to its last step: `atHand()` follows it between its pieces. */
+  job: <V>(work: () => Promise<V>) => Promise<V>;
+  /** A wait for the network (a download, a chunk of code). Returns the same promise. */
+  net: <V>(wait: Promise<V>) => Promise<V>;
+  /**
+   * Whether setup has anything it could be getting on with: work at the gate, or a job that is between two
+   * pieces and not waiting for the network (an image being decoded, say: its next piece is a moment away). Not
+   * while all that is left is waiting for a download: how long that takes is anyone's guess.
+   */
+  atHand: () => boolean;
 }
 
 /** setup work per frame, in ms: a 60 Hz frame is 16.7 ms and the galaxy needs its part of it */
@@ -68,6 +83,7 @@ export function createGate(env: GateEnv): Gate {
   let calm = true; // (until the page says its picture is moving)
   let since = -1; // when work for the graphics card first found the picture moving
   let asking = 0, passing = 0; // gpu() calls not yet granted, passes not yet over
+  let jobs = 0, fetching = 0; // jobs not yet over, waits for the network not yet over
   let line: Promise<unknown> = Promise.resolve();
   const lanes: Waiter[][] = [[], []];
   // A device whose frames are slow to come round anyway (`wait` well over a 30 fps frame) isn't going to look
@@ -106,20 +122,22 @@ export function createGate(env: GateEnv): Gate {
   const clear = () => calm || !env.shown() || (since >= 0 && env.now() - since >= PATIENCE);
   return {
     turn: (tag = '', first = false) => ask(1, first ? 0 : 1, tag),
-    gpu: async (tag = '') => {
-      asking++;
+    gpu: async (tag = '', quiet = false) => {
+      // (a quiet piece is not work at hand, and does not run out of patience: it has all the time there is)
+      const go = quiet ? () => calm || !env.shown() : clear;
+      if (!quiet) asking++;
       try {
         for (;;) {
-          if (clear()) {
+          if (go()) {
             await ask(0.25, 1, tag, true);
-            if (clear()) return;
+            if (go()) return;
             continue; // the picture started moving while this waited for its turn
           }
-          if (since < 0) since = env.now();
+          if (!quiet && since < 0) since = env.now();
           await env.frame();
         }
       } finally {
-        asking--;
+        if (!quiet) asking--;
       }
     },
     pass: work => {
@@ -134,6 +152,21 @@ export function createGate(env: GateEnv): Gate {
       if (on) since = -1;
     },
     working: () => serving || asking > 0 || passing > 0,
+    job: work => {
+      jobs++;
+      const over = () => { jobs--; };
+      const run = Promise.resolve().then(work);
+      run.then(over, over);
+      return run;
+    },
+    net: wait => {
+      fetching++;
+      const over = () => { fetching--; };
+      wait.then(over, over);
+      return wait;
+    },
+    // (one count of waits for all jobs: while any download is on its way, only work that has reached the gate counts)
+    atHand: () => serving || asking > 0 || passing > 0 || (jobs > 0 && fetching === 0),
   };
 }
 
@@ -176,6 +209,9 @@ export const pass = gate.pass;
 export const rush = gate.rush;
 export const still = gate.still;
 export const working = gate.working;
+export const job = gate.job;
+export const net = gate.net;
+export const atHand = gate.atHand;
 
 /**
  * For long loops: check `due()` every so often and `await rest()` when it is, so each piece of the loop only

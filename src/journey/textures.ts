@@ -1,4 +1,5 @@
 import type * as T from 'three';
+import { net } from './schedule';
 
 type Three = typeof import('three');
 
@@ -40,10 +41,11 @@ const downloads = new Map<string, Promise<Blob>>();
 const download = (url: string) => {
   let d = downloads.get(url);
   if (!d) {
-    d = fetch(url).then(res => {
+    // (a wait for the network. What follows it, the decoding, is not: schedule.ts)
+    d = net(fetch(url).then(res => {
       if (!res.ok) throw new Error('image unavailable: ' + url);
       return res.blob();
-    }).finally(() => { downloads.delete(url); });
+    })).finally(() => { downloads.delete(url); });
     downloads.set(url, d);
   }
   return d;
@@ -67,11 +69,17 @@ export async function fetchPicture(url: string, decode = true): Promise<Picture>
 }
 
 export function pictureTexture(THREE: Three, pic: Picture, srgb = false): T.Texture {
-  const tex = new THREE.Texture(pic.bitmap ?? pic.img);
-  if (pic.bitmap) tex.flipY = false; // flipped when it was decoded
+  const tex = new THREE.Texture();
   if (srgb) tex.colorSpace = THREE.SRGBColorSpace;
-  tex.needsUpdate = true;
+  setPicture(tex, pic);
   return tex;
+}
+
+/** Gives a texture its picture: for one that was made before the picture had arrived. */
+export function setPicture(tex: T.Texture, pic: Picture) {
+  tex.image = pic.bitmap ?? pic.img;
+  tex.flipY = !pic.bitmap; // (a bitmap was flipped when it was decoded)
+  tex.needsUpdate = true;
 }
 
 /** Put the texture on the GPU now, instead of in the middle of the first frame that draws it. */

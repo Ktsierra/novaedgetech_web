@@ -6,7 +6,7 @@ import moonUrl from '../assets/earth/moon_1024.jpg';
 import lightsUrl from '../assets/earth/earth_lights_2048.jpg';
 import { subPoints } from './astro';
 
-import { turn } from './schedule';
+import { net, turn } from './schedule';
 import { fetchPicture, pictureTexture, uploadPicture } from './textures';
 import { makeRenderer, warmUp, webglPossible } from './warmup';
 
@@ -59,14 +59,16 @@ const hasWebGL = (canvas: HTMLCanvasElement) => {
  */
 export async function createEarth(canvas: HTMLCanvasElement, size: number, progress?: (done: number) => void): Promise<EarthView> {
   if (!webglPossible() || !hasWebGL(canvas)) throw new Error('WebGL unavailable');
-  const THREE = await import('three');
+  const THREE = await net(import('three'));
   // the maps download (and decode, in the background) while the scene is put together. Not before three has
   // arrived: every scene needs it first, and on a slow connection 1.7 MB of maps would take its bandwidth.
   // The clouds are the one image with transparency: see fetchPicture
   const pending = Promise.all([fetchPicture(dayUrl), fetchPicture(normalUrl), fetchPicture(specUrl), fetchPicture(cloudsUrl, false), fetchPicture(moonUrl), fetchPicture(lightsUrl)]);
   void pending.catch(() => undefined); // (reported where it is awaited, below)
 
+  progress?.(0.03);
   const pictures = await pending;
+  progress?.(0.1);
   await turn('earth:maps');
   const SRGB = [true, false, false, true, true, true];
   const maps = pictures.map((pic, i) => pictureTexture(THREE, pic, SRGB[i]));

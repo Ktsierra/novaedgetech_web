@@ -87,6 +87,16 @@ const stepper = (renderer: T.WebGLRenderer, done: () => void): Step => async (ta
 };
 
 /**
+ * One small step for the graphics card on its own, outside a scene's warm-up: for a picture that arrived after
+ * it. It takes the next moment the picture is still, without asking for one (schedule.ts).
+ */
+export const cardStep = async (tag: string, renderer: T.WebGLRenderer, work: () => void) => {
+  await gpu(tag, true);
+  work();
+  settle(renderer, false);
+};
+
+/**
  * Creates a scene's renderer: work for the graphics card like the rest (three sets the context up and asks it
  * what it can do). `create` should also make every call that configures the context.
  */

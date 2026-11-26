@@ -1,9 +1,9 @@
 import moonUrl from '../assets/earth/moon_1024.jpg';
 import { subPoints, skyPosition } from './astro';
-import { buildCity } from './city';
-import { pacer, turn } from './schedule';
-import { fetchPicture, pictureTexture, uploadPicture } from './textures';
-import { makeRenderer, warmUp, webglPossible } from './warmup';
+import { buildCity, cityHelpers } from './city';
+import { net, pacer, turn } from './schedule';
+import { Picture, fetchPicture, setPicture, uploadPicture } from './textures';
+import { cardStep, makeRenderer, warmUp, webglPossible } from './warmup';
 
 export interface SurfaceView {
   setSize: (w: number, h: number) => void;
@@ -85,15 +85,22 @@ const hasWebGL = (canvas: HTMLCanvasElement) => {
  */
 export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warmH = 200, progress?: (done: number) => void): Promise<SurfaceView> {
   if (!webglPossible(true) || !hasWebGL(canvas)) throw new Error('WebGL2 unavailable');
-  const THREE = await import('three');
-  const moonPending = fetchPicture(moonUrl); // downloads while the terrain and the city are built
-  void moonPending.catch(() => undefined); // (reported where it is awaited, below)
-  const [{ EffectComposer }, { RenderPass }, { UnrealBloomPass }, { OutputPass }] = await Promise.all([
+  // All the code this scene needs is asked for at once, the city's helpers included, and code is all it waits
+  // for: its work on the graphics card is most of what the three scenes need, and with nothing else to wait for
+  // it can be done before the stars start to move even on a first visit (intro.ts)
+  const helpers = cityHelpers();
+  void helpers.catch(() => undefined); // (reported by buildCity)
+  const [THREE, { EffectComposer }, { RenderPass }, { UnrealBloomPass }, { OutputPass }] = await net(Promise.all([
+    import('three'),
     import('three/examples/jsm/postprocessing/EffectComposer.js'),
     import('three/examples/jsm/postprocessing/RenderPass.js'),
     import('three/examples/jsm/postprocessing/UnrealBloomPass.js'),
     import('three/examples/jsm/postprocessing/OutputPass.js'),
-  ]);
+  ]));
+  // the one picture here (the Moon) downloads meanwhile. The scene does not wait for it: see where it is used
+  const moonPending = fetchPicture(moonUrl);
+  void moonPending.catch(() => undefined); // (dealt with where the Moon is made)
+  progress?.(0.03);
   // The scene is built in small pieces that take turns with the loader's frames (schedule.ts): `turn()` between
   // pieces. None of it touches the graphics card: that part comes last, and waits for a still picture
   await turn('city:sky');
@@ -258,9 +265,13 @@ export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warm
   const beacons = new THREE.Points(beaconGeo, beaconMat);
   scene.add(beacons);
 
-  // the same Moon that orbited the globe, hanging over the far ridges (sunlit side gives it a phase)
-  const moonPic = await moonPending;
-  const moonTex = pictureTexture(THREE, moonPic, true);
+  // the same Moon that orbited the globe, hanging over the far ridges (sunlit side gives it a phase). Its
+  // texture is blank until the picture has arrived (an unlit disc, if the city were on screen that early), and
+  // the picture goes onto the graphics card whenever it does: with the others, or in a step of its own
+  const moonTex = new THREE.Texture();
+  moonTex.colorSpace = THREE.SRGBColorSpace;
+  const moonAt = { pic: null as Picture | null, up: false, gone: false };
+  progress?.(0.1);
   await turn('city:moon, tower');
   // lit by the REAL sun direction (even below the horizon), so its phase is tonight's; paler by day
   const moonMat = new THREE.ShaderMaterial({
@@ -279,6 +290,8 @@ export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warm
   });
   const moon = new THREE.Mesh(new THREE.SphereGeometry(16, 48, 32), moonMat);
   scene.add(moon);
+  // (without its picture there is no Moon tonight)
+  void moonPending.then(pic => { moonAt.pic = pic; }, () => { moon.visible = false; });
 
   // ---------- the tower at the end of the valley: the journey ends inside one of its windows ----------
   // the target window is lit with the same gradient as the DOM hand-off panel (.j-handoff) so the swap is invisible
@@ -332,7 +345,8 @@ export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warm
   bp.push(TX, TY + TH + 12.5, TZ);
 
   // ---------- the city ----------
-  const city = await buildCity(THREE, { pathX, pathGlsl: PATH_GLSL, riverEnd: RIVER_END, tower: { x: TX, z: TZ, top: TY + TH + 0.4 }, mobile, fog });
+  const city = await buildCity(THREE, { pathX, pathGlsl: PATH_GLSL, riverEnd: RIVER_END, tower: { x: TX, z: TZ, top: TY + TH + 0.4 }, mobile, fog }, helpers);
+  progress?.(0.17);
   city.objects.forEach(ob => { scene.add(ob); });
   await turn('city:lights');
 
@@ -544,6 +558,7 @@ export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warm
       composer.render();
     },
     dispose: () => {
+      moonAt.gone = true;
       [terrGeo, apronGeo, starGeo, beaconGeo, sky.geometry, moon.geometry, towerGeo, neonGeo].forEach(g => { g.dispose(); });
       [terrMat, apron.material, gridMat, skyMat, starMat, beaconMat, moonMat, neonMat, ...towerMats].forEach(m => { m.dispose(); });
       city.dispose();
@@ -556,6 +571,12 @@ export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warm
   // warm-up while the loader is up (warmup.ts), in a mid-descent pose: shaders compiled for the buffers they
   // really draw into, textures uploaded, each object drawn once into small buffers. Then the hidden frame at the
   // real viewport size, so the render targets are allocated before the city is ever on screen
+  const putMoon = () => {
+    if (!moonAt.pic || moonAt.up || moonAt.gone) return;
+    moonAt.up = true;
+    setPicture(moonTex, moonAt.pic);
+    uploadPicture(renderer, moonTex, moonAt.pic);
+  };
   await warmUp('city', renderer, scene, cam, {
     small: () => {
       renderer.setSize(96, 60, false);
@@ -565,7 +586,7 @@ export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warm
     },
     frame: () => { composer.render(); },
     uploads: [
-      () => { uploadPicture(renderer, moonTex, moonPic); },
+      putMoon,
       () => { [frontTex, sideTex, dotTex].forEach(tx => { renderer.initTexture(tx); }); },
     ],
     target: rt,
@@ -573,5 +594,7 @@ export async function createSurface(canvas: HTMLCanvasElement, warmW = 320, warm
     real: () => { view.setSize(warmW, warmH); view.render(performance.now(), 0.8, 0.5, 0, 0); },
   });
   t0 = -1;
+  // (the Moon's picture was not here in time for that: onto the card when it is, the next time the page holds still)
+  if (!moonAt.up) void moonPending.then(() => cardStep('city:moon', renderer, putMoon)).catch(() => undefined);
   return view;
 }
