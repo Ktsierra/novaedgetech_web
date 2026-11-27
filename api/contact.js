@@ -7,6 +7,59 @@ const FROM = "NovaEdge Website <contact@novaedgetechnology.com>";
 const LIMITS = { name: 100, email: 254, message: 5000 };
 const EMAIL_RE = /^[^\s@<>()[\]\\,;:"]+@[^\s@<>()[\]\\,;:"]+\.[^\s@<>()[\]\\,;:"]{2,}$/;
 
+// --- keeping bots out ---
+// Three layers, cheapest first:
+// 1. a trap field no person can see or reach: whatever fills it in is told "sent" and nothing is sent
+// 2. a message has to say something: the form spam so far was a bare number
+// 3. Cloudflare Turnstile, when this deployment has both of its keys: the page gets a token for the visitor and
+//    Cloudflare confirms it here
+const TURNSTILE_VERIFY = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
+const TOKEN_MAX = 2048;
+/** verification errors that are ours or Cloudflare's to fix: nothing the visitor did, so their message still goes out */
+const NOT_THE_VISITOR = new Set(["missing-input-secret", "invalid-input-secret", "internal-error"]);
+
+/**
+ * Both Turnstile keys of this deployment, or null. The check is on only with both: the site key is built into
+ * the page (so the form has a widget to get a token from) and the secret lets this function verify the token.
+ * With one missing, a visitor could never pass, so the check is skipped instead.
+ */
+export const turnstileKeys = (env = process.env) => {
+  const site = (env.VITE_TURNSTILE_SITE_KEY ?? "").trim(), secret = (env.TURNSTILE_SECRET_KEY ?? "").trim();
+  return site && secret ? { site, secret } : null;
+};
+
+/** digits (a phone number, a random number) and nothing in words */
+export const onlyNumbers = (message) => /\d/.test(message) && !/\p{L}/u.test(message);
+
+const visitorIp = (headers = {}) => String(headers["x-forwarded-for"] ?? headers["x-real-ip"] ?? "").split(",")[0].trim();
+
+/**
+ * Asks Cloudflare whether the token is good: "yes", "no", or "unknown" when the question could not be settled
+ * (Cloudflare did not answer, or it is our own key that is wrong).
+ */
+export async function isHuman(secret, token, ip) {
+  if (typeof token !== "string" || !token || token.length > TOKEN_MAX) return "no";
+  try {
+    const answer = await fetch(TURNSTILE_VERIFY, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ secret, response: token, ...(ip ? { remoteip: ip } : {}) }),
+      signal: AbortSignal.timeout(5000),
+    });
+    const result = await answer.json();
+    if (result?.success === true) return "yes";
+    const codes = Array.isArray(result?.["error-codes"]) ? result["error-codes"] : [];
+    if (codes.length > 0 && codes.every((code) => NOT_THE_VISITOR.has(code))) {
+      console.error("Turnstile could not verify (check TURNSTILE_SECRET_KEY):", codes.join(", "));
+      return "unknown";
+    }
+    return "no";
+  } catch (err) {
+    console.error("Turnstile did not answer:", err?.name ?? err);
+    return "unknown";
+  }
+}
+
 /** everything the visitor typed goes into the email as text, never as markup */
 export const escapeHtml = (s) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
@@ -25,7 +78,7 @@ const placeFrom = (headers = {}) => {
  * The enquiry email: table layout + inline styles (what Gmail / Outlook / Apple Mail all render), no images.
  * Every visitor-supplied value is escaped before it gets here.
  */
-export const enquiryHtml = ({ name, email, emailHref, message, preview, place, when }) => {
+export const enquiryHtml = ({ name, email, emailHref, message, preview, place, when, note = "" }) => {
   const row = (label, value) => `
           <tr>
             <td style="padding:10px 0;border-bottom:1px solid #e6ebf2;width:96px;vertical-align:top;font:600 11px/1.6 Arial,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:#7a8699">${label}</td>
@@ -47,7 +100,7 @@ export const enquiryHtml = ({ name, email, emailHref, message, preview, place, w
           <h1 style="margin:10px 0 0;font:700 22px/1.3 Arial,sans-serif;color:#0e1621">${name} wants to talk</h1>
         </td></tr>
         <tr><td style="padding:12px 28px 0">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${row("Name", name)}${row("Email", `<a href="mailto:${emailHref}" style="color:#0a7f94;text-decoration:none">${email}</a>`)}${place ? row("From", place) : ""}${row("Received", when)}
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${row("Name", name)}${row("Email", `<a href="mailto:${emailHref}" style="color:#0a7f94;text-decoration:none">${email}</a>`)}${place ? row("From", place) : ""}${row("Received", when)}${note ? row("Spam check", note) : ""}
           </table>
         </td></tr>
         <tr><td style="padding:22px 28px 0">
@@ -74,18 +127,43 @@ export default async function handler(req, res) {
   }
 
   const body = req.body ?? {};
+
+  // the trap field: told "sent" like anyone else, so whatever filled it in learns nothing
+  if (body.subject != null && String(body.subject).trim() !== "") {
+    console.warn("Contact form: dropped a submission that filled in the hidden field");
+    return res.status(200).json({ success: true });
+  }
+
   const name = typeof body.name === "string" ? oneLine(body.name) : "";
   const email = typeof body.email === "string" ? body.email.trim() : "";
   const message = typeof body.message === "string" ? body.message.trim() : "";
 
+  // (`code` tells the form which of its own lines to show)
   if (!name || name.length > LIMITS.name) {
-    return res.status(400).json({ error: `Name is required (up to ${LIMITS.name} characters)` });
+    return res.status(400).json({ error: `Name is required (up to ${LIMITS.name} characters)`, code: "name" });
   }
   if (email.length > LIMITS.email || !EMAIL_RE.test(email)) {
-    return res.status(400).json({ error: "A valid email is required" });
+    return res.status(400).json({ error: "A valid email is required", code: "email" });
   }
   if (!message || message.length > LIMITS.message) {
-    return res.status(400).json({ error: `Message is required (up to ${LIMITS.message} characters)` });
+    return res.status(400).json({ error: `Message is required (up to ${LIMITS.message} characters)`, code: "message" });
+  }
+  if (onlyNumbers(message)) {
+    return res.status(400).json({ error: "Tell us about the project in a few words, not only a number", code: "words" });
+  }
+
+  // a person can be turned away here (an expired check, a browser that blocks it), so the answer says so and the
+  // form points them to the email address and phone number below it
+  let note = "";
+  const keys = turnstileKeys();
+  if (keys) {
+    const human = await isHuman(keys.secret, body.token, visitorIp(req.headers));
+    if (human === "no") {
+      return res.status(403).json({ error: "We could not confirm this was sent by a person", code: "human" });
+    }
+    if (human === "unknown") note = "Not completed: the check could not be verified, so this message was let through unchecked.";
+  } else if (process.env.VITE_TURNSTILE_SITE_KEY || process.env.TURNSTILE_SECRET_KEY) {
+    console.warn("Turnstile needs both VITE_TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY: the check is off");
   }
 
   if (!process.env.RESEND_API_KEY) {
@@ -106,9 +184,9 @@ export default async function handler(req, res) {
       to: [CONTACT_TO],
       replyTo: email,
       subject: `New website enquiry from ${name}`,
-      text: `New website enquiry\n\nName: ${name}\nEmail: ${email}\n${place ? `From: ${place}\n` : ""}Received: ${when}\n\n${message}\n\nReply to this email to answer ${name} directly.\n`,
+      text: `New website enquiry\n\nName: ${name}\nEmail: ${email}\n${place ? `From: ${place}\n` : ""}Received: ${when}\n${note ? `Spam check: ${note}\n` : ""}\n${message}\n\nReply to this email to answer ${name} directly.\n`,
       // the link target is URI-encoded: a valid address can contain ?, & or #, which would otherwise end the recipient
-      html: enquiryHtml({ name: escapeHtml(name), email: escapeHtml(email), emailHref: escapeHtml(encodeURIComponent(email).replace(/%40/g, "@")), message: escapeHtml(message), preview: escapeHtml(message.slice(0, 120)), place: escapeHtml(place), when }),
+      html: enquiryHtml({ name: escapeHtml(name), email: escapeHtml(email), emailHref: escapeHtml(encodeURIComponent(email).replace(/%40/g, "@")), message: escapeHtml(message), preview: escapeHtml(message.slice(0, 120)), place: escapeHtml(place), when, note: escapeHtml(note) }),
     });
 
     if (error || !data?.id) {

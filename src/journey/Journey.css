@@ -576,7 +576,12 @@ body {
 }
 .j-field textarea { resize: none; line-height: 1.7; }
 .j-field input::placeholder, .j-field textarea::placeholder { color: rgba(237, 241, 255, 0.35); }
-.j-form-foot { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; gap: 14px; margin-top: 4px; }
+/* a field for scripts only (JourneyContact): off the page, out of the tab order, hidden from screen readers */
+.j-form-trap { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+.j-form-end { grid-column: 1 / -1; }
+/* the bot check's widget: it has no size until it needs the visitor to tick its box */
+.j-form-human--asking { margin-bottom: 12px; }
+.j-form-foot { display: flex; justify-content: space-between; align-items: center; gap: 14px; margin-top: 4px; }
 .j-form-status { font-size: 10px; letter-spacing: 0.1em; }
 .j-form-status--idle { color: rgba(237, 241, 255, 0.45); }
 .j-form-status--warn { color: #FFB35C; }
